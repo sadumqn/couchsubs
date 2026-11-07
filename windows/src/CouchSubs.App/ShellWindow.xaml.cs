@@ -24,9 +24,12 @@ public partial class ShellWindow : Window
         controller.PropertyChanged += OnChanged;
         // Bilgisayar uykudan uyanınca bağlantılar hemen yenilenir.
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
-        // F8 ve F9: ek bölgeleri bir kez okuyup çevirir (pencere arka plandayken de).
+        // Num 1, 2, 5, 8 kısayolları yalnız çeviri sürerken tutulur.
         SourceInitialized += (_, _) =>
-            hotkeys = new GlobalHotkeys(new WindowInteropHelper(this).Handle, slot => _ = controller.TranslateExtraRegionAsync(slot));
+        {
+            hotkeys = new GlobalHotkeys(new WindowInteropHelper(this).Handle, OnHotkey);
+            hotkeys.Enabled = controller.IsRunning;
+        };
         Closed += (_, _) =>
         {
             hotkeys?.Dispose();
@@ -39,6 +42,18 @@ public partial class ShellWindow : Window
     private void OnChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AppController.Step)) ShowScreen();
+        if (e.PropertyName == nameof(AppController.IsRunning) && hotkeys is not null) hotkeys.Enabled = controller.IsRunning;
+    }
+
+    private void OnHotkey(HotkeyAction action)
+    {
+        switch (action)
+        {
+            case HotkeyAction.ExtraRegion1: _ = controller.TranslateExtraRegionAsync(1); break;
+            case HotkeyAction.ExtraRegion2: _ = controller.TranslateExtraRegionAsync(2); break;
+            case HotkeyAction.Snapshot: controller.RequestSnapshot(); break;
+            case HotkeyAction.FreeArea: FreeAreaWindow.Open(controller); break;
+        }
     }
 
     private void ShowScreen(bool force = false)

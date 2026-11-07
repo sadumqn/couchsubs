@@ -25,7 +25,8 @@ public partial class SettingsWindow : Window
         this.controller = controller;
         InitializeComponent();
         var settings = controller.Settings;
-        (settings.Style.FontSize switch { 36 => Small, 58 => Large, 72 => ExtraLarge, _ => Medium }).IsChecked = true;
+        TextSize.Value = Math.Clamp(settings.Style.FontSize, TextSize.Minimum, TextSize.Maximum);
+        TextSizeValue.Text = ((int)TextSize.Value).ToString();
         Position.Value = settings.Style.BottomPercent;
         Placement.SelectedItem = Placement.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.Style.Placement.ToString());
         ShowPlacement(settings.Style.Placement);
@@ -35,8 +36,12 @@ public partial class SettingsWindow : Window
         foreach (var (code, name) in Languages.Where(l => controller.SupportsLanguage(l.Code)))
             GameLanguage.Items.Add(new ComboBoxItem { Content = Localizer.Current[name], Tag = code, IsSelected = code == settings.SourceLanguage });
         LanguageCard.Visibility = GameLanguage.Items.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        (settings.FreeAreaTarget switch { ResultTarget.Pc => FreePc, ResultTarget.Both => FreeBoth, _ => FreeTv }).IsChecked = true;
         Region.Frame = controller.LastFrame;
         ShowArea(0);
+        // Num 8: oyunun o anki görüntüsü önizlemeye alınır.
+        controller.SnapshotRequested += OnSnapshot;
+        Closed += (_, _) => controller.SnapshotRequested -= OnSnapshot;
         Dubbing.Attach(controller);
         loading = false;
     }
@@ -49,8 +54,25 @@ public partial class SettingsWindow : Window
         if (!loading) controller.Settings = change(controller.Settings);
     }
 
-    private void OnSize(object sender, RoutedEventArgs e) =>
-        Update(s => s with { Style = s.Style with { FontSize = int.Parse((string)((RadioButton)sender).Tag) } });
+    private void OnTextSize(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (loading) return;
+        var size = (int)Math.Round(e.NewValue);
+        TextSizeValue.Text = size.ToString();
+        Update(s => s with { Style = s.Style with { FontSize = size } });
+    }
+
+    private void OnFreeTarget(object sender, RoutedEventArgs e)
+    {
+        if (loading || sender is not RadioButton { Tag: string tag }) return;
+        var target = Enum.Parse<ResultTarget>(tag);
+        Update(s => s with { FreeAreaTarget = target });
+    }
+
+    /// <summary>Önizlemeyi oyunun şu anki görüntüsüyle yeniler (çerçeve olduğu gibi kalır).</summary>
+    private void OnRefresh(object sender, RoutedEventArgs e) => Region.Frame = controller.LastFrame;
+
+    private void OnSnapshot() => Dispatcher.Invoke(() => Region.Frame = controller.LastFrame);
 
     private void OnPosition(object sender, RoutedPropertyChangedEventArgs<double> e) =>
         Update(s => s with { Style = s.Style with { BottomPercent = (int)Math.Round(e.NewValue) } });
@@ -119,7 +141,7 @@ public partial class SettingsWindow : Window
             Region.IsEnabled = extra is not null;
             Region.DefaultRegion = ExtraDefaults[slot - 1];
             Region.ShowRegion(extra ?? ExtraDefaults[slot - 1]);
-            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press F8 (area 2) or F9 (area 3) to read and translate it once. It works even when CouchSubs is in the background."];
+            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press Num 1 (area 1) or Num 2 (area 2) to read and translate it once. It works even when CouchSubs is in the background."];
         }
         loading = wasLoading;
     }

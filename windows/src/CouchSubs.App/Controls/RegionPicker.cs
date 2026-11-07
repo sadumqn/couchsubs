@@ -31,6 +31,8 @@ public sealed class RegionPicker : UserControl
     private readonly Rectangle frameBox = new() { StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     private readonly Rectangle[] handles = [Handle(), Handle(), Handle(), Handle()];
     private CropRegion region = new();
+    /// <summary>Görüntünün en/boy oranı; önizleme genişliğe göre bu oranla boy alır (pencere büyüdükçe büyür).</summary>
+    private double aspect = 16.0 / 9;
     private Drag drag = Drag.None;
     private Edges dragEdges;
     private Point anchor;
@@ -47,6 +49,7 @@ public sealed class RegionPicker : UserControl
         frameBox.Fill = new SolidColorBrush(Color.FromArgb(36, 245, 184, 61));
         foreach (var handle in handles) handle.SetResourceReference(Shape.FillProperty, "accentBrush");
         preview.SizeChanged += (_, _) => Layout();
+        SizeChanged += (_, _) => FitHeight();
         preview.MouseLeftButtonDown += OnDown;
         preview.MouseMove += OnMove;
         preview.MouseLeftButtonUp += OnUp;
@@ -97,6 +100,8 @@ public sealed class RegionPicker : UserControl
         set
         {
             preview.Children.Clear();
+            aspect = value is { Height: > 0 } ? (double)value.Width / value.Height : 16.0 / 9;
+            FitHeight();
             if (value is null)
             {
                 preview.Children.Add(new TextBlock
@@ -223,6 +228,14 @@ public sealed class RegionPicker : UserControl
         Edges.Right | Edges.Top or Edges.Left | Edges.Bottom => Cursors.SizeNESW,
         _ => inside ? Cursors.SizeAll : Cursors.Cross,
     };
+
+    /// <summary>Önizlemenin boyu, genişliğe ve görüntünün oranına göre ayarlanır.</summary>
+    private void FitHeight()
+    {
+        if (ActualWidth <= 0) return;
+        var height = Math.Max(120, ActualWidth / aspect);
+        if (Math.Abs(preview.Height - height) > 0.5) preview.Height = height;
+    }
 
     private void Layout()
     {

@@ -62,4 +62,38 @@ public class ExtraRegionTests
         Assert.Equal(ExtraRegionOutcome.NoText, await controller.TranslateExtraRegionAsync(1));
         controller.Stop();
     }
+
+    [Fact]
+    public void FreeAreaResultShowsOnTheTvByDefault() =>
+        Assert.Equal(ResultTarget.Tv, new UserSettings().FreeAreaTarget);
+
+    [Fact]
+    public async Task FreeAreaDoesNothingWhileTranslationIsStopped()
+    {
+        var (controller, _) = Ready();
+        var (outcome, result) = await controller.TranslateAreaAsync(Frame.Blank(64, 64), new CropRegion());
+        Assert.Equal(ExtraRegionOutcome.NotRunning, outcome);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FreeAreaWithoutTextReportsNoText()
+    {
+        var (controller, _) = Ready();
+        await controller.StartAsync();
+        var (outcome, result) = await controller.TranslateAreaAsync(Frame.Blank(64, 64), new CropRegion(0.2, 0.4, 0.2, 0.4));
+        Assert.Equal(ExtraRegionOutcome.NoText, outcome);
+        Assert.Null(result);
+        controller.Stop();
+    }
+
+    [Fact]
+    public void SnapshotRequestReachesListeners()
+    {
+        var (controller, _) = Ready();
+        var raised = 0;
+        controller.SnapshotRequested += () => raised++;
+        controller.RequestSnapshot();
+        Assert.Equal(1, raised);
+    }
 }

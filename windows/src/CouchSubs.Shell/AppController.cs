@@ -504,6 +504,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         server.SendSubtitle(text["This is a test subtitle. Can you see it on top of the game?"], 8000, box);
     }
 
+    /// <summary>Num 8: ayar ekranı, oyunun şu anki görüntüsünü yeniden alsın.</summary>
+    public event Action? SnapshotRequested;
+
+    public void RequestSnapshot() => SnapshotRequested?.Invoke();
+
     /// <summary>
     /// 1 ya da 2 numaralı ek bölgeyi şimdi bir kez okuyup çevirir ve TV'de gösterir (görev paneli gibi yazılar için).
     /// Çeviri sürmüyorsa, bölge kapalıysa ya da önceki istek bitmediyse hiçbir şey yapılmaz.
@@ -511,11 +516,23 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public async Task<ExtraRegionOutcome> TranslateExtraRegionAsync(int slot)
     {
         if (settings.ExtraRegion(slot) is not { } region) return ExtraRegionOutcome.NotConfigured;
-        var frame = lastFrame;
+        if (lastFrame is not { } frame) return ExtraRegionOutcome.NotRunning;
+        return (await RunRegionAsync(frame, region, true)).Outcome;
+    }
+
+    /// <summary>
+    /// Serbest alan (Num 5): verilen karedeki alanı bir kez okuyup çevirir. Sonuç, ayardaki hedefe göre TV'ye de gönderilir;
+    /// bilgisayarda gösterilmek üzere her durumda döner.
+    /// </summary>
+    public Task<(ExtraRegionOutcome Outcome, RegionTranslation.Result? Result)> TranslateAreaAsync(Frame frame, CropRegion region) =>
+        RunRegionAsync(frame, region, settings.FreeAreaTarget != ResultTarget.Pc);
+
+    private async Task<(ExtraRegionOutcome Outcome, RegionTranslation.Result? Result)> RunRegionAsync(Frame frame, CropRegion region, bool toTv)
+    {
         var reader = activeReader;
-        if (!isRunning || frame is null || reader is null) return ExtraRegionOutcome.NotRunning;
+        if (!isRunning || reader is null) return (ExtraRegionOutcome.NotRunning, null);
         // Tuşa üst üste basılınca ikinci bir okuma başlamaz.
-        if (Interlocked.Exchange(ref extraBusy, 1) == 1) return ExtraRegionOutcome.Busy;
+        if (Interlocked.Exchange(ref extraBusy, 1) == 1) return (ExtraRegionOutcome.Busy, null);
         try
         {
             RegionTranslation.Result? result;
@@ -526,26 +543,32 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             catch (TranslatorException error)
             {
                 post(() => TranslatorStatus = error.Status);
-                return ExtraRegionOutcome.TranslatorUnavailable;
+                return (ExtraRegionOutcome.TranslatorUnavailable, null);
             }
             catch
             {
-                return ExtraRegionOutcome.Failed;
+                return (ExtraRegionOutcome.Failed, null);
             }
-            server.SendStyle(settings.Style);
             if (result is null)
             {
-                var whole = new TextBox(region.Left, region.Top, region.Right, region.Bottom);
-                server.SendSubtitle(text["No text found in this area."], 2500, whole);
-                return ExtraRegionOutcome.NoText;
+                if (toTv)
+                {
+                    server.SendStyle(settings.Style);
+                    server.SendSubtitle(text["No text found in this area."], 2500, new TextBox(region.Left, region.Top, region.Right, region.Bottom));
+                }
+                return (ExtraRegionOutcome.NoText, null);
             }
-            server.SendSubtitle(result.Translation, RegionTranslation.DisplayMilliseconds(result.Translation), result.Box);
+            if (toTv)
+            {
+                server.SendStyle(settings.Style);
+                server.SendSubtitle(result.Translation, RegionTranslation.DisplayMilliseconds(result.Translation), result.Box);
+            }
             post(() =>
             {
                 LastSource = result.Source;
                 LastTranslation = result.Translation;
             });
-            return ExtraRegionOutcome.Shown;
+            return (ExtraRegionOutcome.Shown, result);
         }
         finally
         {

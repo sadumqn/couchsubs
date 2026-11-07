@@ -6,26 +6,33 @@
         xmlns:s="clr-namespace:CouchSubs.App.Views.Steps"
         xmlns:t="clr-namespace:CouchSubs.App.Theme"
         xmlns:local="clr-namespace:CouchSubs.App.Views"
-        Title="{t:T 'Settings'}" Width="600" Height="720" ResizeMode="NoResize" ShowInTaskbar="False"
+        Title="{t:T 'Settings'}" Width="780" Height="880" MinWidth="560" MinHeight="480" ResizeMode="CanResize" ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource backgroundBrush}" Foreground="{DynamicResource textPrimaryBrush}">
     <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="{t:T 'Settings'}" Style="{StaticResource TitleText}" Margin="32,24,32,12" />
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource surfaceBrush}" BorderBrush="{DynamicResource borderBrush}" BorderThickness="0,1,0,0" Padding="32,16">
             <Button Content="{t:T 'Done'}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" IsDefault="True" IsCancel="True" Click="OnDone" />
         </Border>
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Visible">
             <StackPanel Margin="32,0,32,24">
                 <c:Card Title="{t:T 'On the TV'}">
                     <StackPanel>
                         <TextBlock Text="{t:T 'Text size'}" Margin="0,0,0,8" />
-                        <Border Style="{StaticResource SegmentGroup}" Margin="0,0,0,16">
-                            <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="Small" Content="{t:T 'Small'}" GroupName="size" Style="{StaticResource SegmentButton}" Checked="OnSize" Tag="36" />
-                                <RadioButton x:Name="Medium" Content="{t:T 'Medium'}" GroupName="size" Style="{StaticResource SegmentButton}" Checked="OnSize" Tag="46" />
-                                <RadioButton x:Name="Large" Content="{t:T 'Large'}" GroupName="size" Style="{StaticResource SegmentButton}" Checked="OnSize" Tag="58" />
-                                <RadioButton x:Name="ExtraLarge" Content="{t:T 'Extra large'}" GroupName="size" Style="{StaticResource SegmentButton}" Checked="OnSize" Tag="72" />
-                            </StackPanel>
-                        </Border>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="40" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{t:T 'Small'}" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                            <!-- Sürüklerken TV'de örnek altyazı görünür; boyut doğrudan ekranda ayarlanır. -->
+                            <Slider x:Name="TextSize" Grid.Column="1" Minimum="16" Maximum="90" SmallChange="1" LargeChange="4" TickFrequency="1"
+                                    IsSnapToTickEnabled="True" Margin="12,0" IsMoveToPointEnabled="True"
+                                    ValueChanged="OnTextSize" PreviewMouseDown="OnPositionStart" />
+                            <TextBlock Grid.Column="2" Text="{t:T 'Large'}" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="TextSizeValue" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
                         <TextBlock Text="{t:T 'Placement'}" Margin="0,0,0,8" />
                         <ComboBox x:Name="Placement" SelectionChanged="OnPlacement" Margin="0,0,0,8">
                             <ComboBoxItem Content="{t:T 'Over the English subtitle'}" Tag="Cover" />
@@ -84,14 +91,32 @@
                         <Border Style="{StaticResource SegmentGroup}" Margin="0,0,0,12" HorizontalAlignment="Left">
                             <StackPanel Orientation="Horizontal">
                                 <RadioButton Content="{t:T 'Subtitles'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="0" IsChecked="True" />
-                                <RadioButton Content="{t:T 'Area 2 (F8)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="1" />
-                                <RadioButton Content="{t:T 'Area 3 (F9)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="2" />
+                                <RadioButton Content="{t:T 'Area 1 (Num 1)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="1" />
+                                <RadioButton Content="{t:T 'Area 2 (Num 2)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="2" />
                             </StackPanel>
                         </Border>
                         <CheckBox x:Name="UseArea" Content="{t:T 'Use this area'}" Foreground="{DynamicResource textPrimaryBrush}" Margin="0,0,0,12"
                                   Visibility="Collapsed" Checked="OnUseArea" Unchecked="OnUseArea" />
                         <c:RegionPicker x:Name="Region" RegionChanged="OnRegion" />
+                        <Button Content="{t:T 'Refresh picture (Num 8)'}" Click="OnRefresh" HorizontalAlignment="Left" Margin="0,12,0,0" />
                         <TextBlock x:Name="AreaHint" Style="{StaticResource HintText}" Margin="0,12,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </c:Card>
+
+                <c:Card Title="{t:T 'Free area (Num 5)'}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,12"
+                                   Text="{t:T 'Press Num 5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes.'}" />
+                        <TextBlock Text="{t:T 'Show the result'}" Margin="0,0,0,8" />
+                        <Border Style="{StaticResource SegmentGroup}" Margin="0,0,0,12" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="FreeTv" Content="{t:T 'On the TV'}" GroupName="freeTarget" Style="{StaticResource SegmentButton}" Checked="OnFreeTarget" Tag="Tv" />
+                                <RadioButton x:Name="FreePc" Content="{t:T 'On the PC'}" GroupName="freeTarget" Style="{StaticResource SegmentButton}" Checked="OnFreeTarget" Tag="Pc" />
+                                <RadioButton x:Name="FreeBoth" Content="{t:T 'On both'}" GroupName="freeTarget" Style="{StaticResource SegmentButton}" Checked="OnFreeTarget" Tag="Both" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap"
+                                   Text="{t:T 'The Num shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on.'}" />
                     </StackPanel>
                 </c:Card>
 

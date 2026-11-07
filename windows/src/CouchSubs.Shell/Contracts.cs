@@ -23,10 +23,12 @@ public static class StoreKeys
 public sealed record UserSettings
 {
     public CropRegion Region { get; init; } = new();
-    /// <summary>Ek bölge 1 (ör. sağ üstteki görev paneli); null ise kapalı. F8 tuşuyla bir kez okunup çevrilir.</summary>
+    /// <summary>Ek bölge 1 (ör. sağ üstteki görev paneli); null ise kapalı. Num 1 tuşuyla bir kez okunup çevrilir.</summary>
     public CropRegion? ExtraRegion1 { get; init; }
-    /// <summary>Ek bölge 2 (ör. sağ alttaki bilgi kutusu); null ise kapalı. F9 tuşuyla bir kez okunup çevrilir.</summary>
+    /// <summary>Ek bölge 2 (ör. sağ alttaki bilgi kutusu); null ise kapalı. Num 2 tuşuyla bir kez okunup çevrilir.</summary>
     public CropRegion? ExtraRegion2 { get; init; }
+    /// <summary>Serbest alan çevirisinin (Num 5) sonucu nerede gösterilir.</summary>
+    public ResultTarget FreeAreaTarget { get; init; } = ResultTarget.Tv;
     public SubtitleStyle Style { get; init; } = new();
     public string SourceLanguage { get; init; } = "en";
     public string TargetLanguage { get; init; } = "tr";
@@ -45,6 +47,9 @@ public sealed record UserSettings
         _ => this,
     };
 }
+
+/// <summary>Tek seferlik çevirinin sonucunun gösterileceği yer.</summary>
+public enum ResultTarget { Tv, Pc, Both }
 
 /// <summary>Hesap kimliği, PS5 ve TV anahtarları (gerçekte DPAPI ile şifreli dosya).</summary>
 public interface IAppStore

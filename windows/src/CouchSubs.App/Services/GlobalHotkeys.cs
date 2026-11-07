@@ -5,17 +5,38 @@ using System.Windows.Interop;
 
 namespace CouchSubs.App.Services;
 
+/// <summary>Genel kısayolların yaptığı iş.</summary>
+public enum HotkeyAction
+{
+    /// <summary>Num 1: 1. ek bölgeyi bir kez çevir.</summary>
+    ExtraRegion1,
+    /// <summary>Num 2: 2. ek bölgeyi bir kez çevir.</summary>
+    ExtraRegion2,
+    /// <summary>Num 5: görüntüyü dondurup serbest alan seçtir.</summary>
+    FreeArea,
+    /// <summary>Num 8: ayar ekranındaki görüntüyü oyunun şu anki görüntüsüyle yenile.</summary>
+    Snapshot,
+}
+
 /// <summary>
-/// Ek bölgeler için genel kısayollar: F8 → 1. ek bölge, F9 → 2. ek bölge. Kullanıcı kumandayla oynarken
-/// bilgisayardaki pencere arka planda olsa da çalışır. Tuş başka bir uygulamada kullanılıyorsa sessizce atlanır.
+/// Genel kısayollar (Num 1, 2, 5, 8): kullanıcı kumandayla oynarken bilgisayardaki pencere arka planda olsa da çalışır.
+/// Kısayollar yalnız <see cref="Enabled"/> iken tutulur; böylece çeviri kapalıyken sayı tuşları diğer uygulamalarda
+/// (Excel gibi) normal çalışır. Tuş başka bir uygulamada kullanılıyorsa sessizce atlanır.
 /// </summary>
 public sealed partial class GlobalHotkeys : IDisposable
 {
     private const int WmHotkey = 0x0312;
     private const uint ModNoRepeat = 0x4000;
-    /// <summary>Kısayol kimlikleri bu sayıdan başlar; ek bölge numarası = kimlik − FirstId + 1.</summary>
     private const int FirstId = 0x4353;
-    private static readonly uint[] VirtualKeys = [0x77, 0x78];
+
+    /// <summary>Num 1, Num 2, Num 5, Num 8 (NumLock açıkken).</summary>
+    private static readonly (HotkeyAction Action, uint VirtualKey)[] Keys =
+    [
+        (HotkeyAction.ExtraRegion1, 0x61),
+        (HotkeyAction.ExtraRegion2, 0x62),
+        (HotkeyAction.FreeArea, 0x65),
+        (HotkeyAction.Snapshot, 0x68),
+    ];
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -27,23 +48,46 @@ public sealed partial class GlobalHotkeys : IDisposable
 
     private readonly IntPtr window;
     private readonly HwndSource? source;
-    private readonly Action<int> pressed;
+    private readonly Action<HotkeyAction> pressed;
     private readonly List<int> registered = [];
+    private bool enabled;
 
     /// <param name="window">Pencerenin tutamağı (HWND).</param>
-    /// <param name="pressed">Kısayola basılınca ek bölge numarasıyla (1 ya da 2) çağrılır.</param>
-    public GlobalHotkeys(IntPtr window, Action<int> pressed)
+    /// <param name="pressed">Kısayola basılınca çağrılır.</param>
+    public GlobalHotkeys(IntPtr window, Action<HotkeyAction> pressed)
     {
         this.window = window;
         this.pressed = pressed;
         source = HwndSource.FromHwnd(window);
-        if (source is null) return;
-        source.AddHook(Hook);
-        for (var index = 0; index < VirtualKeys.Length; index++)
+        source?.AddHook(Hook);
+    }
+
+    /// <summary>Kısayollar tutuluyor mu.</summary>
+    public bool Enabled
+    {
+        get => enabled;
+        set
+        {
+            if (value == enabled || source is null) return;
+            enabled = value;
+            if (value) Register();
+            else Unregister();
+        }
+    }
+
+    private void Register()
+    {
+        for (var index = 0; index < Keys.Length; index++)
         {
             var id = FirstId + index;
-            if (RegisterHotKey(window, id, ModNoRepeat, VirtualKeys[index])) registered.Add(id);
+            if (RegisterHotKey(window, id, ModNoRepeat, Keys[index].VirtualKey)) registered.Add(id);
         }
+    }
+
+    private void Unregister()
+    {
+        foreach (var id in registered) UnregisterHotKey(window, id);
+        registered.Clear();
     }
 
     private IntPtr Hook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -52,14 +96,14 @@ public sealed partial class GlobalHotkeys : IDisposable
         var id = wParam.ToInt32();
         if (!registered.Contains(id)) return IntPtr.Zero;
         handled = true;
-        pressed(id - FirstId + 1);
+        pressed(Keys[id - FirstId].Action);
         return IntPtr.Zero;
     }
 
     public void Dispose()
     {
         source?.RemoveHook(Hook);
-        foreach (var id in registered) UnregisterHotKey(window, id);
-        registered.Clear();
+        Unregister();
+        enabled = false;
     }
 }

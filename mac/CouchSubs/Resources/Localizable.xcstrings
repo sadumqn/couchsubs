@@ -353,34 +353,34 @@
         }
       }
     },
-    "Area 2 (F8)": {
+    "Area 1 (Num 1)": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Area 2 (F8)"
+            "value": "Area 1 (Num 1)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bölge 2 (F8)"
+            "value": "Bölge 1 (Num 1)"
           }
         }
       }
     },
-    "Area 3 (F9)": {
+    "Area 2 (Num 2)": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Area 3 (F9)"
+            "value": "Area 2 (Num 2)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bölge 3 (F9)"
+            "value": "Bölge 2 (Num 2)"
           }
         }
       }
@@ -785,6 +785,22 @@
         }
       }
     },
+    "Could not translate this area.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not translate this area."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu alan çevrilemedi."
+          }
+        }
+      }
+    },
     "Create a free account at playstation.com with a different email address.": {
       "localizations": {
         "en": {
@@ -993,18 +1009,34 @@
         }
       }
     },
-    "Draw the area to translate, for example a quest panel. While you play, press F8 (area 2) or F9 (area 3) to read and translate it once. It works even when CouchSubs is in the background.": {
+    "Drag over the text you want to translate. Esc or right-click closes.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Draw the area to translate, for example a quest panel. While you play, press F8 (area 2) or F9 (area 3) to read and translate it once. It works even when CouchSubs is in the background."
+            "value": "Drag over the text you want to translate. Esc or right-click closes."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken F8 (bölge 2) ya da F9 (bölge 3) tuşuna basınca bu alan bir kez okunup çevrilir. CouchSubs arka plandayken de çalışır."
+            "value": "Çevirmek istediğiniz yazının üstünü fareyle sürükleyin. Esc ya da sağ tık kapatır."
+          }
+        }
+      }
+    },
+    "Draw the area to translate, for example a quest panel. While you play, press Num 1 (area 1) or Num 2 (area 2) to read and translate it once. It works even when CouchSubs is in the background.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw the area to translate, for example a quest panel. While you play, press Num 1 (area 1) or Num 2 (area 2) to read and translate it once. It works even when CouchSubs is in the background."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken Num 1 (bölge 1) ya da Num 2 (bölge 2) tuşuna basınca bu alan bir kez okunup çevrilir. CouchSubs arka plandayken de çalışır."
           }
         }
       }
@@ -1069,6 +1101,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "GNU AGPL-3.0 lisansıyla ücretsiz ve açık kaynak."
+          }
+        }
+      }
+    },
+    "Free area (Num 5)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free area (Num 5)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serbest alan (Num 5)"
           }
         }
       }
@@ -1649,6 +1697,38 @@
         }
       }
     },
+    "On both": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On both"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İkisinde de"
+          }
+        }
+      }
+    },
+    "On the PC": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the PC"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilgisayarda"
+          }
+        }
+      }
+    },
     "On the PS5, choose Add User and sign in once with the new account.": {
       "localizations": {
         "en": {
@@ -1905,6 +1985,22 @@
         }
       }
     },
+    "Press Num 5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press Num 5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynarken Num 5'e basın: görüntü bilgisayarda donar, çevirmek istediğiniz yeri fareyle seçin, o kısım bir kez çevrilir. Esc kapatır."
+          }
+        }
+      }
+    },
     "Reconnecting…": {
       "localizations": {
         "en": {
@@ -1917,6 +2013,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yeniden bağlanıyor…"
+          }
+        }
+      }
+    },
+    "Refresh picture (Num 8)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh picture (Num 8)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görüntüyü yenile (Num 8)"
           }
         }
       }
@@ -2157,6 +2269,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ayarlar"
+          }
+        }
+      }
+    },
+    "Show the result": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the result"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonucu göster"
           }
         }
       }
@@ -2525,6 +2653,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@–%@ dil paketi henüz indirilmedi."
+          }
+        }
+      }
+    },
+    "The Num shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Num shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Num kısayolları yalnız çeviri açıkken çalışır; böylece sayı tuşları diğer uygulamalarda serbest kalır. Num Lock açık olmalı."
           }
         }
       }
@@ -2989,6 +3133,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Üst"
+          }
+        }
+      }
+    },
+    "Translating…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translating…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çevriliyor…"
           }
         }
       }
