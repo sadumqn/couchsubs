@@ -59,6 +59,9 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private IStreamSession? session;
     private IKeeper? keeper;
     private SubtitlePipeline? pipeline;
+    /// <summary>Hattın yazı okuyucusu; ek bölgelerin tek seferlik okuması da bunu kullanır.</summary>
+    private ITextReader? activeReader;
+    private int extraBusy;
     /// <summary>Oyundaki altyazının son görüldüğü yer; deneme altyazısı TV'de oraya yerleşir.</summary>
     private TextBox? lastSubtitleBox;
     private int processing;
@@ -501,6 +504,55 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         server.SendSubtitle(text["This is a test subtitle. Can you see it on top of the game?"], 8000, box);
     }
 
+    /// <summary>
+    /// 1 ya da 2 numaralı ek bölgeyi şimdi bir kez okuyup çevirir ve TV'de gösterir (görev paneli gibi yazılar için).
+    /// Çeviri sürmüyorsa, bölge kapalıysa ya da önceki istek bitmediyse hiçbir şey yapılmaz.
+    /// </summary>
+    public async Task<ExtraRegionOutcome> TranslateExtraRegionAsync(int slot)
+    {
+        if (settings.ExtraRegion(slot) is not { } region) return ExtraRegionOutcome.NotConfigured;
+        var frame = lastFrame;
+        var reader = activeReader;
+        if (!isRunning || frame is null || reader is null) return ExtraRegionOutcome.NotRunning;
+        // Tuşa üst üste basılınca ikinci bir okuma başlamaz.
+        if (Interlocked.Exchange(ref extraBusy, 1) == 1) return ExtraRegionOutcome.Busy;
+        try
+        {
+            RegionTranslation.Result? result;
+            try
+            {
+                result = await RegionTranslation.TranslateOnceAsync(frame, region, reader, MakeTranslator());
+            }
+            catch (TranslatorException error)
+            {
+                post(() => TranslatorStatus = error.Status);
+                return ExtraRegionOutcome.TranslatorUnavailable;
+            }
+            catch
+            {
+                return ExtraRegionOutcome.Failed;
+            }
+            server.SendStyle(settings.Style);
+            if (result is null)
+            {
+                var whole = new TextBox(region.Left, region.Top, region.Right, region.Bottom);
+                server.SendSubtitle(text["No text found in this area."], 2500, whole);
+                return ExtraRegionOutcome.NoText;
+            }
+            server.SendSubtitle(result.Translation, RegionTranslation.DisplayMilliseconds(result.Translation), result.Box);
+            post(() =>
+            {
+                LastSource = result.Source;
+                LastTranslation = result.Translation;
+            });
+            return ExtraRegionOutcome.Shown;
+        }
+        finally
+        {
+            Volatile.Write(ref extraBusy, 0);
+        }
+    }
+
     /// <summary>Kurulumu baştan başlatır (kayıtlı her şeyi siler).</summary>
     public void ResetSetup()
     {
@@ -562,6 +614,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         keeper = null;
         pipeline?.Reset();
         pipeline = null;
+        activeReader = null;
         ActiveSourceLanguage = null;
         StopDubber();
         if (isRunning) sleep.End();
@@ -617,6 +670,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         pipeline = null;
         ActiveSourceLanguage = settings.SourceLanguage;
         var reader = services.MakeReader(settings.SourceLanguage);
+        activeReader = reader;
         OcrMissing = reader is null;
         if (reader is null) return;
         var built = new SubtitlePipeline(reader, MakeTranslator(), server, new ReadScheduler());
@@ -895,3 +949,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         public void Report(double value) => report(value);
     }
 }
+
+/// <summary>Ek bölgenin tek seferlik çevirisinin sonucu.</summary>
+public enum ExtraRegionOutcome { Shown, NoText, NotConfigured, NotRunning, Busy, TranslatorUnavailable, Failed }

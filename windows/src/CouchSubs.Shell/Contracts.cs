@@ -23,10 +23,27 @@ public static class StoreKeys
 public sealed record UserSettings
 {
     public CropRegion Region { get; init; } = new();
+    /// <summary>Ek bölge 1 (ör. sağ üstteki görev paneli); null ise kapalı. F8 tuşuyla bir kez okunup çevrilir.</summary>
+    public CropRegion? ExtraRegion1 { get; init; }
+    /// <summary>Ek bölge 2 (ör. sağ alttaki bilgi kutusu); null ise kapalı. F9 tuşuyla bir kez okunup çevrilir.</summary>
+    public CropRegion? ExtraRegion2 { get; init; }
     public SubtitleStyle Style { get; init; } = new();
     public string SourceLanguage { get; init; } = "en";
     public string TargetLanguage { get; init; } = "tr";
     public DubbingSettings Dubbing { get; init; } = new();
+
+    /// <summary>Ek bölgenin sayısı; <see cref="ExtraRegion"/> 1..ExtraRegionCount arasında çalışır.</summary>
+    public const int ExtraRegionCount = 2;
+
+    /// <summary>1 ya da 2 numaralı ek bölge; kapalıysa null.</summary>
+    public CropRegion? ExtraRegion(int slot) => slot switch { 1 => ExtraRegion1, 2 => ExtraRegion2, _ => null };
+
+    public UserSettings WithExtraRegion(int slot, CropRegion? region) => slot switch
+    {
+        1 => this with { ExtraRegion1 = region },
+        2 => this with { ExtraRegion2 = region },
+        _ => this,
+    };
 }
 
 /// <summary>Hesap kimliği, PS5 ve TV anahtarları (gerçekte DPAPI ile şifreli dosya).</summary>

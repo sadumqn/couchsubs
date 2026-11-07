@@ -2,6 +2,8 @@
 
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Interop;
+using CouchSubs.App.Services;
 using CouchSubs.App.Views;
 using CouchSubs.Shell;
 using Microsoft.Win32;
@@ -13,6 +15,7 @@ public partial class ShellWindow : Window
 {
     private readonly AppController controller;
     private bool showingMain;
+    private GlobalHotkeys? hotkeys;
 
     public ShellWindow(AppController controller)
     {
@@ -21,8 +24,12 @@ public partial class ShellWindow : Window
         controller.PropertyChanged += OnChanged;
         // Bilgisayar uykudan uyanınca bağlantılar hemen yenilenir.
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        // F8 ve F9: ek bölgeleri bir kez okuyup çevirir (pencere arka plandayken de).
+        SourceInitialized += (_, _) =>
+            hotkeys = new GlobalHotkeys(new WindowInteropHelper(this).Handle, slot => _ = controller.TranslateExtraRegionAsync(slot));
         Closed += (_, _) =>
         {
+            hotkeys?.Dispose();
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
             controller.Dispose();
         };

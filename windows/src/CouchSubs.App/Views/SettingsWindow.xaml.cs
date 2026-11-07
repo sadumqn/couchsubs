@@ -12,8 +12,13 @@ public partial class SettingsWindow : Window
     private static readonly (string Code, string Name)[] Languages =
         [("en", "English"), ("ja", "Japanese"), ("de", "German"), ("fr", "French"), ("es", "Spanish")];
 
+    /// <summary>Ek bölgeler ilk açıldığında (sağ üst köşe ve sağ alt köşe) bu alanlarla başlar.</summary>
+    private static readonly CropRegion[] ExtraDefaults = [new(0.05, 0.28, 0.60, 0.97), new(0.72, 0.95, 0.60, 0.97)];
+
     private readonly AppController controller;
     private bool loading = true;
+    /// <summary>Çerçevesi düzenlenen bölge: 0 altyazı, 1 ve 2 ek bölgeler.</summary>
+    private int area;
 
     internal SettingsWindow(AppController controller)
     {
@@ -30,8 +35,8 @@ public partial class SettingsWindow : Window
         foreach (var (code, name) in Languages.Where(l => controller.SupportsLanguage(l.Code)))
             GameLanguage.Items.Add(new ComboBoxItem { Content = Localizer.Current[name], Tag = code, IsSelected = code == settings.SourceLanguage });
         LanguageCard.Visibility = GameLanguage.Items.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
-        Region.Region = settings.Region;
         Region.Frame = controller.LastFrame;
+        ShowArea(0);
         Dubbing.Attach(controller);
         loading = false;
     }
@@ -79,7 +84,55 @@ public partial class SettingsWindow : Window
         if (GameLanguage.SelectedItem is ComboBoxItem { Tag: string code }) Update(s => s with { SourceLanguage = code });
     }
 
-    private void OnRegion(object? sender, CropRegion region) => Update(s => s with { Region = region });
+    private void OnRegion(object? sender, CropRegion region)
+    {
+        var slot = area;
+        Update(s => slot == 0 ? s with { Region = region } : s.WithExtraRegion(slot, region));
+    }
+
+    private void OnArea(object sender, RoutedEventArgs e)
+    {
+        if (!loading && sender is RadioButton { Tag: string tag }) ShowArea(int.Parse(tag));
+    }
+
+    /// <summary>Seçilen bölgenin çerçevesini gösterir; ek bölge kapalıysa çerçeve düzenlenemez.</summary>
+    private void ShowArea(int slot)
+    {
+        area = slot;
+        var wasLoading = loading;
+        loading = true;
+        var text = Localizer.Current;
+        var settings = controller.Settings;
+        if (slot == 0)
+        {
+            UseArea.Visibility = Visibility.Collapsed;
+            Region.IsEnabled = true;
+            Region.DefaultRegion = new CropRegion();
+            Region.ShowRegion(settings.Region);
+            AreaHint.Text = text["Drag on the picture to draw the area where the game shows its subtitles. Drag the edges to resize it, or the inside to move it."];
+        }
+        else
+        {
+            var extra = settings.ExtraRegion(slot);
+            UseArea.Visibility = Visibility.Visible;
+            UseArea.IsChecked = extra is not null;
+            Region.IsEnabled = extra is not null;
+            Region.DefaultRegion = ExtraDefaults[slot - 1];
+            Region.ShowRegion(extra ?? ExtraDefaults[slot - 1]);
+            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press F8 (area 2) or F9 (area 3) to read and translate it once. It works even when CouchSubs is in the background."];
+        }
+        loading = wasLoading;
+    }
+
+    private void OnUseArea(object sender, RoutedEventArgs e)
+    {
+        if (loading || area == 0) return;
+        var on = UseArea.IsChecked == true;
+        Region.IsEnabled = on;
+        var slot = area;
+        var region = Region.Region;
+        Update(s => s.WithExtraRegion(slot, on ? region : null));
+    }
 
     private void OnTest(object sender, RoutedEventArgs e) => controller.SendTestSubtitle();
 

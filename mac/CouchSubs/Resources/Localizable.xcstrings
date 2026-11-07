@@ -353,6 +353,38 @@
         }
       }
     },
+    "Area 2 (F8)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Area 2 (F8)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bölge 2 (F8)"
+          }
+        }
+      }
+    },
+    "Area 3 (F9)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Area 3 (F9)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bölge 3 (F9)"
+          }
+        }
+      }
+    },
     "Back": {
       "localizations": {
         "en": {
@@ -945,6 +977,38 @@
         }
       }
     },
+    "Drag on the picture to draw the area where the game shows its subtitles. Drag the edges to resize it, or the inside to move it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag on the picture to draw the area where the game shows its subtitles. Drag the edges to resize it, or the inside to move it."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oyunun altyazıyı gösterdiği alanı, görüntünün üzerinde fareyi sürükleyerek çizin. Kenarlarından tutup boyutunu, içinden tutup yerini değiştirebilirsiniz."
+          }
+        }
+      }
+    },
+    "Draw the area to translate, for example a quest panel. While you play, press F8 (area 2) or F9 (area 3) to read and translate it once. It works even when CouchSubs is in the background.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw the area to translate, for example a quest panel. While you play, press F8 (area 2) or F9 (area 3) to read and translate it once. It works even when CouchSubs is in the background."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken F8 (bölge 2) ya da F9 (bölge 3) tuşuna basınca bu alan bir kez okunup çevrilir. CouchSubs arka plandayken de çalışır."
+          }
+        }
+      }
+    },
     "English": {
       "localizations": {
         "en": {
@@ -1533,6 +1597,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hesabınız yok mu? Aynı sayfadan ücretsiz açabilirsiniz. Tarayıcı ağınızdaki cihazlara erişim izni sorarsa izin verin."
+          }
+        }
+      }
+    },
+    "No text found in this area.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No text found in this area."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu alanda yazı bulunamadı."
           }
         }
       }
@@ -2337,6 +2417,22 @@
         }
       }
     },
+    "Subtitles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitles"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazı"
+          }
+        }
+      }
+    },
     "Subtitles will appear here while you play.": {
       "localizations": {
         "en": {
@@ -3037,6 +3133,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Şimdi güncelle"
+          }
+        }
+      }
+    },
+    "Use this area": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use this area"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu bölgeyi kullan"
           }
         }
       }

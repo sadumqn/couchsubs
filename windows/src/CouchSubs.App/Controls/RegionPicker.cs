@@ -2,6 +2,7 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -10,51 +11,67 @@ using Frame = CouchSubs.Core.Frame;
 
 namespace CouchSubs.App.Controls;
 
-/// <summary>Son karenin üstünde altyazı bölgesini gösteren ve kenarlardan ayarlanan çerçeve.</summary>
+/// <summary>
+/// Son karenin üstünde bir bölgeyi gösteren ve fareyle çizilen çerçeve: boş yerde sürükleyince yeni bölge çizilir,
+/// kenar ve köşelerden tutunca boyutu, içinden tutunca yeri değişir.
+/// </summary>
 public sealed class RegionPicker : UserControl
 {
-    private readonly Grid preview = new() { Height = 252, ClipToBounds = true };
-    private readonly Rectangle frameBox = new() { StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
-    private readonly Slider top = Make(), bottom = Make(), left = Make(), right = Make();
+    /// <summary>Kenara bu kadar piksel yaklaşınca kenar tutulur.</summary>
+    private const double Grab = 10;
+    /// <summary>Bölge her kenarda en az bu orana (0–1) sahip olur.</summary>
+    private const double MinSize = 0.03;
+
+    [Flags]
+    private enum Edges { None = 0, Left = 1, Top = 2, Right = 4, Bottom = 8 }
+
+    private enum Drag { None, Draw, Move, Resize }
+
+    private readonly Grid preview = new() { Height = 281, ClipToBounds = true, Background = Brushes.Transparent };
+    private readonly Rectangle frameBox = new() { StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
+    private readonly Rectangle[] handles = [Handle(), Handle(), Handle(), Handle()];
     private CropRegion region = new();
-    private bool updating;
+    private Drag drag = Drag.None;
+    private Edges dragEdges;
+    private Point anchor;
+    private CropRegion dragStart = new();
 
     public event EventHandler<CropRegion>? RegionChanged;
+
+    /// <summary>"Alanı sıfırla" düğmesinin döneceği bölge (ek bölgelerin varsayılanı altyazınınkinden farklıdır).</summary>
+    public CropRegion DefaultRegion { get; set; } = new();
 
     public RegionPicker()
     {
         frameBox.SetResourceReference(Shape.StrokeProperty, "accentBrush");
         frameBox.Fill = new SolidColorBrush(Color.FromArgb(36, 245, 184, 61));
+        foreach (var handle in handles) handle.SetResourceReference(Shape.FillProperty, "accentBrush");
         preview.SizeChanged += (_, _) => Layout();
+        preview.MouseLeftButtonDown += OnDown;
+        preview.MouseMove += OnMove;
+        preview.MouseLeftButtonUp += OnUp;
+        preview.LostMouseCapture += (_, _) => drag = Drag.None;
 
         var panel = new StackPanel();
-        var border = new Border { CornerRadius = new CornerRadius(10), Child = preview };
+        var border = new Border { CornerRadius = new CornerRadius(10), Child = preview, ClipToBounds = true };
         border.SetResourceReference(Border.BackgroundProperty, "backgroundBrush");
         panel.Children.Add(border);
 
-        var sliders = new Grid { Margin = new Thickness(0, 12, 0, 0) };
-        sliders.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sliders.ColumnDefinitions.Add(new ColumnDefinition());
-        var rows = new[] { ("Top", top), ("Bottom", bottom), ("Left", left), ("Right", right) };
-        for (var i = 0; i < rows.Length; i++)
-        {
-            sliders.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var label = new TextBlock { Text = Localizer.Current[rows[i].Item1], Margin = new Thickness(0, 4, 16, 4), VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetRow(label, i);
-            Grid.SetRow(rows[i].Item2, i);
-            Grid.SetColumn(rows[i].Item2, 1);
-            rows[i].Item2.ValueChanged += (_, _) => OnSlider();
-            sliders.Children.Add(label);
-            sliders.Children.Add(rows[i].Item2);
-        }
-        panel.Children.Add(sliders);
-
         var reset = new Button { Content = Localizer.Current["Reset area"], Margin = new Thickness(0, 12, 0, 0) };
-        reset.Click += (_, _) => Region = new CropRegion();
+        reset.Click += (_, _) => Region = DefaultRegion;
         panel.Children.Add(reset);
         Content = panel;
         Frame = null;
     }
+
+    private static Rectangle Handle() => new()
+    {
+        Width = 10,
+        Height = 10,
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Top,
+        IsHitTestVisible = false,
+    };
 
     public CropRegion Region
     {
@@ -62,12 +79,16 @@ public sealed class RegionPicker : UserControl
         set
         {
             region = value;
-            updating = true;
-            (top.Value, bottom.Value, left.Value, right.Value) = (value.Top, value.Bottom, value.Left, value.Right);
-            updating = false;
             Layout();
             RegionChanged?.Invoke(this, value);
         }
+    }
+
+    /// <summary>Bölgeyi olay göndermeden değiştirir (sekme değişirken ayar kaydedilmesin diye).</summary>
+    public void ShowRegion(CropRegion value)
+    {
+        region = value;
+        Layout();
     }
 
     /// <summary>Çeviri başlayınca oyun görüntüsü burada görünür.</summary>
@@ -83,35 +104,134 @@ public sealed class RegionPicker : UserControl
                     Text = Localizer.Current["The game picture appears here once translating starts."],
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
+                    TextAlignment = TextAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(24),
+                    IsHitTestVisible = false,
                     Style = (Style)Application.Current.FindResource("CaptionText"),
                 });
             }
             else
             {
                 var bitmap = BitmapSource.Create(value.Width, value.Height, 96, 96, PixelFormats.Bgra32, null, value.Pixels, value.Stride);
-                preview.Children.Add(new Image { Source = bitmap, Stretch = Stretch.Fill });
+                preview.Children.Add(new Image { Source = bitmap, Stretch = Stretch.Fill, IsHitTestVisible = false });
             }
             preview.Children.Add(frameBox);
+            foreach (var handle in handles) preview.Children.Add(handle);
             Layout();
         }
     }
 
-    private void OnSlider()
+    // --- Fare ---
+
+    private void OnDown(object sender, MouseButtonEventArgs e)
     {
-        if (updating) return;
-        // Kenarlar birbirini geçmesin; en az %5'lik bölge kalır.
-        var topValue = Math.Min(top.Value, bottom.Value - 0.05);
-        var leftValue = Math.Min(left.Value, right.Value - 0.05);
-        Region = new CropRegion(Math.Max(0, topValue), bottom.Value, Math.Max(0, leftValue), right.Value);
+        var point = e.GetPosition(preview);
+        anchor = point;
+        dragStart = region;
+        dragEdges = EdgesAt(point);
+        if (dragEdges != Edges.None) drag = Drag.Resize;
+        else if (Bounds().Contains(point)) drag = Drag.Move;
+        else drag = Drag.Draw;
+        preview.CaptureMouse();
+        e.Handled = true;
     }
+
+    private void OnMove(object sender, MouseEventArgs e)
+    {
+        var point = e.GetPosition(preview);
+        if (drag == Drag.None)
+        {
+            preview.Cursor = CursorFor(EdgesAt(point), Bounds().Contains(point));
+            return;
+        }
+        if (preview.ActualWidth <= 0 || preview.ActualHeight <= 0) return;
+        var (x, y) = (Clamp01(point.X / preview.ActualWidth), Clamp01(point.Y / preview.ActualHeight));
+        var (startX, startY) = (Clamp01(anchor.X / preview.ActualWidth), Clamp01(anchor.Y / preview.ActualHeight));
+
+        switch (drag)
+        {
+            case Drag.Draw:
+                region = new CropRegion(Math.Min(startY, y), Math.Max(startY, y), Math.Min(startX, x), Math.Max(startX, x));
+                break;
+            case Drag.Move:
+            {
+                var width = dragStart.Right - dragStart.Left;
+                var height = dragStart.Bottom - dragStart.Top;
+                var left = Math.Clamp(dragStart.Left + (x - startX), 0, 1 - width);
+                var top = Math.Clamp(dragStart.Top + (y - startY), 0, 1 - height);
+                region = new CropRegion(top, top + height, left, left + width);
+                break;
+            }
+            case Drag.Resize:
+            {
+                var (top, bottom, left, right) = (dragStart.Top, dragStart.Bottom, dragStart.Left, dragStart.Right);
+                if (dragEdges.HasFlag(Edges.Left)) left = Math.Min(x, right - MinSize);
+                if (dragEdges.HasFlag(Edges.Right)) right = Math.Max(x, left + MinSize);
+                if (dragEdges.HasFlag(Edges.Top)) top = Math.Min(y, bottom - MinSize);
+                if (dragEdges.HasFlag(Edges.Bottom)) bottom = Math.Max(y, top + MinSize);
+                region = new CropRegion(top, bottom, left, right);
+                break;
+            }
+        }
+        Layout();
+    }
+
+    private void OnUp(object sender, MouseButtonEventArgs e)
+    {
+        if (drag == Drag.None) return;
+        var finished = drag;
+        drag = Drag.None;
+        preview.ReleaseMouseCapture();
+        // Tıklamak ya da çok küçük çizmek bölgeyi bozmasın: önceki bölge kalır.
+        if (finished == Drag.Draw && (region.Right - region.Left < MinSize || region.Bottom - region.Top < MinSize))
+            region = dragStart;
+        Layout();
+        if (region != dragStart) RegionChanged?.Invoke(this, region);
+    }
+
+    private static double Clamp01(double value) => Math.Clamp(value, 0, 1);
+
+    /// <summary>Çerçevenin görüntüdeki dikdörtgeni (piksel).</summary>
+    private Rect Bounds()
+    {
+        var (width, height) = (preview.ActualWidth, preview.ActualHeight);
+        return new Rect(width * region.Left, height * region.Top, width * (region.Right - region.Left), height * (region.Bottom - region.Top));
+    }
+
+    /// <summary>İmleç hangi kenarların yakınında (köşede iki kenar).</summary>
+    private Edges EdgesAt(Point point)
+    {
+        var bounds = Bounds();
+        // Çerçevenin dışında, kenardan fazla uzaktaysa hiçbir kenar tutulmaz.
+        var near = new Rect(bounds.X - Grab, bounds.Y - Grab, bounds.Width + (2 * Grab), bounds.Height + (2 * Grab));
+        if (!near.Contains(point)) return Edges.None;
+        var edges = Edges.None;
+        if (Math.Abs(point.X - bounds.Left) <= Grab) edges |= Edges.Left;
+        else if (Math.Abs(point.X - bounds.Right) <= Grab) edges |= Edges.Right;
+        if (Math.Abs(point.Y - bounds.Top) <= Grab) edges |= Edges.Top;
+        else if (Math.Abs(point.Y - bounds.Bottom) <= Grab) edges |= Edges.Bottom;
+        // Çok küçük bir çerçevede iki kenar üst üste gelebilir; yalnız köşe/kenar yatay ya da dikey olarak tutulur.
+        return edges;
+    }
+
+    private static Cursor CursorFor(Edges edges, bool inside) => edges switch
+    {
+        Edges.Left or Edges.Right => Cursors.SizeWE,
+        Edges.Top or Edges.Bottom => Cursors.SizeNS,
+        Edges.Left | Edges.Top or Edges.Right | Edges.Bottom => Cursors.SizeNWSE,
+        Edges.Right | Edges.Top or Edges.Left | Edges.Bottom => Cursors.SizeNESW,
+        _ => inside ? Cursors.SizeAll : Cursors.Cross,
+    };
 
     private void Layout()
     {
-        var (width, height) = (preview.ActualWidth, preview.ActualHeight);
-        frameBox.Margin = new Thickness(width * region.Left, height * region.Top, 0, 0);
-        frameBox.Width = Math.Max(0, width * (region.Right - region.Left));
-        frameBox.Height = Math.Max(0, height * (region.Bottom - region.Top));
+        var bounds = Bounds();
+        frameBox.Margin = new Thickness(bounds.X, bounds.Y, 0, 0);
+        frameBox.Width = Math.Max(0, bounds.Width);
+        frameBox.Height = Math.Max(0, bounds.Height);
+        var corners = new[] { new Point(bounds.Left, bounds.Top), new Point(bounds.Right, bounds.Top), new Point(bounds.Left, bounds.Bottom), new Point(bounds.Right, bounds.Bottom) };
+        for (var i = 0; i < handles.Length; i++)
+            handles[i].Margin = new Thickness(corners[i].X - 5, corners[i].Y - 5, 0, 0);
     }
-
-    private static Slider Make() => new() { Minimum = 0, Maximum = 1, SmallChange = 0.01, LargeChange = 0.05 };
 }
