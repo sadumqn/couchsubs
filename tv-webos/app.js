@@ -109,7 +109,8 @@
     return box.right > box.left && box.bottom > box.top ? box : null;
   }
 
-  function showSubtitle(text, duration, box) {
+  // paragraphs: görev paneli gibi başlık ve maddeli yazılar satır satır, sola yaslı gösterilir.
+  function showSubtitle(text, duration, box, paragraphs) {
     var current = $('subtitle-text').textContent;
     var now = Date.now();
     if ($('subtitle').className !== 'hidden' && current && current !== text && now - shownAt < PREVIOUS_HOLD_MS) {
@@ -118,6 +119,8 @@
     shownAt = now;
     currentBox = validBox(box);
     $('subtitle-text').textContent = text;
+    $('subtitle-text').style.whiteSpace = paragraphs ? 'pre-line' : '';
+    $('subtitle-text').style.textAlign = paragraphs ? 'left' : '';
     layout();
     $('subtitle').className = '';
     clearTimeout(hideTimer);
@@ -259,7 +262,7 @@
       // Bilgisayarın adresi değişmiş olabilir.
       scheduleScan();
     };
-    onEvent('subtitle', function (data) { if (data.text) showSubtitle(data.text, data.duration, data.box); });
+    onEvent('subtitle', function (data) { if (data.text) showSubtitle(data.text, data.duration, data.box, data.paragraphs === true); });
     onEvent('clear', hideSubtitle);
     onEvent('style', applyStyle);
     onEvent('speech', function (data) { if (data.url) playSpeech(server + data.url); });

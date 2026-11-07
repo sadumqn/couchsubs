@@ -108,7 +108,10 @@ public sealed class SubtitleServer(int port = 8787) : ISubtitleSender, IDisposab
 
     public void Dispose() => Stop();
 
-    public void SendSubtitle(string text, int durationMs = 15000, TextBox? box = null)
+    public void SendSubtitle(string text, int durationMs = 15000, TextBox? box = null) => SendSubtitle(text, durationMs, box, false);
+
+    /// <param name="paragraphs">true ise metin satır satır, sola yaslı gösterilir (görev paneli gibi başlık ve maddeli yazılar).</param>
+    public void SendSubtitle(string text, int durationMs, TextBox? box, bool paragraphs)
     {
         var json = new SortedDictionary<string, object>
         {
@@ -116,6 +119,7 @@ public sealed class SubtitleServer(int port = 8787) : ISubtitleSender, IDisposab
             ["duration"] = durationMs,
             ["text"] = text,
         };
+        if (paragraphs) json["paragraphs"] = true;
         if (box is { } b)
         {
             json["box"] = new SortedDictionary<string, object>

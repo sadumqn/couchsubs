@@ -1713,6 +1713,22 @@
         }
       }
     },
+    "Num 0 pauses or resumes the live subtitle translation, which helps when you translate areas.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Num 0 pauses or resumes the live subtitle translation, which helps when you translate areas."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Num 0, canlı altyazı çevirisini duraklatır ya da devam ettirir; alan çevirirken işe yarar."
+          }
+        }
+      }
+    },
     "On both": {
       "localizations": {
         "en": {
@@ -2557,6 +2573,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Altyazı alanı"
+          }
+        }
+      }
+    },
+    "Subtitle translation paused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitle translation paused"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazı çevirisi duraklatıldı"
+          }
+        }
+      }
+    },
+    "Subtitle translation resumed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitle translation resumed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazı çevirisi devam ediyor"
           }
         }
       }

@@ -62,6 +62,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     /// <summary>Hattın yazı okuyucusu; ek bölgelerin tek seferlik okuması da bunu kullanır.</summary>
     private ITextReader? activeReader;
     private int extraBusy;
+    private bool subtitlesPaused;
     /// <summary>Oyundaki altyazının son görüldüğü yer; deneme altyazısı TV'de oraya yerleşir.</summary>
     private TextBox? lastSubtitleBox;
     private int processing;
@@ -114,6 +115,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public TranslatorStatus TranslatorStatus { get => translatorStatus; private set => Set(ref translatorStatus, value); }
     /// <summary>Bilgisayarda yazı tanıma dili yok; ayarlardan eklenmesi gerekir.</summary>
     public bool OcrMissing { get => ocrMissing; private set => Set(ref ocrMissing, value); }
+    /// <summary>Canlı altyazı çevirisi duraklatıldı (Num 0); ek bölge ve serbest alan çevirileri çalışmaya devam eder.</summary>
+    public bool SubtitlesPaused { get => subtitlesPaused; private set => Set(ref subtitlesPaused, value); }
     public Frame? LastFrame { get => lastFrame; private set => Set(ref lastFrame, value); }
     public string? ActiveSourceLanguage { get; private set; }
     /// <summary>Sunucunun gerçekten dinlediği port (8787 doluysa rastgele bir port).</summary>
@@ -504,6 +507,24 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         server.SendSubtitle(text["This is a test subtitle. Can you see it on top of the game?"], 8000, box);
     }
 
+    /// <summary>
+    /// Num 0: canlı altyazı çevirisini duraklatır ya da sürdürür. Alan çevirirken sürekli çeviri de TV'de görünüp
+    /// karışmasın diye kullanılır. TV'de kısa bir bildirim çıkar. Çeviri sürmüyorsa bir şey yapmaz.
+    /// </summary>
+    public void ToggleSubtitles()
+    {
+        if (!isRunning) return;
+        var pause = !subtitlesPaused;
+        SubtitlesPaused = pause;
+        if (pause)
+        {
+            pipeline?.Reset();
+            server.Clear();
+        }
+        server.SendStyle(settings.Style);
+        server.SendSubtitle(text[pause ? "Subtitle translation paused" : "Subtitle translation resumed"], 1800);
+    }
+
     /// <summary>Num 8: ayar ekranı, oyunun şu anki görüntüsünü yeniden alsın.</summary>
     public event Action? SnapshotRequested;
 
@@ -568,7 +589,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (toTv)
             {
                 server.SendStyle(settings.Style);
-                server.SendSubtitle(result.Translation, milliseconds, result.Box);
+                server.SendSubtitle(result.Translation, milliseconds, result.Box, result.Structured);
             }
             post(() =>
             {
@@ -610,6 +631,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             RefreshTranslatorStatus();
             try { await StartServerAsync(); } catch { /* port açılamadıysa TV durumu "bekleniyor" kalır */ }
             server.SendStyle(settings.Style);
+            SubtitlesPaused = false;
             MakePipeline();
             if (settings.Dubbing.Enabled && DubbingInstalled) MakeDubber()?.Prepare();
 
@@ -646,6 +668,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         pipeline?.Reset();
         pipeline = null;
         activeReader = null;
+        SubtitlesPaused = false;
         ActiveSourceLanguage = null;
         StopDubber();
         if (isRunning) sleep.End();
@@ -752,6 +775,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private async void HandleFrame(Frame frame)
     {
         post(() => LastFrame = frame);
+        // Duraklatıldıysa kare yalnız ek bölgeler ve serbest alan için saklanır; altyazı okunmaz.
+        if (subtitlesPaused) return;
         // Önceki kare hâlâ işleniyorsa bu kare atlanır; okuma kareleri biriktirmez.
         var current = pipeline;
         if (current is null || Interlocked.Exchange(ref processing, 1) == 1) return;

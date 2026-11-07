@@ -126,6 +126,8 @@
                                 <RadioButton x:Name="FreeBoth" Content="{t:T 'On both'}" GroupName="freeTarget" Style="{StaticResource SegmentButton}" Checked="OnFreeTarget" Tag="Both" />
                             </StackPanel>
                         </Border>
+                        <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="{t:T 'Num 0 pauses or resumes the live subtitle translation, which helps when you translate areas.'}" />
                         <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap"
                                    Text="{t:T 'The Num shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on.'}" />
                     </StackPanel>
