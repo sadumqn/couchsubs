@@ -12,6 +12,8 @@ public enum HotkeyAction
     ExtraRegion1,
     /// <summary>Num 2: 2. ek bölgeyi bir kez çevir.</summary>
     ExtraRegion2,
+    /// <summary>Num 3: 3. ek bölgeyi bir kez çevir.</summary>
+    ExtraRegion3,
     /// <summary>Num 5: görüntüyü dondurup serbest alan seçtir.</summary>
     FreeArea,
     /// <summary>Num 8: ayar ekranındaki görüntüyü oyunun şu anki görüntüsüyle yenile.</summary>
@@ -19,7 +21,7 @@ public enum HotkeyAction
 }
 
 /// <summary>
-/// Genel kısayollar (Num 1, 2, 5, 8): kullanıcı kumandayla oynarken bilgisayardaki pencere arka planda olsa da çalışır.
+/// Genel kısayollar (Num 1, 2, 3, 5, 8): kullanıcı kumandayla oynarken bilgisayardaki pencere arka planda olsa da çalışır.
 /// Kısayollar yalnız <see cref="Enabled"/> iken tutulur; böylece çeviri kapalıyken sayı tuşları diğer uygulamalarda
 /// (Excel gibi) normal çalışır. Tuş başka bir uygulamada kullanılıyorsa sessizce atlanır.
 /// </summary>
@@ -29,11 +31,12 @@ public sealed partial class GlobalHotkeys : IDisposable
     private const uint ModNoRepeat = 0x4000;
     private const int FirstId = 0x4353;
 
-    /// <summary>Num 1, Num 2, Num 5, Num 8 (NumLock açıkken).</summary>
+    /// <summary>Num 1, 2, 3, 5, 8 (NumLock açıkken).</summary>
     private static readonly (HotkeyAction Action, uint VirtualKey)[] Keys =
     [
         (HotkeyAction.ExtraRegion1, 0x61),
         (HotkeyAction.ExtraRegion2, 0x62),
+        (HotkeyAction.ExtraRegion3, 0x63),
         (HotkeyAction.FreeArea, 0x65),
         (HotkeyAction.Snapshot, 0x68),
     ];

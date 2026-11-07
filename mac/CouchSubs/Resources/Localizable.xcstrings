@@ -385,6 +385,22 @@
         }
       }
     },
+    "Area 3 (Num 3)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Area 3 (Num 3)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bölge 3 (Num 3)"
+          }
+        }
+      }
+    },
     "Back": {
       "localizations": {
         "en": {
@@ -1025,18 +1041,18 @@
         }
       }
     },
-    "Draw the area to translate, for example a quest panel. While you play, press Num 1 (area 1) or Num 2 (area 2) to read and translate it once. It works even when CouchSubs is in the background.": {
+    "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Draw the area to translate, for example a quest panel. While you play, press Num 1 (area 1) or Num 2 (area 2) to read and translate it once. It works even when CouchSubs is in the background."
+            "value": "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken Num 1 (bölge 1) ya da Num 2 (bölge 2) tuşuna basınca bu alan bir kez okunup çevrilir. CouchSubs arka plandayken de çalışır."
+            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken kendi tuşuna (Num 1, 2 ya da 3) basınca bu alan bir kez okunup çevrilir. Sonucun nerede görüneceğini seçin. CouchSubs arka plandayken de çalışır."
           }
         }
       }

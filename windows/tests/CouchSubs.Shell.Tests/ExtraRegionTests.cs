@@ -96,4 +96,50 @@ public class ExtraRegionTests
         controller.RequestSnapshot();
         Assert.Equal(1, raised);
     }
+
+    [Fact]
+    public void ExtraAreaResultsShowOnTheTvByDefault()
+    {
+        var settings = new UserSettings();
+        for (var slot = 1; slot <= UserSettings.ExtraRegionCount; slot++) Assert.Equal(ResultTarget.Tv, settings.ExtraTarget(slot));
+    }
+
+    [Fact]
+    public void ThirdAreaAndItsTargetAreStoredSeparately()
+    {
+        var region = new CropRegion(0.3, 0.6, 0.3, 0.7);
+        var settings = new UserSettings().WithExtraRegion(3, region).WithExtraTarget(3, ResultTarget.Both);
+        Assert.Equal(region, settings.ExtraRegion(3));
+        Assert.Equal(ResultTarget.Both, settings.ExtraTarget(3));
+        Assert.Null(settings.ExtraRegion(1));
+        Assert.Equal(ResultTarget.Tv, settings.ExtraTarget(1));
+    }
+
+    [Fact]
+    public async Task PcTargetRaisesThePcResultOnly()
+    {
+        var (controller, services) = Ready();
+        controller.Settings = controller.Settings.WithExtraRegion(3, new CropRegion()).WithExtraTarget(3, ResultTarget.Pc);
+        await controller.StartAsync();
+        services.Streams[0].Emit(Frame.Blank(64, 64));
+        string? shown = null;
+        controller.PcResultReady += (text, _) => shown = text;
+        Assert.Equal(ExtraRegionOutcome.NoText, await controller.TranslateExtraRegionAsync(3));
+        Assert.Equal("No text found in this area.", shown);
+        controller.Stop();
+    }
+
+    [Fact]
+    public async Task TvTargetDoesNotRaiseThePcResult()
+    {
+        var (controller, services) = Ready();
+        controller.Settings = controller.Settings.WithExtraRegion(1, new CropRegion());
+        await controller.StartAsync();
+        services.Streams[0].Emit(Frame.Blank(64, 64));
+        var raised = false;
+        controller.PcResultReady += (_, _) => raised = true;
+        await controller.TranslateExtraRegionAsync(1);
+        Assert.False(raised);
+        controller.Stop();
+    }
 }

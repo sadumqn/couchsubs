@@ -113,9 +113,17 @@ public sealed class FreeAreaWindow : Window
         canvas.MouseMove += OnMove;
         canvas.MouseLeftButtonUp += OnUp;
         MouseRightButtonDown += (_, _) => Close();
-        KeyDown += (_, e) =>
+        // Esc'in basılma olayı burada yutulur, pencere tuş bırakılınca kapanır: tuş basılı kalıp tekrarlansa bile
+        // olay arkadaki ayar penceresine ulaşıp onu da kapatmaz.
+        PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) Close();
+            if (e.Key == Key.Escape) e.Handled = true;
+        };
+        KeyUp += (_, e) =>
+        {
+            if (e.Key != Key.Escape) return;
+            e.Handled = true;
+            Close();
         };
         Closed += (_, _) => current = null;
     }

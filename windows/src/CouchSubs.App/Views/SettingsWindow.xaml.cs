@@ -12,12 +12,12 @@ public partial class SettingsWindow : Window
     private static readonly (string Code, string Name)[] Languages =
         [("en", "English"), ("ja", "Japanese"), ("de", "German"), ("fr", "French"), ("es", "Spanish")];
 
-    /// <summary>Ek bölgeler ilk açıldığında (sağ üst köşe ve sağ alt köşe) bu alanlarla başlar.</summary>
-    private static readonly CropRegion[] ExtraDefaults = [new(0.05, 0.28, 0.60, 0.97), new(0.72, 0.95, 0.60, 0.97)];
+    /// <summary>Ek bölgeler ilk açıldığında (sağ üst köşe, sağ alt köşe, ekranın ortası) bu alanlarla başlar.</summary>
+    private static readonly CropRegion[] ExtraDefaults = [new(0.05, 0.28, 0.60, 0.97), new(0.72, 0.95, 0.60, 0.97), new(0.35, 0.65, 0.30, 0.70)];
 
     private readonly AppController controller;
     private bool loading = true;
-    /// <summary>Çerçevesi düzenlenen bölge: 0 altyazı, 1 ve 2 ek bölgeler.</summary>
+    /// <summary>Çerçevesi düzenlenen bölge: 0 altyazı, 1, 2 ve 3 ek bölgeler.</summary>
     private int area;
 
     internal SettingsWindow(AppController controller)
@@ -128,6 +128,7 @@ public partial class SettingsWindow : Window
         if (slot == 0)
         {
             UseArea.Visibility = Visibility.Collapsed;
+            ExtraTargetPanel.Visibility = Visibility.Collapsed;
             Region.IsEnabled = true;
             Region.DefaultRegion = new CropRegion();
             Region.ShowRegion(settings.Region);
@@ -138,12 +139,22 @@ public partial class SettingsWindow : Window
             var extra = settings.ExtraRegion(slot);
             UseArea.Visibility = Visibility.Visible;
             UseArea.IsChecked = extra is not null;
+            ExtraTargetPanel.Visibility = Visibility.Visible;
+            (settings.ExtraTarget(slot) switch { ResultTarget.Pc => ExtraPc, ResultTarget.Both => ExtraBoth, _ => ExtraTv }).IsChecked = true;
             Region.IsEnabled = extra is not null;
             Region.DefaultRegion = ExtraDefaults[slot - 1];
             Region.ShowRegion(extra ?? ExtraDefaults[slot - 1]);
-            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press Num 1 (area 1) or Num 2 (area 2) to read and translate it once. It works even when CouchSubs is in the background."];
+            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."];
         }
         loading = wasLoading;
+    }
+
+    private void OnExtraTarget(object sender, RoutedEventArgs e)
+    {
+        if (loading || area == 0 || sender is not RadioButton { Tag: string tag }) return;
+        var slot = area;
+        var target = Enum.Parse<ResultTarget>(tag);
+        Update(s => s.WithExtraTarget(slot, target));
     }
 
     private void OnUseArea(object sender, RoutedEventArgs e)

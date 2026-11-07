@@ -24,14 +24,17 @@ public partial class ShellWindow : Window
         controller.PropertyChanged += OnChanged;
         // Bilgisayar uykudan uyanınca bağlantılar hemen yenilenir.
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
-        // Num 1, 2, 5, 8 kısayolları yalnız çeviri sürerken tutulur.
+        // Num 1, 2, 3, 5, 8 kısayolları yalnız çeviri sürerken tutulur.
         SourceInitialized += (_, _) =>
         {
             hotkeys = new GlobalHotkeys(new WindowInteropHelper(this).Handle, OnHotkey);
             hotkeys.Enabled = controller.IsRunning;
         };
+        // Bilgisayarda gösterilecek çeviriler küçük, üstte duran bir kutuda çıkar.
+        controller.PcResultReady += PcResultWindow.Display;
         Closed += (_, _) =>
         {
+            controller.PcResultReady -= PcResultWindow.Display;
             hotkeys?.Dispose();
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
             controller.Dispose();
@@ -51,6 +54,7 @@ public partial class ShellWindow : Window
         {
             case HotkeyAction.ExtraRegion1: _ = controller.TranslateExtraRegionAsync(1); break;
             case HotkeyAction.ExtraRegion2: _ = controller.TranslateExtraRegionAsync(2); break;
+            case HotkeyAction.ExtraRegion3: _ = controller.TranslateExtraRegionAsync(3); break;
             case HotkeyAction.Snapshot: controller.RequestSnapshot(); break;
             case HotkeyAction.FreeArea: FreeAreaWindow.Open(controller); break;
         }

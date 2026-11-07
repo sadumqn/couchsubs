@@ -27,6 +27,12 @@ public sealed record UserSettings
     public CropRegion? ExtraRegion1 { get; init; }
     /// <summary>Ek bölge 2 (ör. sağ alttaki bilgi kutusu); null ise kapalı. Num 2 tuşuyla bir kez okunup çevrilir.</summary>
     public CropRegion? ExtraRegion2 { get; init; }
+    /// <summary>Ek bölge 3 (ör. ekranın ortası); null ise kapalı. Num 3 tuşuyla bir kez okunup çevrilir.</summary>
+    public CropRegion? ExtraRegion3 { get; init; }
+    /// <summary>Ek bölgelerin çevirisi nerede gösterilir (TV'de, bilgisayarda ya da ikisinde de).</summary>
+    public ResultTarget ExtraTarget1 { get; init; } = ResultTarget.Tv;
+    public ResultTarget ExtraTarget2 { get; init; } = ResultTarget.Tv;
+    public ResultTarget ExtraTarget3 { get; init; } = ResultTarget.Tv;
     /// <summary>Serbest alan çevirisinin (Num 5) sonucu nerede gösterilir.</summary>
     public ResultTarget FreeAreaTarget { get; init; } = ResultTarget.Tv;
     public SubtitleStyle Style { get; init; } = new();
@@ -35,15 +41,27 @@ public sealed record UserSettings
     public DubbingSettings Dubbing { get; init; } = new();
 
     /// <summary>Ek bölgenin sayısı; <see cref="ExtraRegion"/> 1..ExtraRegionCount arasında çalışır.</summary>
-    public const int ExtraRegionCount = 2;
+    public const int ExtraRegionCount = 3;
 
-    /// <summary>1 ya da 2 numaralı ek bölge; kapalıysa null.</summary>
-    public CropRegion? ExtraRegion(int slot) => slot switch { 1 => ExtraRegion1, 2 => ExtraRegion2, _ => null };
+    /// <summary>1, 2 ya da 3 numaralı ek bölge; kapalıysa null.</summary>
+    public CropRegion? ExtraRegion(int slot) => slot switch { 1 => ExtraRegion1, 2 => ExtraRegion2, 3 => ExtraRegion3, _ => null };
 
     public UserSettings WithExtraRegion(int slot, CropRegion? region) => slot switch
     {
         1 => this with { ExtraRegion1 = region },
         2 => this with { ExtraRegion2 = region },
+        3 => this with { ExtraRegion3 = region },
+        _ => this,
+    };
+
+    /// <summary>Ek bölgenin çevirisinin gösterileceği yer.</summary>
+    public ResultTarget ExtraTarget(int slot) => slot switch { 1 => ExtraTarget1, 2 => ExtraTarget2, 3 => ExtraTarget3, _ => ResultTarget.Tv };
+
+    public UserSettings WithExtraTarget(int slot, ResultTarget target) => slot switch
+    {
+        1 => this with { ExtraTarget1 = target },
+        2 => this with { ExtraTarget2 = target },
+        3 => this with { ExtraTarget3 = target },
         _ => this,
     };
 }

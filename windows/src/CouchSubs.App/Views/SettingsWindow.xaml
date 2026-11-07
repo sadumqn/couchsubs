@@ -93,10 +93,21 @@
                                 <RadioButton Content="{t:T 'Subtitles'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="0" IsChecked="True" />
                                 <RadioButton Content="{t:T 'Area 1 (Num 1)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="1" />
                                 <RadioButton Content="{t:T 'Area 2 (Num 2)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="2" />
+                                <RadioButton Content="{t:T 'Area 3 (Num 3)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="3" />
                             </StackPanel>
                         </Border>
                         <CheckBox x:Name="UseArea" Content="{t:T 'Use this area'}" Foreground="{DynamicResource textPrimaryBrush}" Margin="0,0,0,12"
                                   Visibility="Collapsed" Checked="OnUseArea" Unchecked="OnUseArea" />
+                        <StackPanel x:Name="ExtraTargetPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <TextBlock Text="{t:T 'Show the result'}" Margin="0,0,0,8" />
+                            <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="ExtraTv" Content="{t:T 'On the TV'}" GroupName="extraTarget" Style="{StaticResource SegmentButton}" Checked="OnExtraTarget" Tag="Tv" />
+                                    <RadioButton x:Name="ExtraPc" Content="{t:T 'On the PC'}" GroupName="extraTarget" Style="{StaticResource SegmentButton}" Checked="OnExtraTarget" Tag="Pc" />
+                                    <RadioButton x:Name="ExtraBoth" Content="{t:T 'On both'}" GroupName="extraTarget" Style="{StaticResource SegmentButton}" Checked="OnExtraTarget" Tag="Both" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                         <c:RegionPicker x:Name="Region" RegionChanged="OnRegion" />
                         <Button Content="{t:T 'Refresh picture (Num 8)'}" Click="OnRefresh" HorizontalAlignment="Left" Margin="0,12,0,0" />
                         <TextBlock x:Name="AreaHint" Style="{StaticResource HintText}" Margin="0,12,0,0" TextWrapping="Wrap" />

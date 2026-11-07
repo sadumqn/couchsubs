@@ -509,25 +509,29 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     public void RequestSnapshot() => SnapshotRequested?.Invoke();
 
+    /// <summary>Çeviri bilgisayarda da gösterilecekse (metin, kalma süresi ms) ile çağrılır.</summary>
+    public event Action<string, int>? PcResultReady;
+
     /// <summary>
-    /// 1 ya da 2 numaralı ek bölgeyi şimdi bir kez okuyup çevirir ve TV'de gösterir (görev paneli gibi yazılar için).
-    /// Çeviri sürmüyorsa, bölge kapalıysa ya da önceki istek bitmediyse hiçbir şey yapılmaz.
+    /// 1, 2 ya da 3 numaralı ek bölgeyi şimdi bir kez okuyup çevirir; sonuç ayardaki yere (TV, bilgisayar ya da ikisi) gider
+    /// (görev paneli gibi yazılar için). Çeviri sürmüyorsa, bölge kapalıysa ya da önceki istek bitmediyse hiçbir şey yapılmaz.
     /// </summary>
     public async Task<ExtraRegionOutcome> TranslateExtraRegionAsync(int slot)
     {
         if (settings.ExtraRegion(slot) is not { } region) return ExtraRegionOutcome.NotConfigured;
         if (lastFrame is not { } frame) return ExtraRegionOutcome.NotRunning;
-        return (await RunRegionAsync(frame, region, true)).Outcome;
+        var target = settings.ExtraTarget(slot);
+        return (await RunRegionAsync(frame, region, target != ResultTarget.Pc, target != ResultTarget.Tv)).Outcome;
     }
 
     /// <summary>
     /// Serbest alan (Num 5): verilen karedeki alanı bir kez okuyup çevirir. Sonuç, ayardaki hedefe göre TV'ye de gönderilir;
-    /// bilgisayarda gösterilmek üzere her durumda döner.
+    /// bilgisayarda gösterilmek üzere her durumda döner (serbest alan penceresi kendisi gösterir).
     /// </summary>
     public Task<(ExtraRegionOutcome Outcome, RegionTranslation.Result? Result)> TranslateAreaAsync(Frame frame, CropRegion region) =>
-        RunRegionAsync(frame, region, settings.FreeAreaTarget != ResultTarget.Pc);
+        RunRegionAsync(frame, region, settings.FreeAreaTarget != ResultTarget.Pc, false);
 
-    private async Task<(ExtraRegionOutcome Outcome, RegionTranslation.Result? Result)> RunRegionAsync(Frame frame, CropRegion region, bool toTv)
+    private async Task<(ExtraRegionOutcome Outcome, RegionTranslation.Result? Result)> RunRegionAsync(Frame frame, CropRegion region, bool toTv, bool toPcPopup)
     {
         var reader = activeReader;
         if (!isRunning || reader is null) return (ExtraRegionOutcome.NotRunning, null);
@@ -551,22 +555,26 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             }
             if (result is null)
             {
+                var message = text["No text found in this area."];
                 if (toTv)
                 {
                     server.SendStyle(settings.Style);
-                    server.SendSubtitle(text["No text found in this area."], 2500, new TextBox(region.Left, region.Top, region.Right, region.Bottom));
+                    server.SendSubtitle(message, 2500, new TextBox(region.Left, region.Top, region.Right, region.Bottom));
                 }
+                if (toPcPopup) post(() => PcResultReady?.Invoke(message, 2500));
                 return (ExtraRegionOutcome.NoText, null);
             }
+            var milliseconds = RegionTranslation.DisplayMilliseconds(result.Translation);
             if (toTv)
             {
                 server.SendStyle(settings.Style);
-                server.SendSubtitle(result.Translation, RegionTranslation.DisplayMilliseconds(result.Translation), result.Box);
+                server.SendSubtitle(result.Translation, milliseconds, result.Box);
             }
             post(() =>
             {
                 LastSource = result.Source;
                 LastTranslation = result.Translation;
+                if (toPcPopup) PcResultReady?.Invoke(result.Translation, milliseconds);
             });
             return (ExtraRegionOutcome.Shown, result);
         }
