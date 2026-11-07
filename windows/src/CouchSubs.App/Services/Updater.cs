@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+using System.Net.Http;
 using CouchSubs.Shell;
 using Velopack;
 using Velopack.Sources;
