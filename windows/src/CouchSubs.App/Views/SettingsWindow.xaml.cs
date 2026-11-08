@@ -18,6 +18,14 @@ public partial class SettingsWindow : Window
     /// <summary>Serbest alan sekmesi: kayıtlı bölge yoktur, seçilen alan hemen çevrilir.</summary>
     private const int FreeSlot = 3;
     private int freeVersion;
+    /// <summary>Önizlemede şu an görünen kare; serbest alan çevirisi bunun üstünden yapılır.</summary>
+    private CouchSubs.Core.Frame? shownFrame;
+
+    private void ShowPicture()
+    {
+        shownFrame = controller.LastFrame;
+        Region.Frame = shownFrame;
+    }
 
     private readonly AppController controller;
     private bool loading = true;
@@ -41,7 +49,7 @@ public partial class SettingsWindow : Window
             GameLanguage.Items.Add(new ComboBoxItem { Content = Localizer.Current[name], Tag = code, IsSelected = code == settings.SourceLanguage });
         LanguageCard.Visibility = GameLanguage.Items.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         (settings.FreeAreaTarget switch { ResultTarget.Pc => FreePc, ResultTarget.Both => FreeBoth, _ => FreeTv }).IsChecked = true;
-        Region.Frame = controller.LastFrame;
+        ShowPicture();
         ShowArea(0);
         // Num 8: oyunun o anki görüntüsü önizlemeye alınır.
         controller.SnapshotRequested += OnSnapshot;
@@ -83,9 +91,9 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>Önizlemeyi oyunun şu anki görüntüsüyle yeniler (çerçeve olduğu gibi kalır).</summary>
-    private void OnRefresh(object sender, RoutedEventArgs e) => Region.Frame = controller.LastFrame;
+    private void OnRefresh(object sender, RoutedEventArgs e) => ShowPicture();
 
-    private void OnSnapshot() => Dispatcher.Invoke(() => Region.Frame = controller.LastFrame);
+    private void OnSnapshot() => Dispatcher.Invoke(ShowPicture);
 
     private void OnPosition(object sender, RoutedPropertyChangedEventArgs<double> e) =>
         Update(s => s with { Style = s.Style with { BottomPercent = (int)Math.Round(e.NewValue) } });
@@ -135,7 +143,7 @@ public partial class SettingsWindow : Window
     {
         var text = Localizer.Current;
         var token = ++freeVersion;
-        if (Region.Frame is not { } frame)
+        if (shownFrame is not { } frame)
         {
             FreeResult.Text = text["Could not translate this area."];
             return;
