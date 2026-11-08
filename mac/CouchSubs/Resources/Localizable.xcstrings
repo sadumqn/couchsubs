@@ -385,22 +385,6 @@
         }
       }
     },
-    "Area 3 (Num 3)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Area 3 (Num 3)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bölge 3 (Num 3)"
-          }
-        }
-      }
-    },
     "Back": {
       "localizations": {
         "en": {
@@ -1025,6 +1009,22 @@
         }
       }
     },
+    "Drag over the text on the picture and it is translated right away, like Num 5 but here. Press Refresh picture (Num 8) first to get the game's current frame.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag over the text on the picture and it is translated right away, like Num 5 but here. Press Refresh picture (Num 8) first to get the game's current frame."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resimde çevirmek istediğin yazının üzerini sürükle, hemen çevrilir; Num 5 gibi ama burada. Önce Resmi yenile (Num 8) ile oyunun şu anki görüntüsünü al."
+          }
+        }
+      }
+    },
     "Drag over the text you want to translate. Esc or right-click closes.": {
       "localizations": {
         "en": {
@@ -1041,18 +1041,18 @@
         }
       }
     },
-    "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background.": {
+    "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1 or 2) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."
+            "value": "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1 or 2) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken kendi tuşuna (Num 1, 2 ya da 3) basınca bu alan bir kez okunup çevrilir. Sonucun nerede görüneceğini seçin. CouchSubs arka plandayken de çalışır."
+            "value": "Çevrilecek alanı çiz, örneğin bir görev paneli. Oyun sırasında tuşuna (Num 1 veya 2) basınca alan bir kez okunup çevrilir. Sonucun nerede görüneceğini seç. CouchSubs arka plandayken de çalışır."
           }
         }
       }
@@ -1117,6 +1117,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "GNU AGPL-3.0 lisansıyla ücretsiz ve açık kaynak."
+          }
+        }
+      }
+    },
+    "Free area": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free area"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serbest alan"
           }
         }
       }

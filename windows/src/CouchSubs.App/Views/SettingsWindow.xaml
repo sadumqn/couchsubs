@@ -93,7 +93,7 @@
                                 <RadioButton Content="{t:T 'Subtitles'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="0" IsChecked="True" />
                                 <RadioButton Content="{t:T 'Area 1 (Num 1)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="1" />
                                 <RadioButton Content="{t:T 'Area 2 (Num 2)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="2" />
-                                <RadioButton Content="{t:T 'Area 3 (Num 3)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="3" />
+                                <RadioButton Content="{t:T 'Free area'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="3" />
                             </StackPanel>
                         </Border>
                         <CheckBox x:Name="UseArea" Content="{t:T 'Use this area'}" Foreground="{DynamicResource textPrimaryBrush}" Margin="0,0,0,12"
@@ -110,6 +110,10 @@
                         </StackPanel>
                         <c:RegionPicker x:Name="Region" RegionChanged="OnRegion" />
                         <Button Content="{t:T 'Refresh picture (Num 8)'}" Click="OnRefresh" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                        <Border x:Name="FreeResultBox" Visibility="Collapsed" Margin="0,12,0,0" Padding="12" CornerRadius="8"
+                                Background="{DynamicResource surfaceBrush}">
+                            <TextBlock x:Name="FreeResult" TextWrapping="Wrap" Foreground="{DynamicResource textPrimaryBrush}" />
+                        </Border>
                         <TextBlock x:Name="AreaHint" Style="{StaticResource HintText}" Margin="0,12,0,0" TextWrapping="Wrap" />
                     </StackPanel>
                 </c:Card>
