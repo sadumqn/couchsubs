@@ -175,6 +175,8 @@ jobs:
 
       # Türkçe dublajın ses motoru (Kyutai pocket-tts, MIT): sabit sürüm, özeti denetlenir.
       - name: Dublaj ses motoru
+        # İndirme geçici olarak hata verirse derleme düşmesin (yalnız dublaj sesi bu derlemede olmaz).
+        continue-on-error: true
         shell: bash
         run: ./scripts/fetch-pocket-tts.sh windows publish/CouchSubs/tts
 

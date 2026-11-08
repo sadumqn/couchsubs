@@ -23,7 +23,7 @@ esac
 OUT=${2:-dist/tts}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-curl -sfL -o "$WORK/$ASSET" "https://github.com/kyutai-labs/pocket-tts/releases/download/$RELEASE/$ASSET"
+curl -sfL --retry 5 --retry-delay 5 --retry-all-errors -o "$WORK/$ASSET" "https://github.com/kyutai-labs/pocket-tts/releases/download/$RELEASE/$ASSET"
 if command -v sha256sum > /dev/null; then ACTUAL=$(sha256sum "$WORK/$ASSET" | cut -d' ' -f1)
 else ACTUAL=$(shasum -a 256 "$WORK/$ASSET" | cut -d' ' -f1); fi
 [[ "$ACTUAL" == "$SHA" ]] || { echo "pocket-tts özeti tutmadı: $ACTUAL"; exit 1; }
