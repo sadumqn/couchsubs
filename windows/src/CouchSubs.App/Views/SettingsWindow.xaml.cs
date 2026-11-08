@@ -23,6 +23,7 @@ public partial class SettingsWindow : Window
 
     private void ShowPicture()
     {
+        freeVersion++;
         shownFrame = controller.LastFrame;
         Region.Frame = shownFrame;
     }
@@ -149,6 +150,7 @@ public partial class SettingsWindow : Window
             return;
         }
         FreeResult.Text = text["Translating…"];
+        Region.ShowOverlay(null);
         var (outcome, result) = await controller.TranslateAreaAsync(frame, region);
         if (token != freeVersion || area != FreeSlot) return;
         FreeResult.Text = outcome switch
@@ -158,6 +160,8 @@ public partial class SettingsWindow : Window
             ExtraRegionOutcome.Busy => text["Translating…"],
             _ => text["Could not translate this area."],
         };
+        // PC'de (ya da ikisinde) seçilen alanın hemen altında Türkçe karşılığı da görünür.
+        Region.ShowOverlay(controller.Settings.FreeAreaTarget == ResultTarget.Tv ? null : FreeResult.Text);
     }
 
     private void OnArea(object sender, RoutedEventArgs e)
