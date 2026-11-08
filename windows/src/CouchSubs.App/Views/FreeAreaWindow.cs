@@ -22,7 +22,8 @@ public sealed class FreeAreaWindow : Window
     private static FreeAreaWindow? current;
 
     private readonly AppController controller;
-    private readonly Frame frame;
+    private Frame frame;
+    private readonly Image picture;
     private readonly Canvas canvas;
     private readonly Rectangle selection;
     private readonly Border resultPanel;
@@ -61,7 +62,8 @@ public sealed class FreeAreaWindow : Window
 
         var bitmap = BitmapSource.Create(frame.Width, frame.Height, 96, 96, PixelFormats.Bgra32, null, frame.Pixels, frame.Stride);
         canvas = new Canvas { Width = frame.Width, Height = frame.Height, Background = Brushes.Transparent };
-        canvas.Children.Add(new Image { Source = bitmap, Width = frame.Width, Height = frame.Height, Stretch = Stretch.Fill, IsHitTestVisible = false });
+        picture = new Image { Source = bitmap, Width = frame.Width, Height = frame.Height, Stretch = Stretch.Fill, IsHitTestVisible = false };
+        canvas.Children.Add(picture);
 
         var accent = Application.Current.TryFindResource("accentBrush") as Brush ?? Brushes.Orange;
         selection = new Rectangle
@@ -125,7 +127,27 @@ public sealed class FreeAreaWindow : Window
             e.Handled = true;
             Close();
         };
-        Closed += (_, _) => current = null;
+        // Num 8: donmuş görüntüyü oyunun o anki karesiyle yeniler (seçim ve sonuç temizlenir).
+        controller.SnapshotRequested += OnSnapshot;
+        Closed += (_, _) =>
+        {
+            controller.SnapshotRequested -= OnSnapshot;
+            current = null;
+        };
+    }
+
+    private void OnSnapshot() => Dispatcher.BeginInvoke(new Action(Refresh));
+
+    private void Refresh()
+    {
+        if (!IsLoaded || dragging || controller.LastFrame is not { } latest) return;
+        frame = latest;
+        version++;
+        picture.Source = BitmapSource.Create(latest.Width, latest.Height, 96, 96, PixelFormats.Bgra32, null, latest.Pixels, latest.Stride);
+        picture.Width = canvas.Width = latest.Width;
+        picture.Height = canvas.Height = latest.Height;
+        selection.Visibility = Visibility.Collapsed;
+        resultPanel.Visibility = Visibility.Collapsed;
     }
 
     private void OnDown(object sender, MouseButtonEventArgs e)
