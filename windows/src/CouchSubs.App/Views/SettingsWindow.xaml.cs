@@ -176,6 +176,7 @@ public partial class SettingsWindow : Window
         var wasLoading = loading;
         loading = true;
         FreeResultBox.Visibility = Visibility.Collapsed;
+        Region.ShowOverlay(null);
         var text = Localizer.Current;
         var settings = controller.Settings;
         if (slot == 0)
