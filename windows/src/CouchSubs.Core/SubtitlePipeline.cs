@@ -17,7 +17,9 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
     private readonly Func<long> now = clock ?? DefaultClock;
     /// <summary>Varsayılanı her kareyi okur; uygulama gereksiz okumaları atlayan planı verir.</summary>
     private readonly ReadScheduler schedule = scheduler ?? ReadScheduler.Always();
-    private readonly SubtitleStabilizer stabilizer = new(clock: clock ?? DefaultClock);
+    private readonly SubtitleStabilizer stabilizer = new(clock: clock ?? DefaultClock, cleanFastPathOnly: translator.Prefetches);
+    /// <summary>En son önceden çevirisi başlatılan okuma; aynı metin her karede yeniden istenmez.</summary>
+    private string lastPrefetched = "";
     /// <summary>
     /// Her çeviri isteği sıra numarası alır. Aynı anda yalnız bir çeviri sürer, bir tane de sırada bekler (en yenisi):
     /// hızlı konuşmada araya giren satırlar atlanır, kuyruk konuşma hızıyla büyümez.
@@ -109,6 +111,12 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
         {
             var action = stabilizer.Feed(reading.Text);
             var box = reading.Box?.PlacedIn(area).CenteredOnScreen();
+            // Satır henüz doğrulanmadı: çevirisi şimdiden başlasın, doğrulanınca beklemeden gösterilsin.
+            if (action.Kind == StabilizerKind.None && translator.Prefetches && reading.Text.Trim() is { Length: >= 6 } early && early != lastPrefetched)
+            {
+                lastPrefetched = early;
+                translator.Prefetch(early);
+            }
             switch (action.Kind)
             {
                 case StabilizerKind.Clear:
