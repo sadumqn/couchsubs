@@ -22,4 +22,10 @@
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Paket imzasının (PackFuzzy) iç adımları Mac ve betikle aynı mı: ortak deneme verisiyle sınanır. -->
+    <InternalsVisibleTo Include="CouchSubs.Core.Tests" />
+    <InternalsVisibleTo Include="CouchSubs.Translation.Tests" />
+  </ItemGroup>
+
 </Project>
