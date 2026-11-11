@@ -185,37 +185,50 @@ public sealed class LinuxServices : IAppServices
 
     public Task<bool> IsSamsungDevModeOnAsync(string host) => SamsungTvInstaller.IsDevModeOnAsync(host);
 
-    public async Task InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
+    /// <summary>TV'deki sürüme bakar, eksik ya da eskiyse kurar (Windows'taki LiveServices gibi); ayrıntılı kurulum günlüğü
+    /// veri klasöründeki tvinstall.log'a yazılır.</summary>
+    public async Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(1) };
-        var installer = new SamsungTvInstaller(host, AppPaths.Folder("samsung"), new SamsungCertificates(http))
+        var log = new TvInstall.InstallLog(AppPaths.Folder("tvinstall.log"));
+        var installer = new SamsungTvInstaller(host, AppPaths.Folder("samsung"), new SamsungCertificates(http, log))
         {
-            Progress = _ => onEvent(new TvInstallEvent(TvInstallEventKind.Progress)),
+            Log = log,
+            Progress = step => onEvent(new TvInstallEvent(TvInstallEventKind.Progress, Step: step)),
             SignIn = token => SamsungLogin.SignInAsync(url => onEvent(new TvInstallEvent(TvInstallEventKind.SignIn, new Uri(url))),
                 TimeSpan.FromMinutes(10), token),
         };
         try
         {
-            await Task.Run(() => installer.InstallAsync(app.Path));
+            return await Task.Run(() => installer.EnsureInstalledAsync(app.Path, app.Version));
         }
         catch (SamsungInstallException error)
         {
             Log.Write("tv", $"Samsung TV kurulumu: {error.Message}");
-            throw new DevModeException(error.Error switch
-            {
-                SamsungInstallError.Unreachable => DevModeError.Unreachable,
-                SamsungInstallError.LoginFailed => DevModeError.SignInFailed,
-                SamsungInstallError.CertificateFailed => DevModeError.CertificateFailed,
-                SamsungInstallError.TooOld => DevModeError.TooOld,
-                _ => DevModeError.InstallFailed,
-            }, error.Message);
+            throw new DevModeException(SamsungError(error.Error), error.Detail);
         }
         catch (Exception error) when (error is not DevModeException)
         {
             Log.Write("tv", $"TV kurulumu: {error.Message}");
-            throw new DevModeException(DevModeError.InstallFailed, error.Message);
+            log.Write($"Beklenmeyen hata: {error}");
+            throw new DevModeException(DevModeError.InstallFailed, $"{error.GetType().Name}: {error.Message}");
         }
     }
+
+    internal static DevModeError SamsungError(SamsungInstallError error) => error switch
+    {
+        SamsungInstallError.Unreachable => DevModeError.Unreachable,
+        SamsungInstallError.LoginFailed => DevModeError.SignInFailed,
+        SamsungInstallError.CertificateFailed => DevModeError.CertificateFailed,
+        SamsungInstallError.TooOld => DevModeError.TooOld,
+        SamsungInstallError.NotEnoughSpace => DevModeError.NotEnoughSpace,
+        SamsungInstallError.CertificateMismatch => DevModeError.CertificateMismatch,
+        SamsungInstallError.CertificateRejected => DevModeError.CertificateRejected,
+        SamsungInstallError.TvClockWrong => DevModeError.TvClockWrong,
+        SamsungInstallError.PackageBlocked => DevModeError.PackageBlocked,
+        SamsungInstallError.ConnectionLost => DevModeError.ConnectionLost,
+        _ => DevModeError.InstallFailed,
+    };
 
     public Task<bool> IsAndroidDebugOnAsync(string host) => AndroidTvInstaller.IsReachableAsync(host);
 
