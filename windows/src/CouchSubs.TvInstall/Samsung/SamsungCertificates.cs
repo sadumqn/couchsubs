@@ -18,7 +18,12 @@ public sealed record SigningProfile(string Directory, string AuthorP12, string D
 
     public bool Exists => File.Exists(AuthorP12) && File.Exists(DistributorP12) && Password.Length > 0;
 
-    /// <summary>Sertifikalar hâlâ geçerli mi (bir gün pay bırakılarak)?</summary>
+    private string DuidFile => Path.Combine(Directory, "duid.txt");
+
+    /// <summary>
+    /// Sertifikalar hâlâ geçerli mi (bir gün pay bırakılarak)? Başlangıç tarihine bir gün tolerans var: bu bilgisayarın
+    /// saati Samsung'unkinden biraz geride olunca yeni alınmış sertifika her denemede yeniden istenmesin.
+    /// </summary>
     public bool IsValid(DateTime now)
     {
         if (!Exists) return false;
@@ -26,8 +31,8 @@ public sealed record SigningProfile(string Directory, string AuthorP12, string D
         {
             foreach (var path in new[] { AuthorP12, DistributorP12 })
             {
-                using var certificate = X509CertificateLoader.LoadPkcs12FromFile(path, Password, X509KeyStorageFlags.EphemeralKeySet);
-                if (certificate.NotBefore > now || certificate.NotAfter < now.AddDays(1)) return false;
+                using var certificate = Load(path);
+                if (certificate.NotBefore.ToUniversalTime() > now.AddDays(1) || certificate.NotAfter.ToUniversalTime() < now.AddDays(1)) return false;
             }
             return true;
         }
@@ -36,13 +41,75 @@ public sealed record SigningProfile(string Directory, string AuthorP12, string D
             return false;
         }
     }
+
+    /// <summary>
+    /// Sertifikayı tarihlerine bakmak için açar. macOS EphemeralKeySet'i desteklemez (PlatformNotSupportedException):
+    /// Mac'te kayıtlı sertifikası olan her TV'de, yani ilk kurulumdan sonraki her kurulumda yardımcı bu yüzden genel
+    /// "kurulamadı" hatasıyla duruyordu ve Samsung girişi de hiç açılmıyordu.
+    /// </summary>
+    internal static X509KeyStorageFlags LoadFlags =>
+        OperatingSystem.IsMacOS() ? X509KeyStorageFlags.DefaultKeySet : X509KeyStorageFlags.EphemeralKeySet;
+
+    private X509Certificate2 Load(string path) => X509CertificateLoader.LoadPkcs12FromFile(path, Password, LoadFlags);
+
+    /// <summary>Dağıtıcı sertifikası bu TV için mi alındı? (Eski kurulumlarda duid.txt yoksa klasör adına güvenilir.)</summary>
+    public bool IsFor(string duid)
+    {
+        try
+        {
+            return !File.Exists(DuidFile) || File.ReadAllText(DuidFile).Trim() == duid;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Günlük için: sertifikaların durumu ve geçerlilik tarihleri.</summary>
+    public string Describe(DateTime now, string duid)
+    {
+        if (!Exists) return "yok";
+        try
+        {
+            using var author = Load(AuthorP12);
+            using var distributor = Load(DistributorP12);
+            var state = !IsFor(duid) ? "başka TV'nin" : IsValid(now) ? "geçerli" : "süresi dolmuş";
+            return $"{state}; yazar {author.NotBefore.ToUniversalTime():yyyy-MM-dd HH:mm}–{author.NotAfter.ToUniversalTime():yyyy-MM-dd} UTC, " +
+                   $"dağıtıcı {distributor.NotBefore.ToUniversalTime():yyyy-MM-dd HH:mm}–{distributor.NotAfter.ToUniversalTime():yyyy-MM-dd} UTC, " +
+                   $"dağıtıcıyı veren {distributor.Issuer}";
+        }
+        catch (CryptographicException error)
+        {
+            return $"okunamadı ({error.Message})";
+        }
+    }
+
+    /// <summary>
+    /// TV'nin reddettiği sertifikaları bir kenara koyar (silmez: sorun bulunurken incelenebilsin); bir sonraki kurulum
+    /// Samsung'dan yenisini ister.
+    /// </summary>
+    public static void Discard(string directory)
+    {
+        try
+        {
+            if (!System.IO.Directory.Exists(directory)) return;
+            var target = $"{directory}.rejected-{DateTime.UtcNow:yyyyMMddHHmmss}";
+            System.IO.Directory.Move(directory, target);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Taşınamazsa silinir; yine olmazsa bir sonraki kurulum eski sertifikayla dener.
+            try { System.IO.Directory.Delete(directory, recursive: true); }
+            catch (Exception again) when (again is IOException or UnauthorizedAccessException) { }
+        }
+    }
 }
 
 /// <summary>
 /// Samsung'dan TV'ye özel imza sertifikası alır: yazar sertifikası Samsung hesabına, dağıtıcı sertifikası TV'nin
 /// DUID'ine bağlıdır. Tizen Studio'nun Certificate Manager'ının yaptığının aynısıdır.
 /// </summary>
-public sealed class SamsungCertificates(HttpClient http)
+public sealed class SamsungCertificates(HttpClient http, InstallLog? log = null)
 {
     private const string AuthorUrl = "https://svdca.samsungqbe.com/apis/v3/authors";
     private const string DistributorProfileUrl = "https://svdca.samsungqbe.com/apis/v1/distributors";
@@ -65,8 +132,8 @@ public sealed class SamsungCertificates(HttpClient http)
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
         var authorPath = Path.Combine(directory, "author.p12");
         var distributorPath = Path.Combine(directory, "distributor.p12");
-        await File.WriteAllBytesAsync(authorPath, Pkcs12(LoadCertificate(author), key, password), cancellationToken);
-        await File.WriteAllBytesAsync(distributorPath, Pkcs12(LoadCertificate(distributor), key, password), cancellationToken);
+        await File.WriteAllBytesAsync(authorPath, Pkcs12(ReadIssued(author, "yazar"), key, password), cancellationToken);
+        await File.WriteAllBytesAsync(distributorPath, Pkcs12(ReadIssued(distributor, "dağıtıcı"), key, password), cancellationToken);
         await File.WriteAllBytesAsync(Path.Combine(directory, "device-profile.xml"), deviceProfile, cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(directory, "password.txt"), password, cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(directory, "duid.txt"), duid, cancellationToken);
@@ -112,12 +179,70 @@ public sealed class SamsungCertificates(HttpClient http)
             content.Add(new StringContent("Individual"), "developer_type");
         }
         content.Add(new ByteArrayContent(csr), "csr", fileName);
-        using var response = await http.PostAsync(url, content, cancellationToken);
-        var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        var step = new Uri(url).AbsolutePath;
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.PostAsync(url, content, cancellationToken);
+        }
+        catch (Exception error) when (error is HttpRequestException || (error is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            // İnternet yok, ad çözülemiyor ya da Samsung'un sunucusu yanıt vermiyor: genel "kurulamadı"ya düşmesin.
+            log?.Write($"Sertifika sunucusuna ulaşılamadı ({step}): {error}");
             throw new SamsungInstallException(SamsungInstallError.CertificateFailed,
-                $"{(int)response.StatusCode} {Encoding.UTF8.GetString(body.AsSpan(0, Math.Min(body.Length, 300)))}");
-        return body;
+                $"Samsung'un sertifika sunucusuna ({new Uri(url).Host}) ulaşılamadı: {error.Message}");
+        }
+        using (response)
+        {
+            var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            log?.Write($"Sertifika sunucusu {step}: {(int)response.StatusCode} {response.ReasonPhrase}, {body.Length} bayt");
+            if (!response.IsSuccessStatusCode)
+            {
+                var text = ServerError(body);
+                log?.Write($"Sertifika sunucusunun yanıtı: {text}");
+                throw new SamsungInstallException(SamsungInstallError.CertificateFailed,
+                    $"Samsung sertifika sunucusu {step}: {(int)response.StatusCode} {response.ReasonPhrase} {text}".Trim());
+            }
+            return body;
+        }
+    }
+
+    /// <summary>Samsung'un hata yanıtı: JSON ise iletisi ve kodu, değilse metnin başı.</summary>
+    internal static string ServerError(byte[] body)
+    {
+        var text = Encoding.UTF8.GetString(body).Trim();
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(text);
+            if (json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                var parts = new List<string>();
+                foreach (var name in new[] { "code", "errorCode", "error", "message", "errorMessage", "error_description" })
+                    if (json.RootElement.TryGetProperty(name, out var value) && value.ValueKind is System.Text.Json.JsonValueKind.String or System.Text.Json.JsonValueKind.Number)
+                        parts.Add($"{name}={value}");
+                if (parts.Count > 0) return string.Join(", ", parts);
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return text.Length <= 300 ? text : text[..300] + "…";
+    }
+
+    /// <summary>
+    /// Samsung bazen başarılı yanıtın içinde sertifika yerine hata metni döndürür; bu da "kurulamadı"ya değil sertifika
+    /// hatasına, Samsung'un kendi sözüyle düşsün.
+    /// </summary>
+    internal X509Certificate2 ReadIssued(byte[] data, string kind)
+    {
+        try
+        {
+            return LoadCertificate(data);
+        }
+        catch (CryptographicException error)
+        {
+            var text = ServerError(data);
+            log?.Write($"Samsung'un {kind} sertifikası okunamadı ({error.Message}); yanıt: {text}");
+            throw new SamsungInstallException(SamsungInstallError.CertificateFailed, $"Samsung {kind} sertifikası vermedi: {text}");
+        }
     }
 
     internal static X509Certificate2 LoadCertificate(byte[] data)

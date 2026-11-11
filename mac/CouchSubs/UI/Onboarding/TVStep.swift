@@ -9,6 +9,8 @@ struct TVStep: View {
     @State private var searching = false
     @State private var working = false
     @State private var error: String?
+    /// Bağlanılan TV'nin markası (Samsung'da izin kutusu ayrıca anlatılır).
+    @State private var pairingBrand: TVBrand?
 
     var body: some View {
         StepLayout(symbol: "tv.fill", title: "Connect your TV",
@@ -57,7 +59,12 @@ struct TVStep: View {
                 if working {
                     HStack(spacing: Theme.space("s")) {
                         ProgressView().controlSize(.small)
-                        Text("Accept the request on the TV…").foregroundStyle(Color.csSecondary)
+                        if pairingBrand == .samsung {
+                            Text("Accept the permission box on the TV with the remote (Allow). CouchSubs waits 60 seconds.")
+                                .foregroundStyle(Color.csSecondary)
+                        } else {
+                            Text("Accept the request on the TV…").foregroundStyle(Color.csSecondary)
+                        }
                     }
                 }
                 ErrorText(error: error)
@@ -82,8 +89,24 @@ struct TVStep: View {
 
     private func pair(_ tv: LGTV) async {
         working = true
+        pairingBrand = tv.brand
         error = nil
-        do { try await model.pair(tv) } catch { self.error = String(localized: "The TV did not respond. Make sure it is on and on the same network.") }
+        do { try await model.pair(tv) } catch { self.error = Self.pairingMessage(for: error, brand: tv.brand) }
         working = false
+        pairingBrand = nil
+    }
+
+    /// Bağlanamayınca ne yapılacağı. Samsung'da izin kutusu süresinde onaylanmadıysa ya da TV reddettiyse bunu söyler;
+    /// önceden hepsi "TV yanıt vermedi" diyordu ve kullanıcı kutu çıkana kadar körlemesine yeniden deniyordu.
+    static func pairingMessage(for error: Error, brand: TVBrand) -> String {
+        if brand == .samsung, let samsung = error as? SamsungClient.SamsungError {
+            switch samsung {
+            case .rejected:
+                return String(localized: "The TV refused the connection. Allow CouchSubs in Settings › General › External Device Manager › Device Connection Manager › Device List on the TV, then press Connect again.")
+            case .cannotConnect:
+                return String(localized: "The TV's permission box was not accepted within 60 seconds. If no box appeared, open the TV's home screen and press Connect again. If CouchSubs was denied before, allow it in Settings › General › External Device Manager › Device Connection Manager › Device List.")
+            }
+        }
+        return String(localized: "The TV did not respond. Make sure it is on and on the same network.")
     }
 }

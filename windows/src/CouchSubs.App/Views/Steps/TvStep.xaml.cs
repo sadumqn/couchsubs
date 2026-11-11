@@ -53,6 +53,10 @@ public partial class TvStep : UserControl
     private async Task PairAsync(LgTv tv)
     {
         Tvs.IsEnabled = false;
+        // Samsung'da izin kutusu ve bekleme süresi açıkça söylenir.
+        Waiting.Text = tv.Brand == TvBrand.Samsung
+            ? Localizer.Current["Accept the permission box on the TV with the remote (Allow). CouchSubs waits 60 seconds."]
+            : Localizer.Current["Accept the request on the TV…"];
         Waiting.Visibility = Visibility.Visible;
         Error.Text = "";
         try
@@ -60,14 +64,9 @@ public partial class TvStep : UserControl
             await Controller.PairAsync(tv);
             ShowDone();
         }
-        catch (SsapException error) when (error.Reason != "cannot connect")
+        catch (Exception error)
         {
-            // TV yanıt verdi ama reddetti ya da süre doldu: gerçek nedeni göster.
-            Error.Text = $"{Localizer.Current["The TV did not respond. Make sure it is on and on the same network."]} ({error.Reason})";
-        }
-        catch (Exception)
-        {
-            Error.Text = Localizer.Current["The TV did not respond. Make sure it is on and on the same network."];
+            Error.Text = TvAppMessages.PairingProblem(error, tv.Brand, Localizer.Current);
         }
         Waiting.Visibility = Visibility.Collapsed;
         Tvs.IsEnabled = true;

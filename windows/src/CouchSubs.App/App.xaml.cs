@@ -49,7 +49,7 @@ public partial class App : Application
             Localizer.Current, action => Dispatcher.BeginInvoke(action))
         {
             // Samsung'un sertifika için giriş sayfası varsayılan tarayıcıda açılır.
-            OpenInBrowser = url => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url.AbsoluteUri) { UseShellExecute = true }),
+            OpenInBrowser = BrowserLauncher.Open,
         };
         var window = new ShellWindow(controller);
         MainWindow = window;

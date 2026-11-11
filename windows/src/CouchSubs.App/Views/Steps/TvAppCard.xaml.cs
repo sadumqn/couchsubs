@@ -73,13 +73,14 @@ public partial class TvAppCard : UserControl
                 _ => text["The TV app is not installed. CouchSubs installs it over the network once debugging is on."],
             },
             TvAppKind.NeedsPassphrase => text["Developer Mode is on. One last step to install the TV app:"],
-            TvAppKind.SignIn => text["Samsung signs the app for your TV. Sign in with your Samsung account on the page that opened in your browser."],
+            TvAppKind.SignIn => text["The Samsung account page opened in your browser. Finish signing in there. If you do not see it, switch to the browser or press Open the page again."],
             TvAppKind.ApproveOnTv => text["Look at the TV: it asks whether to allow debugging from this computer."],
             _ => "",
         };
         Detail.Text = state.Kind switch
         {
-            TvAppKind.SignIn => text["No account? You can create a free one on the same page. If the browser asks to allow access to devices on your network, allow it."],
+            TvAppKind.SignIn => text["Samsung signs the app for your TV with your free Samsung account."] + " " +
+                                text["No account? You can create a free one on the same page. If the browser asks to allow access to devices on your network, allow it."],
             TvAppKind.ApproveOnTv => text["Tick “Always allow from this computer” and choose Allow. The app then installs by itself."],
             TvAppKind.UpToDate when brand == TvBrand.Lg => controller?.DevModeHoursLeft is { } hours
                 ? text["Developer Mode: %lld hours left. CouchSubs extends it by itself each time you use it."].Replace("%lld", hours.ToString())
@@ -87,29 +88,10 @@ public partial class TvAppCard : UserControl
             _ => "",
         };
         Detail.Visibility = Visible(Detail.Text.Length > 0);
-        Problem.Text = state.Error is { } error
-            ? Message(error, brand) + (state.Reason is { } reason ? $"\n\n{Localizer.Current["TV says:"]} {reason}" : "")
-            : "";
+        Problem.Text = TvAppMessages.Problem(state, brand, text, Services.LiveServices.TvInstallLogPath);
         if (devModeOff) devModeWatch.Start();
         else devModeWatch.Stop();
     }
-
-    private static string Message(DevModeError error, TvBrand brand) => Localizer.Current[error switch
-    {
-        DevModeError.KeyServerOff => "Key Server is off. Turn it on in the Developer Mode app and keep the app on screen.",
-        DevModeError.WrongPassphrase => "The passphrase is not correct. Check it on the TV screen.",
-        DevModeError.KeyRefused => "The TV refused the key. Open Key Server and type the passphrase again.",
-        DevModeError.Unreachable when brand == TvBrand.Samsung =>
-            "The TV did not accept this computer. In the TV's Developer Mode window, check that Host PC IP is this computer's address, then restart the TV.",
-        DevModeError.Unreachable => "The TV did not respond. Make sure it is on and on the same network.",
-        DevModeError.ToolMissing => "Windows' OpenSSH Client is missing. Add it in Settings › System › Optional features and try again.",
-        DevModeError.TooOld => "This Samsung TV is too old for the CouchSubs TV app (2019 models and later are supported).",
-        DevModeError.SignInFailed => "Samsung sign-in did not complete. Try again and finish signing in on the page that opens.",
-        DevModeError.CertificateFailed => "Samsung did not issue the signing certificate. Try again in a few minutes.",
-        DevModeError.NotApproved => "Debugging was not allowed on the TV. Try again and choose Allow on the TV.",
-        DevModeError.NotEnoughSpace => "The TV is out of free space. Remove an app you do not use from the TV and try again.",
-        _ => "The TV app could not be installed. Try again; if it fails again, send us the reason below.",
-    }];
 
     private async void OnInstall(object sender, RoutedEventArgs e)
     {

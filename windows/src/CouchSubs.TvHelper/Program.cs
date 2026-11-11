@@ -9,6 +9,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Nodes;
+using CouchSubs.TvInstall;
 using CouchSubs.TvInstall.Android;
 using CouchSubs.TvInstall.Samsung;
 using TizenSdb.SigningManager;
@@ -27,6 +28,9 @@ void Emit(string name, params (string Key, JsonNode? Value)[] fields)
 string Option(string name) =>
     args.SkipWhile(a => a != name).Skip(1).FirstOrDefault()
     ?? throw new ArgumentException($"{name} eksik");
+
+// Kurulum günlüğü (Mac: ~/Library/Logs/CouchSubs/tvinstall.log); verilmezse yazılmaz.
+var log = new InstallLog(args.SkipWhile(a => a != "--log").Skip(1).FirstOrDefault());
 
 using var cancel = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancel.Cancel(); };
@@ -62,14 +66,20 @@ try
         case "samsung-install":
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(1) };
-            var installer = new SamsungTvInstaller(Option("--host"), Option("--profiles"), new SamsungCertificates(http))
+            var installer = new SamsungTvInstaller(Option("--host"), Option("--profiles"), new SamsungCertificates(http, log))
             {
+                Log = log,
                 Progress = step => Emit("progress", ("step", step)),
                 // Tarayıcıyı Mac uygulaması açar; giriş geri dönüşünü burası dinler.
-                SignIn = token => SamsungLogin.SignInAsync(url => Emit("login", ("url", url)), TimeSpan.FromMinutes(10), token),
+                SignIn = token => SamsungLogin.SignInAsync(url =>
+                {
+                    log.Write($"Giriş sayfası açılsın diye Mac uygulamasına gönderildi: {url}");
+                    Emit("login", ("url", url));
+                }, TimeSpan.FromMinutes(10), token),
             };
-            await installer.InstallAsync(Option("--package"), cancel.Token);
-            Emit("done", ("version", Option("--version")), ("installed", true));
+            // TV'deki sürüm yeniyse kurulmaz; Mac uygulaması TV'deki sürümü saklar.
+            var (version, installed) = await installer.EnsureInstalledAsync(Option("--package"), Option("--version"), cancel.Token);
+            Emit("done", ("version", version), ("installed", installed));
             return 0;
         }
 
@@ -80,7 +90,7 @@ try
             return 0;
 
         default:
-            Console.Error.WriteLine("kullanım: couchsubs-tv-helper android-scan | android-install --host IP --package APK --version V --key-dir DİZİN | samsung-install --host IP --package WGT --version V --profiles DİZİN | self-test");
+            Console.Error.WriteLine("kullanım: couchsubs-tv-helper android-scan | android-install --host IP --package APK --version V --key-dir DİZİN | samsung-install --host IP --package WGT --version V --profiles DİZİN [--log DOSYA] | self-test");
             return 2;
     }
 }
@@ -91,12 +101,14 @@ catch (AndroidInstallException error)
 }
 catch (SamsungInstallException error)
 {
-    Emit("error", ("code", error.Error.ToString()), ("message", error.Message));
+    Emit("error", ("code", error.Error.ToString()), ("message", error.Detail ?? error.Error.ToString()));
     return 1;
 }
 catch (Exception error) when (error is not OperationCanceledException)
 {
-    Emit("error", ("code", "InstallFailed"), ("message", error.Message));
+    // Beklenmeyen hata da sessiz kalmasın: türü ve iletisi kullanıcıya, yığın günlüğe.
+    log.Write($"Yardımcıda beklenmeyen hata: {error}");
+    Emit("error", ("code", "InstallFailed"), ("message", $"{error.GetType().Name}: {error.Message}"));
     return 1;
 }
 
@@ -111,6 +123,13 @@ static async Task SelfTestAsync()
         var p12 = Path.Combine(dir, "test.p12");
         await File.WriteAllBytesAsync(p12, new X509Certificate2Collection { withKey }.ExportPkcs12(
             new PbeParameters(PbeEncryptionAlgorithm.TripleDes3KeyPkcs12, HashAlgorithmName.SHA1, 2048), "x"));
+        // Kayıtlı sertifikanın okunduğunu da sına: macOS'ta okunamayınca ikinci kurulumdan itibaren her kurulum
+        // genel hatayla duruyordu.
+        File.Copy(p12, Path.Combine(dir, "author.p12"));
+        File.Copy(p12, Path.Combine(dir, "distributor.p12"));
+        await File.WriteAllTextAsync(Path.Combine(dir, "password.txt"), "x");
+        if (!SigningProfile.In(dir).IsValid(DateTime.UtcNow.AddHours(-23)))
+            throw new InvalidOperationException("kayıtlı sertifika okunamadı");
         var wgt = Path.Combine(dir, "app.wgt");
         using (var zip = ZipFile.Open(wgt, ZipArchiveMode.Create))
         {

@@ -101,15 +101,21 @@ final class FakeServices: AppServices {
     var bundled: [TVBrand: BundledTVApp] = [:]
     var samsungDevMode = false
     var androidHosts: [String] = []
-    var installError: DevModeError?
+    var installError: Error?
     var events: [TVInstallEvent] = []
     var brandInstalls: [(brand: TVBrand, host: String)] = []
     func bundledApp(for brand: TVBrand) -> BundledTVApp? { bundled[brand] }
     func isSamsungDevModeOn(host: String) async -> Bool { samsungDevMode }
-    func installSamsungApp(host: String, app: BundledTVApp, onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws {
+    /// Samsung TV'de kurulu sürüm (sahte TV'nin vd_applist'i); nil: uygulama yok.
+    var samsungOnTV: String?
+    func installSamsungApp(host: String, app: BundledTVApp,
+                           onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws -> (version: String, installed: Bool) {
+        if let onTV = samsungOnTV, !DevModeInstaller.isNewer(app.version, than: onTV) { return (onTV, false) }
         events.forEach(onEvent)
         if let installError { throw installError }
         brandInstalls.append((.samsung, host))
+        samsungOnTV = app.version
+        return (app.version, true)
     }
     func isAndroidDebugOn(host: String) async -> Bool { androidHosts.contains(host) }
     func scanAndroidTVs() async -> [String] { androidHosts }
@@ -729,15 +735,136 @@ final class TVAppInstallTests: XCTestCase {
         XCTAssertEqual(services.brandInstalls.count, 1, "Kurulu sürüm yeniden kurulmaz")
     }
 
+    func testOldSamsungAppOnTheTVIsUpdatedEvenIfThisMacThinksItIsCurrent() async {
+        // Q60: TV'de 0.9.7 kalmıştı, bilgisayar kendi kaydına bakıp hiç güncellemiyordu.
+        let services = FakeServices()
+        services.bundled[.samsung] = app
+        services.samsungDevMode = true
+        services.samsungOnTV = "0.6.0"
+        let store = MemoryStore()
+        store.save("0.7.0", for: StoreKey.tvAppVersion)
+        let model = model(services, store: store)
+        model.tv = samsung
+        await model.refreshTVApp()
+        XCTAssertEqual(services.brandInstalls.count, 1)
+        XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+    }
+
+    func testCurrentSamsungAppOnTheTVIsNotReinstalled() async {
+        let services = FakeServices()
+        services.bundled[.samsung] = app
+        services.samsungDevMode = true
+        services.samsungOnTV = "0.7.0"
+        let store = MemoryStore()
+        let model = model(services, store: store)
+        model.tv = samsung
+        await model.refreshTVApp()
+        XCTAssertTrue(services.brandInstalls.isEmpty)
+        XCTAssertEqual(store.load(String.self, for: StoreKey.tvAppVersion), "0.7.0")
+        XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+    }
+
+    func testSamsungCheckThatCannotReachTheTVKeepsAWorkingAppReady() async {
+        let services = FakeServices()
+        services.bundled[.samsung] = app
+        services.samsungDevMode = true
+        services.installError = DevModeFailure(.unreachable, detail: "sdb: closed")
+        let store = MemoryStore()
+        store.save("0.7.0", for: StoreKey.tvAppVersion)
+        let model = model(services, store: store)
+        model.tv = samsung
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+        store.remove(StoreKey.tvAppVersion)
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .failed(.unreachable, reason: "sdb: closed"))
+    }
+
     func testSamsungFailureIsShown() async {
         let services = FakeServices()
         services.bundled[.samsung] = app
         services.samsungDevMode = true
-        services.installError = .signInFailed
+        services.installError = DevModeError.signInFailed
         let model = model(services)
         model.tv = samsung
         await model.refreshTVApp()
         XCTAssertEqual(model.tvApp, .failed(.signInFailed))
+    }
+
+    func testSamsungFailureShowsTheHelpersReasonAndTheLog() async {
+        let services = FakeServices()
+        services.bundled[.samsung] = app
+        services.samsungDevMode = true
+        services.installError = DevModeFailure(.packageBlocked, detail: "app_id[CouchSubsT.CouchSubs] install failed[118, -22]")
+        let model = model(services)
+        model.tv = samsung
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .failed(.packageBlocked, reason: "app_id[CouchSubsT.CouchSubs] install failed[118, -22]"))
+        let text = TVAppCard.message(for: .packageBlocked, brand: .samsung, reason: "install failed[118, -22]")
+        XCTAssertTrue(text.contains("Smart Hub"))
+        XCTAssertTrue(text.contains("install failed[118, -22]"))
+        XCTAssertTrue(text.hasSuffix(TVInstallLog.displayPath), "Gönderilecek günlük yazar")
+    }
+
+    func testSamsungMessagesAreSpecific() {
+        let generic = TVAppCard.message(for: .installFailed, brand: .samsung)
+        for error in [DevModeError.certificateMismatch, .certificateRejected, .tvClockWrong, .packageBlocked, .connectionLost] {
+            XCTAssertNotEqual(TVAppCard.message(for: error, brand: .samsung), generic, "\(error)")
+        }
+        // Ayrıntısı olmasa da Samsung hatası günlük dosyasını söyler; LG'de değişiklik yok.
+        XCTAssertTrue(TVAppCard.message(for: .signInFailed, brand: .samsung, reason: nil).contains(TVInstallLog.displayPath))
+        XCTAssertFalse(TVAppCard.message(for: .installFailed, brand: .lg, reason: nil).contains(TVInstallLog.displayPath))
+    }
+
+    func testSamsungPairingSaysWhetherThePermissionBoxWasMissedOrRefused() {
+        let timeout = TVStep.pairingMessage(for: SamsungClient.SamsungError.cannotConnect, brand: .samsung)
+        let refused = TVStep.pairingMessage(for: SamsungClient.SamsungError.rejected, brand: .samsung)
+        let generic = TVStep.pairingMessage(for: URLError(.timedOut), brand: .samsung)
+        XCTAssertTrue(timeout.contains("60"))
+        // Test, sistemin dilinde (Türkçe ya da İngilizce) çalışır; iki ileti de genelden ayrı olmalı.
+        XCTAssertNotEqual(refused, generic)
+        XCTAssertNotEqual(timeout, generic)
+        XCTAssertNotEqual(timeout, refused)
+        XCTAssertEqual(generic, TVStep.pairingMessage(for: SamsungClient.SamsungError.cannotConnect, brand: .lg))
+    }
+
+    func testHelperErrorKeepsItsReason() {
+        let line = #"{"event":"error","code":"CertificateFailed","message":"Samsung sertifika sunucusu /apis/v3/distributors: 401 Unauthorized"}"#
+        XCTAssertEqual(TVHelper.parse(line), .failed(DevModeFailure(.certificateFailed,
+                                                                    detail: "Samsung sertifika sunucusu /apis/v3/distributors: 401 Unauthorized")))
+        XCTAssertEqual(TVHelper.parse(#"{"event":"error","code":"Yeni"}"#), .failed(DevModeFailure(.installFailed, detail: "Yeni")))
+        XCTAssertEqual(TVHelper.parse(#"{"event":"login","url":"https://account.samsung.com/x"}"#),
+                       .event(.signIn(URL(string: "https://account.samsung.com/x")!)))
+        XCTAssertEqual(TVHelper.parse(#"{"event":"done","version":"0.9.10","installed":true}"#),
+                       .finished(TVHelper.Result(version: "0.9.10", installed: true)))
+        XCTAssertNil(TVHelper.parse("Unhandled exception."))
+    }
+
+    func testHelperErrorCodesMapToTheirOwnErrors() {
+        XCTAssertEqual(TVHelper.error(code: "CertificateMismatch"), .certificateMismatch)
+        XCTAssertEqual(TVHelper.error(code: "CertificateRejected"), .certificateRejected)
+        XCTAssertEqual(TVHelper.error(code: "TvClockWrong"), .tvClockWrong)
+        XCTAssertEqual(TVHelper.error(code: "PackageBlocked"), .packageBlocked)
+        XCTAssertEqual(TVHelper.error(code: "ConnectionLost"), .connectionLost)
+        XCTAssertEqual(TVHelper.error(code: "NotEnoughSpace"), .notEnoughSpace)
+        XCTAssertEqual(TVHelper.error(code: "InstallFailed"), .installFailed)
+    }
+
+    func testHelperThatEndsWithoutAResultSaysSo() {
+        let failure = TVHelper.unfinished(status: 134, stderr: "line 1\nUnhandled exception. System.PlatformNotSupportedException: x")
+        XCTAssertEqual(failure.error, .installFailed)
+        XCTAssertTrue(failure.detail.contains("134"))
+        XCTAssertTrue(failure.detail.contains("PlatformNotSupportedException"))
+    }
+
+    func testLogLinesAreAppended() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("tvinstall.log")
+        TVInstallLog.write("bir", to: file)
+        TVInstallLog.write("iki", to: file)
+        let text = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertTrue(text.contains("] bir\n"))
+        XCTAssertTrue(text.contains("] iki\n"))
+        XCTAssertEqual(TVInstallLog.displayPath, "~/Library/Logs/CouchSubs/tvinstall.log")
     }
 
     func testAndroidTVIsFoundOnTheNetworkAndRemembered() async {

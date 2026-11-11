@@ -252,7 +252,8 @@ public interface IAppServices
     /// <summary>Samsung ve Android TV için uygulamayla gelen paket (geliştirici derlemesinde olmayabilir).</summary>
     BundledTvApp? BundledApp(TvBrand brand);
     Task<bool> IsSamsungDevModeOnAsync(string host);
-    Task InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent);
+    /// <summary>TV'deki sürüme bakar, eksik ya da eskiyse kurar; TV'deki sürümü ve kurulup kurulmadığını döner.</summary>
+    Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent);
     Task<bool> IsAndroidDebugOnAsync(string host);
     /// <summary>Ağda ADB'si açık cihazlar.</summary>
     Task<IReadOnlyList<string>> ScanAndroidTvsAsync();
@@ -300,7 +301,8 @@ public sealed record BundledTvApp(string Path, string Version);
 public enum TvInstallEventKind { SignIn, ApproveOnTv, Progress }
 
 /// <summary>Samsung ve Android TV kurulumu sırasında kullanıcıdan bir şey isteyen olay.</summary>
-public sealed record TvInstallEvent(TvInstallEventKind Kind, Uri? Url = null);
+/// <param name="Step">Progress'te kurulum adımı (reading, signin, certificate, signing, installing, uninstalling).</param>
+public sealed record TvInstallEvent(TvInstallEventKind Kind, Uri? Url = null, string? Step = null);
 
 /// <summary>
 /// SignIn: Samsung sertifikası için tarayıcıda Samsung hesabıyla giriş bekleniyor. ApproveOnTv: Android TV ekranında

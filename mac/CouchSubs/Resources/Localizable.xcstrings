@@ -5856,6 +5856,246 @@
           }
         }
       }
+    },
+    "Copy the link": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy the link"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantıyı kopyala"
+          }
+        }
+      }
+    },
+    "Details:": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayrıntı:"
+          }
+        }
+      }
+    },
+    "If the TV shows “Server under maintenance”, it cannot reach Samsung's servers: check the TV's internet connection and its date and time, restart the TV and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the TV shows “Server under maintenance”, it cannot reach Samsung's servers: check the TV's internet connection and its date and time, restart the TV and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'de “Sunucu bakım altında” yazıyorsa TV, Samsung'un sunucularına ulaşamıyor: TV'nin internet bağlantısını, tarih ve saatini kontrol edin, TV'yi yeniden başlatıp tekrar deneyin."
+          }
+        }
+      }
+    },
+    "A CouchSubs TV app signed on another computer is still on the TV and could not be removed. On the TV, open Apps, select CouchSubs, delete it and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A CouchSubs TV app signed on another computer is still on the TV and could not be removed. On the TV, open Apps, select CouchSubs, delete it and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'de başka bir bilgisayarda imzalanmış bir CouchSubs uygulaması var ve kaldırılamadı. TV'de Uygulamalar'ı açın, CouchSubs'ı seçip silin ve tekrar deneyin."
+          }
+        }
+      }
+    },
+    "The TV did not accept the signing certificate. Make sure the TV is connected to the internet (it checks the certificate with Samsung) and its date and time are right (Settings › General › System Manager › Time), then try again. CouchSubs gets a new certificate, so you sign in to Samsung once more.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The TV did not accept the signing certificate. Make sure the TV is connected to the internet (it checks the certificate with Samsung) and its date and time are right (Settings › General › System Manager › Time), then try again. CouchSubs gets a new certificate, so you sign in to Samsung once more."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV imza sertifikasını kabul etmedi. TV'nin internete bağlı olduğundan (sertifikayı Samsung'a sorar) ve tarih ile saatinin doğru olduğundan emin olun (Ayarlar › Genel › Sistem Yöneticisi › Saat), sonra tekrar deneyin. CouchSubs yeni sertifika alacağı için Samsung hesabınızla bir kez daha giriş yaparsınız."
+          }
+        }
+      }
+    },
+    "The TV's clock is behind, so the new certificate is not valid for it yet. Set the TV's date and time (Settings › General › System Manager › Time) or wait a few minutes, then try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The TV's clock is behind, so the new certificate is not valid for it yet. Set the TV's date and time (Settings › General › System Manager › Time) or wait a few minutes, then try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'nin saati geride olduğu için yeni sertifika TV'ye göre henüz geçerli değil. TV'nin tarih ve saatini düzeltin (Ayarlar › Genel › Sistem Yöneticisi › Saat) ya da birkaç dakika bekleyip tekrar deneyin."
+          }
+        }
+      }
+    },
+    "The TV refuses CouchSubs because an earlier CouchSubs is still registered on it (Tizen error 118, -22), even if it no longer appears among the apps. If CouchSubs is among the TV's apps, delete it there and try again. Otherwise reset Smart Hub (Settings › Support › Device Care › Self Diagnosis › Reset Smart Hub; menu names differ a little by model) and try again. Resetting Smart Hub also removes the other apps you downloaded.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The TV refuses CouchSubs because an earlier CouchSubs is still registered on it (Tizen error 118, -22), even if it no longer appears among the apps. If CouchSubs is among the TV's apps, delete it there and try again. Otherwise reset Smart Hub (Settings › Support › Device Care › Self Diagnosis › Reset Smart Hub; menu names differ a little by model) and try again. Resetting Smart Hub also removes the other apps you downloaded."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV, daha önceki bir CouchSubs'ın kaydı hâlâ durduğu için uygulamayı kabul etmiyor (Tizen hatası 118, -22); uygulama listede görünmese de. CouchSubs TV'nin uygulamaları arasındaysa oradan silip tekrar deneyin. Değilse Smart Hub'ı sıfırlayıp (Ayarlar › Destek › Cihaz Bakımı › Kendi Kendine Tanılama › Smart Hub'ı Sıfırla; menü adları modele göre biraz değişir) tekrar deneyin. Smart Hub'ı sıfırlamak, indirdiğiniz diğer uygulamaları da kaldırır."
+          }
+        }
+      }
+    },
+    "The connection to the TV dropped during the install. Keep the TV on and on the same network as this computer, then try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection to the TV dropped during the install. Keep the TV on and on the same network as this computer, then try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurulum sırasında TV bağlantısı koptu. TV'yi açık ve bu bilgisayarla aynı ağda tutup tekrar deneyin."
+          }
+        }
+      }
+    },
+    "1. On the TV, open Apps and scroll to the very bottom of the page.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. On the TV, open Apps and scroll to the very bottom of the page."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. TV'de Uygulamalar ekranını açın ve sayfanın en altına inin."
+          }
+        }
+      }
+    },
+    "2. There, press 1 2 3 4 5 on the remote (or type 12345 on the on-screen keypad). The Developer Mode window opens.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. There, press 1 2 3 4 5 on the remote (or type 12345 on the on-screen keypad). The Developer Mode window opens."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. Orada kumandada 1 2 3 4 5 tuşlarına basın (ya da ekran klavyesiyle 12345 yazın). Geliştirici modu penceresi açılır."
+          }
+        }
+      }
+    },
+    "The Samsung account page opened in your browser. Finish signing in there. If you do not see it, switch to the browser or press Open the page again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Samsung account page opened in your browser. Finish signing in there. If you do not see it, switch to the browser or press Open the page again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samsung hesabı penceresi tarayıcıda açıldı, girişi orada tamamlayın. Göremiyorsanız tarayıcıya geçin ya da Sayfayı yeniden aç'a basın."
+          }
+        }
+      }
+    },
+    "Samsung signs the app for your TV with your free Samsung account.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samsung signs the app for your TV with your free Samsung account."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samsung, uygulamayı ücretsiz Samsung hesabınızla TV'nize özel imzalar."
+          }
+        }
+      }
+    },
+    "Accept the permission box on the TV with the remote (Allow). CouchSubs waits 60 seconds.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept the permission box on the TV with the remote (Allow). CouchSubs waits 60 seconds."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'de çıkan izin kutusunu kumandayla onaylayın (İzin ver). CouchSubs 60 saniye bekler."
+          }
+        }
+      }
+    },
+    "The TV's permission box was not accepted within 60 seconds. If no box appeared, open the TV's home screen and press Connect again. If CouchSubs was denied before, allow it in Settings › General › External Device Manager › Device Connection Manager › Device List.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The TV's permission box was not accepted within 60 seconds. If no box appeared, open the TV's home screen and press Connect again. If CouchSubs was denied before, allow it in Settings › General › External Device Manager › Device Connection Manager › Device List."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'deki izin kutusu 60 saniye içinde onaylanmadı. Kutu hiç çıkmadıysa TV'de ana ekranı açıp yeniden Bağlan'a basın. CouchSubs'a daha önce izin verilmediyse Ayarlar › Genel › Harici Aygıt Yöneticisi › Cihaz Bağlantı Yöneticisi › Cihaz Listesi'nden izin verin."
+          }
+        }
+      }
+    },
+    "The TV refused the connection. Allow CouchSubs in Settings › General › External Device Manager › Device Connection Manager › Device List on the TV, then press Connect again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The TV refused the connection. Allow CouchSubs in Settings › General › External Device Manager › Device Connection Manager › Device List on the TV, then press Connect again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV bağlantıyı reddetti. TV'de Ayarlar › Genel › Harici Aygıt Yöneticisi › Cihaz Bağlantı Yöneticisi › Cihaz Listesi'nden CouchSubs'a izin verip yeniden Bağlan'a basın."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
