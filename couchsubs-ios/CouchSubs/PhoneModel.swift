@@ -59,12 +59,43 @@ final class PhoneModel {
     private(set) var onlineIssue: OnlineKeyState?
     /// Son altyazı oyun paketinden mi geldi (ana ekrandaki "paket kullanılıyor" göstergesi).
     private(set) var lastFromPack = false
+    /// Bu oturumda çevrilen satırlar (en yenisi başta), nereden geldikleriyle.
+    private(set) var recentLines: [RecentLine] = []
+    /// Bu oturumdaki satır sayısı ve paketten gelenler ("Hazır çeviriden 47 / 50").
+    private(set) var sessionLines = 0
+    private(set) var sessionPackLines = 0
+    /// Çevirinin başladığı an (çalışma ekranındaki süre).
+    private(set) var runningSince: Date?
+
+    struct RecentLine: Identifiable, Equatable {
+        let id: Int
+        let source: String
+        let translation: String
+        let fromPack: Bool
+    }
+
+    /// Son oturumun süresi (saniye; ana ekrandaki "Son oturum").
+    var lastSessionSeconds: Int? {
+        let value = defaults.integer(forKey: "lastSessionSeconds")
+        return value > 0 ? value : nil
+    }
     /// Telefon ekranında şu an görünen satırlar (TV uygulamasıyla aynı yığın kuralları).
     private(set) var phoneLines: [SubtitleStack.Line] = []
     private(set) var installedPacks: [GamePackLibrary.Info] = []
 
     /// Çeviri sürerken ekran kararmasın (iOS uygulamayı askıya alınca bağlantı da durur). Uygulama UIKit'e bağlar.
     @ObservationIgnored var keepScreenAwake: (Bool) -> Void = { _ in }
+    /// Ölçüm olayları (Firebase Analytics, Meta); uygulama `AccountModel.analytics`'e bağlar.
+    @ObservationIgnored var onAnalytics: (AnalyticsEvent) -> Void = { _ in }
+    /// Oyun paketleri yalnız `packs` aboneliğiyle (ya da hata ayıklamada örnek paketlerle) kullanılır.
+    var packsUnlocked = false {
+        didSet {
+            guard packsUnlocked != oldValue else { return }
+            if let pipeline { connectPacks(to: pipeline) }
+            reloadPackList()
+        }
+    }
+    @ObservationIgnored private var startedAt: Date?
 
     private let services: PhoneServices
     private let store: AppStore
@@ -82,13 +113,16 @@ final class PhoneModel {
     /// Yığının saati (saniye); testlerde ileri sarılır.
     @ObservationIgnored var clock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
-    let packs = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: GamePackLibrary.userDirectory)
+    /// Abonelerin indirdiği paketler (PackStore'un klasörü); hata ayıklamada uygulamayla gelen örnekler.
+    let packs: GamePackLibrary
     private let pool: LinePool
 
-    init(services: PhoneServices = LivePhoneServices(), store: AppStore = KeychainStore(), defaults: UserDefaults = .standard) {
+    init(services: PhoneServices = LivePhoneServices(), store: AppStore = KeychainStore(), defaults: UserDefaults = .standard,
+         packs: GamePackLibrary = GamePackLibrary(bundled: nil, user: nil)) {
         self.services = services
         self.store = store
         self.defaults = defaults
+        self.packs = packs
         let accountId = store.load(Data.self, for: StoreKey.accountId)
         let console = store.load(RegisteredConsole.self, for: StoreKey.console)
         let tv = store.load(LGTV.self, for: StoreKey.tv)
@@ -114,10 +148,15 @@ final class PhoneModel {
             engine.storeKey.flatMap { store.load(String.self, for: $0) }?.isEmpty == false
         })
         attachServer()
-        let packs = self.packs
-        Task.detached(priority: .utility) { [weak self] in
-            let list = packs.packs
-            await MainActor.run { self?.installedPacks = list }
+        reloadPackList()
+    }
+
+    /// Ayarlardaki paket listesi (yalnız abonelikte dolu).
+    func reloadPackList() {
+        let (packs, unlocked) = (self.packs, packsUnlocked)
+        Task { [weak self] in
+            let list = await Task.detached(priority: .utility) { unlocked ? packs.packs : [] }.value
+            self?.installedPacks = list
         }
     }
 
@@ -200,6 +239,7 @@ final class PhoneModel {
         tvKeySaved = true
         tvAppMissing = !pairing.launched
         if settings.output == .computer { settings.output = .tv }
+        onAnalytics(.tvConnected(brand: tv.brand.rawValue))
     }
 
     /// "TV'm yok": altyazı bu telefonun ekranında gösterilir.
@@ -218,6 +258,23 @@ final class PhoneModel {
         tvKeySaved = false
         tvAppMissing = false
         step = .welcome
+    }
+
+    /// Hesap silinince: cihazdaki her şey (Anahtarlık kayıtları, çeviri anahtarları, ayarlar, çeviri önbelleği, havuz
+    /// kuyruğu) silinir; uygulama ilk açılıştaki gibi olur.
+    func wipeLocalData() {
+        resetSetup()
+        for engine in TranslationEngine.allCases { removeKey(engine) }
+        [StoreKey.tvDevKey, StoreKey.tvAppVersion].forEach(store.remove)
+        defaults.removeObject(forKey: StoreKey.settings)
+        defaults.removeObject(forKey: AccountModel.tourKey)
+        settings = UserSettings()
+        history.clear()
+        lastSource = ""
+        lastTranslation = ""
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(AppIdentity.name, isDirectory: true)
+        try? FileManager.default.removeItem(at: support)
     }
 
     // MARK: - Çeviri
@@ -241,10 +298,23 @@ final class PhoneModel {
         self.session = session
         startKeeper()
         isRunning = true
+        startedAt = Date()
+        runningSince = startedAt
+        recentLines = []
+        sessionLines = 0
+        sessionPackLines = 0
         keepScreenAwake(true)
+        onAnalytics(.sessionStart(output: settings.output.rawValue))
     }
 
     func stop() {
+        if let startedAt {
+            let seconds = Int(Date().timeIntervalSince(startedAt))
+            onAnalytics(.sessionStop(seconds: seconds))
+            defaults.set(seconds, forKey: "lastSessionSeconds")
+            self.startedAt = nil
+        }
+        runningSince = nil
         session?.stop()
         session = nil
         keeper?.stop()
@@ -315,7 +385,8 @@ final class PhoneModel {
             self?.lastSource = source
             self?.lastTranslation = translation
             self?.history.add(source: source, translation: translation)
-            self?.lastFromPack = pipeline?.lastOrigin == "paket"
+            let fromPack = pipeline?.lastOrigin == "paket"
+            self?.noteLine(source: source, translation: translation, fromPack: fromPack)
         }
         pipeline.onTranslationResult = { [weak self] error in
             let status: TranslatorStatus = switch error {
@@ -338,11 +409,27 @@ final class PhoneModel {
         processing = false
     }
 
+    private func noteLine(source: String, translation: String, fromPack: Bool) {
+        lastFromPack = fromPack
+        sessionLines += 1
+        if fromPack {
+            sessionPackLines += 1
+            onAnalytics(.packHit(packId: nil))
+        }
+        recentLines.insert(RecentLine(id: sessionLines, source: source, translation: translation, fromPack: fromPack), at: 0)
+        if recentLines.count > 30 { recentLines.removeLast() }
+    }
+
+    /// Okuma hattı oyun paketlerine bakıyor mu: abonelik açık, ayar açık ve İngilizce→Türkçe.
+    var packsActive: Bool {
+        packsUnlocked && settings.gamePacks && settings.sourceLanguage == "en" && settings.targetLanguage == "tr"
+    }
+
     /// Paketler yalnız İngilizce→Türkçede ve ayar açıkken kullanılır; pakette olmayan satır ortak havuza önerilir.
     private func connectPacks(to pipeline: SubtitlePipeline) {
         let packs = self.packs
         let pool = self.pool
-        let active = settings.gamePacks && settings.sourceLanguage == "en" && settings.targetLanguage == "tr"
+        let active = packsActive
         pipeline.packLookup = active ? { packs.match($0) } : nil
         guard settings.sourceLanguage == "en" else {
             pipeline.onPackMiss = nil

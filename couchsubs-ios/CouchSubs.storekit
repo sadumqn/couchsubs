@@ -1,0 +1,111 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "tr_TR",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "6B2F0C7E",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "79N3CT6T46",
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "tr_TR",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "TUR",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21543210",
+      "localizations" : [
+        {
+          "description" : "Oyun paketleri aboneliği",
+          "displayName" : "CouchSubs Oyun Paketleri",
+          "locale" : "tr_TR"
+        }
+      ],
+      "name" : "packs",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "399",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "21543211",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Hazır Türkçe oyun paketleri, aylık",
+              "displayName" : "Oyun Paketleri (Aylık)",
+              "locale" : "tr_TR"
+            }
+          ],
+          "productID" : "couchsubs_packs_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Packs Monthly",
+          "subscriptionGroupID" : "21543210",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "3588",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "21543212",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Hazır Türkçe oyun paketleri, yıllık (aylık 299 TL)",
+              "displayName" : "Oyun Paketleri (Yıllık)",
+              "locale" : "tr_TR"
+            }
+          ],
+          "productID" : "couchsubs_packs_annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Packs Annual",
+          "subscriptionGroupID" : "21543210",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
