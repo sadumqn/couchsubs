@@ -36,7 +36,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         working-directory: tv-android
         run: |
-          gradle assembleRelease --no-daemon
+          gradle testReleaseUnitTest assembleRelease --no-daemon
           mkdir -p ../dist
           cp app/build/outputs/apk/release/*.apk ../dist/CouchSubs-androidtv.apk
       - uses: actions/upload-artifact@v4

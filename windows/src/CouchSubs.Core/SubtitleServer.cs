@@ -33,7 +33,21 @@ public sealed record SubtitleStyle(
     SubtitlePlacement Placement = SubtitlePlacement.Cover,
     int Background = 72,
     bool Bold = false,
-    SubtitleTextColor TextColor = SubtitleTextColor.White);
+    SubtitleTextColor TextColor = SubtitleTextColor.White,
+    TvDisplayMode DisplayMode = TvDisplayMode.InApp);
+
+/// <summary>
+/// Android TV'de PS5 görüntüsünün nasıl gösterildiği. Yalnız Android TV uygulaması kullanır; diğer TV'ler ve OBS
+/// katmanı alanı tanımaz.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TvDisplayMode>))]
+public enum TvDisplayMode
+{
+    /// <summary>HDMI CouchSubs'ın içinde; görüntü hiç gelmezse TV uygulaması kendiliğinden katmana geçer.</summary>
+    InApp,
+    /// <summary>TV HDMI'yı kendi ekranında gösterir, altyazı üstteki şeffaf katmanda (bazı TV'lerde uygulama içi görüntü siyah kalıyor).</summary>
+    Overlay,
+}
 
 /// <summary>TV'de altyazı yazısının rengi.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SubtitleTextColor>))]
@@ -417,6 +431,7 @@ public sealed class SubtitleServer(int port = 8787, TimeSpan? pingInterval = nul
             ["background"] = Math.Clamp(style.Background, 0, 100),
             ["bold"] = style.Bold,
             ["bottomPercent"] = style.BottomPercent,
+            ["displayMode"] = style.DisplayMode == TvDisplayMode.Overlay ? "overlay" : "inApp",
             ["fontSize"] = style.FontSize,
             ["placement"] = style.Placement.ToString().ToLowerInvariant(),
             ["textColor"] = style.TextColor.ToString().ToLowerInvariant(),

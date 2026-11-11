@@ -76,6 +76,9 @@ struct SettingsView: View {
                             Text("White").tag(SubtitleTextColor.white)
                             Text("Yellow").tag(SubtitleTextColor.yellow)
                         }
+                        if model.settings.output.showsOnTV, model.tv?.brand == .androidTV {
+                            AndroidDisplayModePicker(mode: $model.settings.style.displayMode)
+                        }
                         Button("Send test subtitle") { model.sendTestSubtitle() }.buttonStyle(.secondary)
                     }
                     DubbingCard()
@@ -149,6 +152,19 @@ struct SettingsView: View {
 
 /// Çeviri motoru: ücretsiz cihaz üstü çeviri ya da kullanıcının kendi anahtarıyla DeepL, Gemini, OpenAI, Claude
 /// (Windows'taki ayarlarla aynı düzen).
+/// Android TV'de PS5 görüntüsünün nasıl gösterileceği; bazı TV'lerde (ör. TCL) uygulama içindeki görüntü siyah kalıyor.
+private struct AndroidDisplayModePicker: View {
+    @Binding var mode: TVDisplayMode
+
+    var body: some View {
+        Picker("Picture mode", selection: $mode) {
+            Text("Inside the app").tag(TVDisplayMode.inApp)
+            Text("Overlay (for a black screen)").tag(TVDisplayMode.overlay)
+        }
+        HintText(text: "If the PS5 picture stays black inside the CouchSubs TV app, choose Overlay: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. If the picture never arrives, the TV app switches to Overlay by itself.")
+    }
+}
+
 struct TranslationCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL

@@ -5792,6 +5792,70 @@
           }
         }
       }
+    },
+    "Picture mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Picture mode"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görüntü modu"
+          }
+        }
+      }
+    },
+    "Inside the app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inside the app"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama içinde"
+          }
+        }
+      }
+    },
+    "Overlay (for a black screen)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overlay (for a black screen)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Katman (siyah ekran sorunu için)"
+          }
+        }
+      }
+    },
+    "If the PS5 picture stays black inside the CouchSubs TV app, choose Overlay: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. If the picture never arrives, the TV app switches to Overlay by itself.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the PS5 picture stays black inside the CouchSubs TV app, choose Overlay: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. If the picture never arrives, the TV app switches to Overlay by itself."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 görüntüsü CouchSubs TV uygulamasının içinde siyah kalıyorsa Katman'ı seçin: TV, PS5'i kendi HDMI girişinde gösterir, altyazı görüntünün üstünde çıkar. Görüntü hiç gelmezse TV uygulaması kendiliğinden Katman'a geçer."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

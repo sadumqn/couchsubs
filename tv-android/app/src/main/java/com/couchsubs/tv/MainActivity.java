@@ -5,97 +5,227 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
 import android.media.tv.TvContract;
-import android.media.tv.TvInputInfo;
-import android.media.tv.TvInputManager;
 import android.media.tv.TvView;
 import android.os.Bundle;
-import android.util.DisplayMetrics;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.provider.Settings;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
 import android.widget.FrameLayout;
-
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import android.widget.TextView;
+import android.widget.Toast;
 
 /**
- * HDMI girişini TvView ile tam ekran gösterir; üstünde şeffaf WebView'de LG ve Samsung'la ortak arayüz çalışır.
+ * İki modda çalışır (bkz. DisplayMode):
+ * - Uygulama içinde (varsayılan): HDMI girişini TvView ile tam ekran gösterir; üstünde şeffaf WebView'de LG ve Samsung'la
+ *   ortak arayüz çalışır. Görüntü hiç gelmezse (bazı TV'lerde TvView siyah kalıyor) ve izin varsa katmana geçer.
+ * - Katman: HDMI'yı TV kendi giriş ekranında gösterir, altyazıyı OverlayService üstte çizer. Bu ekran yalnız servisi
+ *   başlatıp kapanır; servis çalışırken CouchSubs yeniden açılırsa katman kapanır.
  */
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements TvPage.Host {
+    /** Katman servisi uygulamayı kendisi açtı (izin yok ya da bilgisayarda "Uygulama içinde" seçildi). */
+    static final String EXTRA_FROM_OVERLAY = "fromOverlay";
+    private static final String EXTRA_DISPLAY_MODE = "displayMode";
+    private static final long WATCH_EVERY_MS = 1000;
+    private static final long HELP_VISIBLE_MS = 25_000;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private TvView tvView;
-    private WebView webView;
+    private TvPage page;
+    private TextView help;
     private String launchParams = "";
     /** Son açılan HDMI girişi; uygulama öne gelince ya da bağlantı kopunca yeniden açılır. */
     private String tunedInput;
     private int retuneAttempts;
-    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final FallbackWatch watch = new FallbackWatch();
+    private boolean watching;
+    /** Ekran önde mi; arka plandayken görüntü izlenmez. */
+    private boolean resumed;
+    private boolean helpShown;
+    private final Runnable watchTick = this::checkFallback;
+    private final Runnable hideHelpTask = this::hideHelp;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        launchParams = paramsOf(getIntent());
+        Intent intent = getIntent();
+        launchParams = paramsOf(intent);
+        TvPage.storeDisplayMode(this, intent.getStringExtra(EXTRA_DISPLAY_MODE));
 
+        if (OverlayService.running && !intent.getBooleanExtra(EXTRA_FROM_OVERLAY, false)) {
+            if (!launchParams.isEmpty()) {
+                // Bilgisayar uygulamayı yeni adresle açtı: katman sürer, adres ona iletilir.
+                OverlayService.start(this, launchParams);
+            } else {
+                // Kumandadan yeniden açıldı: katman kapanır.
+                OverlayService.stop(this);
+                Toast.makeText(this, R.string.overlay_stopped, Toast.LENGTH_LONG).show();
+            }
+            finish();
+            return;
+        }
+
+        DisplayMode.Start start = DisplayMode.atLaunch(TvPage.storedDisplayMode(this), Settings.canDrawOverlays(this));
+        if (start == DisplayMode.Start.OVERLAY) {
+            startOverlay();
+            return;
+        }
+        showInApp();
+        if (start == DisplayMode.Start.IN_APP_NEEDS_PERMISSION) showPermissionHelp(R.string.overlay_permission_needed);
+    }
+
+    private void showInApp() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         if (getSystemService(TV_INPUT_SERVICE) != null) {
             tvView = new TvView(this);
             tvView.setCallback(new TvView.TvInputCallback() {
-                @Override public void onConnectionFailed(String inputId) { status("inputError"); retuneLater(); }
-                @Override public void onDisconnected(String inputId) { status("inputError"); retuneLater(); }
-                @Override public void onVideoAvailable(String inputId) { retuneAttempts = 0; status("playing"); }
-                @Override public void onVideoUnavailable(String inputId, int reason) { status("inputError"); }
+                @Override public void onConnectionFailed(String inputId) { trouble(); status("inputError"); retuneLater(); }
+                @Override public void onDisconnected(String inputId) { trouble(); status("inputError"); retuneLater(); }
+                @Override public void onVideoAvailable(String inputId) {
+                    retuneAttempts = 0;
+                    watch.videoAvailable();
+                    hideHelp();
+                    status("playing");
+                }
+                @Override public void onVideoUnavailable(String inputId, int reason) { trouble(); status("inputError"); }
             });
             root.addView(tvView);
         }
 
-        webView = new WebView(this);
-        webView.setBackgroundColor(Color.TRANSPARENT);
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        // Türkçe dublaj: bilgisayardan gelen ses kumandaya basılmadan çalabilsin.
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        // Sayfanın 1920 piksellik viewport'u kullanılır ve ekrana sığdırılır (bkz. index.html); yoksa yazılar iki kat büyük.
-        settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setSupportZoom(false);
-        // Ölçek fiziksel piksel başına yüzde: 1920 CSS pikseli ekranın tam genişliğine sığar (1080p'de %100).
-        webView.setInitialScale(fitScalePercent());
-        webView.addJavascriptInterface(new Bridge(), "AndroidTV");
-        root.addView(webView);
+        page = new TvPage(this, this, launchParams, false);
+        root.addView(page.webView);
+
+        help = new TextView(this);
+        help.setVisibility(View.GONE);
+        help.setTextColor(Color.WHITE);
+        help.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30 * fitScale());
+        help.setBackgroundColor(0xE6202024);
+        int pad = Math.round(28 * fitScale());
+        help.setPadding(pad, pad, pad, pad);
+        FrameLayout.LayoutParams helpLayout = new FrameLayout.LayoutParams(
+                Math.round(1300 * fitScale()), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        helpLayout.topMargin = Math.round(60 * fitScale());
+        root.addView(help, helpLayout);
+
         setContentView(root);
-        webView.loadUrl("file:///android_asset/tv/index.html");
-        webView.requestFocus();
+        page.load();
+        page.webView.requestFocus();
+    }
+
+    /** 1920 piksellik sayfa ölçüsünü ekran pikseline çevirir (yardım kutusu sayfayla aynı boyda görünsün). */
+    private float fitScale() {
+        int width = getResources().getDisplayMetrics().widthPixels;
+        int height = getResources().getDisplayMetrics().heightPixels;
+        return Math.max(width, height) / 1920f;
+    }
+
+    // --- Katmana geçiş ---
+
+    private void startOverlay() {
+        OverlayService.start(this, launchParams);
+        finish();
+    }
+
+    /** Uygulama içinden katmana: TvView girişi bırakır ki TV kendi ekranında açabilsin. */
+    private void switchToOverlay(int message) {
+        stopWatching();
+        if (tvView != null) tvView.reset();
+        tunedInput = null;
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        startOverlay();
+    }
+
+    /** Görüntü gelmiyor: izleme başlar (yoksa), saat ilk sorunda başlar. */
+    private void trouble() {
+        if (!resumed) return;
+        watch.trouble(SystemClock.elapsedRealtime());
+        if (!watching && !watch.played()) {
+            watching = true;
+            handler.postDelayed(watchTick, WATCH_EVERY_MS);
+        }
+    }
+
+    private void stopWatching() {
+        watching = false;
+        handler.removeCallbacks(watchTick);
+    }
+
+    private void checkFallback() {
+        watching = false;
+        if (isFinishing() || tvView == null || watch.played()) return;
+        long now = SystemClock.elapsedRealtime();
+        boolean source = HdmiInputs.hasSource(this, tunedInput);
+        boolean permitted = Settings.canDrawOverlays(this);
+        if (watch.shouldSwitch(now, source, permitted)) {
+            switchToOverlay(R.string.overlay_fallback);
+            return;
+        }
+        if (watch.needsPermission(now, source, permitted) && !helpShown) {
+            showPermissionHelp(R.string.overlay_fallback_needs_permission);
+        }
+        watching = true;
+        handler.postDelayed(watchTick, WATCH_EVERY_MS);
+    }
+
+    private void showPermissionHelp(int message) {
+        if (help == null) return;
+        helpShown = true;
+        help.setText(getString(message) + "\n\n" + getString(R.string.overlay_permission_how));
+        help.setVisibility(View.VISIBLE);
+        handler.removeCallbacks(hideHelpTask);
+        handler.postDelayed(hideHelpTask, HELP_VISIBLE_MS);
+    }
+
+    private void hideHelp() {
+        if (help != null) help.setVisibility(View.GONE);
+    }
+
+    // --- TvPage.Host ---
+
+    @Override
+    public void showHdmi(int port) {
+        String id = HdmiInputs.idForPort(this, port);
+        if (tvView == null || id == null) {
+            status("sourceError");
+            return;
+        }
+        retuneAttempts = 0;
+        tune(id);
+    }
+
+    @Override
+    public void exit() { finish(); }
+
+    @Override
+    public void displayModeChanged(String mode) {
+        if (!DisplayMode.OVERLAY.equals(mode)) return;
+        if (Settings.canDrawOverlays(this)) switchToOverlay(R.string.overlay_selected);
+        else showPermissionHelp(R.string.overlay_permission_needed);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        TvPage.storeDisplayMode(this, intent.getStringExtra(EXTRA_DISPLAY_MODE));
+        if (page == null) return;
+        if (DisplayMode.OVERLAY.equals(TvPage.storedDisplayMode(this)) && Settings.canDrawOverlays(this)) {
+            String params = paramsOf(intent);
+            if (!params.isEmpty()) launchParams = params;
+            switchToOverlay(R.string.overlay_selected);
+            return;
+        }
         String params = paramsOf(intent);
         if (!params.isEmpty()) {
             launchParams = params;
-            evaluate("window.__onRelaunch(" + quoted(params) + ")");
+            page.relaunch(params);
         }
-    }
-
-    /** Sayfanın 1920 CSS piksellik genişliğini ekranın fiziksel genişliğine sığdıran WebView ölçeği (yüzde). */
-    private int fitScalePercent() {
-        DisplayMetrics metrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
-        int width = Math.max(metrics.widthPixels, metrics.heightPixels);
-        return width > 0 ? Math.max(1, Math.round(width * 100f / 1920f)) : 0;
     }
 
     private static String paramsOf(Intent intent) {
@@ -107,8 +237,8 @@ public class MainActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int code = pageKey(event.getKeyCode());
-        if (code == 0) return super.dispatchKeyEvent(event);
-        if (event.getAction() == KeyEvent.ACTION_DOWN) evaluate("window.__onKey(" + code + ")");
+        if (code == 0 || page == null) return super.dispatchKeyEvent(event);
+        if (event.getAction() == KeyEvent.ACTION_DOWN) page.key(code);
         return true;
     }
 
@@ -126,7 +256,17 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         if (tvView != null && tunedInput != null) tune(tunedInput);
+    }
+
+    /** Arka plandayken katmana geçilmez (kullanıcı başka bir şey izliyor olabilir); öne gelince saat yeniden başlar. */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        resumed = false;
+        stopWatching();
+        watch.pause();
     }
 
     /** Bağlantı koptuysa birkaç kez, gittikçe seyrek yeniden dener. */
@@ -140,105 +280,19 @@ public class MainActivity extends Activity {
     private void tune(String id) {
         tunedInput = id;
         tvView.tune(id, TvContract.buildChannelUriForPassthroughInput(id));
+        // Görüntü gelene kadar izlenir; hiç gelmezse katmana geçilir.
+        trouble();
     }
 
     @Override
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         if (tvView != null) tvView.reset();
-        webView.destroy();
+        if (page != null) page.destroy();
         super.onDestroy();
     }
 
     private void status(String kind) {
-        evaluate("window.__onHdmiStatus(" + quoted(kind) + ")");
-    }
-
-    private void evaluate(String script) {
-        runOnUiThread(() -> webView.evaluateJavascript(script, null));
-    }
-
-    private static String quoted(String text) {
-        return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
-    }
-
-    /**
-     * TV'nin HDMI girişleri, port numarasına göre sıralı. Girişin numarası sıradaki yeridir.
-     * HDMI-CEC ile bağlı cihazlar (PS5 gibi) bazı TV'lerde girişin "alt girişi" olarak ayrıca listelenir; onlar sayılmaz,
-     * yoksa numaralar kayar ve iki bağlı giriş görünür. Kimlikler sayısal sıralanır ("HW10", "HW2"den sonra gelir).
-     */
-    private List<TvInputInfo> hdmiInputs() {
-        List<TvInputInfo> inputs = new ArrayList<>();
-        TvInputManager manager = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
-        if (manager == null) return inputs;
-        for (TvInputInfo input : manager.getTvInputList()) {
-            if (input.getType() == TvInputInfo.TYPE_HDMI && input.isPassthroughInput() && input.getParentId() == null) {
-                inputs.add(input);
-            }
-        }
-        Collections.sort(inputs, Comparator.comparingLong((TvInputInfo input) -> lastNumber(input.getId()))
-                .thenComparing(TvInputInfo::getId));
-        return inputs;
-    }
-
-    /** Kimliğin sonundaki sayı ("…/HW15" → 15); yoksa en sona konur. */
-    static long lastNumber(String id) {
-        int end = id.length();
-        while (end > 0 && !Character.isDigit(id.charAt(end - 1))) end--;
-        int start = end;
-        while (start > 0 && Character.isDigit(id.charAt(start - 1))) start--;
-        if (start == end) return Long.MAX_VALUE;
-        try { return Long.parseLong(id.substring(start, end)); } catch (NumberFormatException e) { return Long.MAX_VALUE; }
-    }
-
-    private class Bridge {
-        @JavascriptInterface
-        public String launchParams() { return launchParams; }
-
-        @JavascriptInterface
-        public void showHdmi(int port) {
-            runOnUiThread(() -> {
-                List<TvInputInfo> inputs = hdmiInputs();
-                if (tvView == null || port < 1 || port > inputs.size()) {
-                    status("sourceError");
-                    return;
-                }
-                retuneAttempts = 0;
-                tune(inputs.get(port - 1).getId());
-            });
-        }
-
-        /** Tek bağlı HDMI girişi varsa onun numarası, yoksa 0. */
-        @JavascriptInterface
-        public int consolePort() {
-            TvInputManager manager = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
-            if (manager == null) return 0;
-            List<TvInputInfo> inputs = hdmiInputs();
-            int found = 0;
-            for (int i = 0; i < inputs.size(); i++) {
-                if (manager.getInputState(inputs.get(i).getId()) != TvInputManager.INPUT_STATE_CONNECTED) continue;
-                if (found != 0) return 0;
-                found = i + 1;
-            }
-            return found;
-        }
-
-        @JavascriptInterface
-        public String localAddress() {
-            try {
-                for (NetworkInterface face : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                    if (!face.isUp() || face.isLoopback()) continue;
-                    for (InetAddress address : Collections.list(face.getInetAddresses())) {
-                        if (address instanceof Inet4Address && address.isSiteLocalAddress()) return address.getHostAddress();
-                    }
-                }
-            } catch (Exception ignored) {
-                return "";
-            }
-            return "";
-        }
-
-        @JavascriptInterface
-        public void exit() { runOnUiThread(MainActivity.this::finish); }
+        if (page != null) page.status(kind);
     }
 }

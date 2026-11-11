@@ -158,7 +158,7 @@ public class SubtitleServerTests
     {
         using var server = new SubtitleServer(0);
         var port = await server.StartAsync();
-        server.SendStyle(new SubtitleStyle(58, 10, SubtitlePlacement.Above, 40, true, SubtitleTextColor.Yellow));
+        server.SendStyle(new SubtitleStyle(58, 10, SubtitlePlacement.Above, 40, true, SubtitleTextColor.Yellow, TvDisplayMode.Overlay));
 
         using var response = await Http.GetAsync($"http://127.0.0.1:{port}/events", HttpCompletionOption.ResponseHeadersRead);
         using var reader = new StreamReader(await response.Content.ReadAsStreamAsync());
@@ -171,6 +171,17 @@ public class SubtitleServerTests
         Assert.Contains("\"background\":40", data);
         Assert.Contains("\"bold\":true", data);
         Assert.Contains("\"textColor\":\"yellow\"", data);
+        Assert.Contains("\"displayMode\":\"overlay\"", data);
+    }
+
+    [Fact]
+    public void DisplayModeIsSavedAndOldSettingsStayInsideTheApp()
+    {
+        var old = System.Text.Json.JsonSerializer.Deserialize<SubtitleStyle>("{\"FontSize\":58}");
+        Assert.Equal(TvDisplayMode.InApp, old!.DisplayMode);
+        var saved = System.Text.Json.JsonSerializer.Serialize(old with { DisplayMode = TvDisplayMode.Overlay });
+        Assert.Contains("\"Overlay\"", saved);
+        Assert.Equal(TvDisplayMode.Overlay, System.Text.Json.JsonSerializer.Deserialize<SubtitleStyle>(saved)!.DisplayMode);
     }
 
     [Fact]

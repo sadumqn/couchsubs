@@ -23,6 +23,8 @@ public class AdbConnectionTests
         public byte[]? ReceivedPublicKey { get; private set; }
         public MemoryStream ReceivedData { get; } = new();
         public string? OpenedService { get; private set; }
+        /// <summary>Açılan bütün hizmetler, sırasıyla (ör. kurulumdan sonra izin ve açma komutları).</summary>
+        public List<string> OpenedServices { get; } = [];
         public string Reply { get; set; } = "Success\n";
         private Task? serving;
 
@@ -69,6 +71,7 @@ public class AdbConnectionTests
                 {
                     case AdbConnection.Open:
                         OpenedService = Encoding.UTF8.GetString(packet.Data).TrimEnd('\0');
+                        OpenedServices.Add(OpenedService);
                         await Send(AdbConnection.Okay, 77, packet.Arg0, []);
                         if (!OpenedService.StartsWith("exec:"))
                         {
@@ -199,6 +202,50 @@ public class AdbConnectionTests
         var (version, installed) = await installer.EnsureInstalledAsync("yok.apk", "0.7.0");
         Assert.Equal("0.7.0", version);
         Assert.False(installed);
+        // Güncel uygulama da katman izni alır (eski CouchSubs kurmuşsa izin yoktur).
+        Assert.Contains("shell:appops set com.couchsubs.tv SYSTEM_ALERT_WINDOW allow", tv.OpenedServices);
+    }
+
+    [Fact]
+    public async Task InstallerGrantsOverlayPermissionBeforeOpeningTheApp()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        var apk = Path.Combine(dir, "couchsubs.apk");
+        await File.WriteAllBytesAsync(apk, RandomNumberGenerator.GetBytes(3000));
+        using var key = AndroidTvInstaller.LoadOrCreateKey(dir);
+        // "Success": dumpsys'te sürüm yok (kurulu değil), kurulum başarılı, appops hata yazmadı.
+        await using var tv = new FakeAdbd { TrustedKey = key };
+        tv.Serve();
+        var installer = new AndroidTvInstaller("127.0.0.1", dir, tv.Port);
+        var (version, installed) = await installer.EnsureInstalledAsync(apk, "0.9.11");
+        Assert.True(installed);
+        Assert.Equal("0.9.11", version);
+        var grant = tv.OpenedServices.IndexOf("shell:appops set com.couchsubs.tv SYSTEM_ALERT_WINDOW allow");
+        var open = tv.OpenedServices.IndexOf("shell:am start -n com.couchsubs.tv/.MainActivity");
+        Assert.True(grant >= 0 && open > grant, string.Join(" | ", tv.OpenedServices));
+        Assert.DoesNotContain(tv.OpenedServices, s => s.StartsWith("shell:pm grant"));
+    }
+
+    [Fact]
+    public async Task RefusedAppopsTriesPmGrantAndDoesNotFailTheInstall()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        using var key = AndroidTvInstaller.LoadOrCreateKey(dir);
+        await using var tv = new FakeAdbd { TrustedKey = key, Reply = "  versionName=0.9.11\nError: Unknown operation string: SYSTEM_ALERT_WINDOW" };
+        tv.Serve();
+        var installer = new AndroidTvInstaller("127.0.0.1", dir, tv.Port);
+        var (version, installed) = await installer.EnsureInstalledAsync("yok.apk", "0.9.11");
+        Assert.Equal("0.9.11", version);
+        Assert.False(installed);
+        Assert.Contains("shell:pm grant com.couchsubs.tv android.permission.SYSTEM_ALERT_WINDOW", tv.OpenedServices);
+    }
+
+    [Fact]
+    public void AppopsOutputIsReadAsSuccessOrFailure()
+    {
+        Assert.False(AndroidTvInstaller.LooksFailed(""));
+        Assert.True(AndroidTvInstaller.LooksFailed("Error: Unknown operation string: FOO"));
+        Assert.True(AndroidTvInstaller.LooksFailed("Security exception: uid 2000 does not have android.permission.MANAGE_APP_OPS_MODES"));
     }
 
     [Fact]

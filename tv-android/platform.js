@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Android TV'ye özgü işler; asıl iş MainActivity.java'dadır. webOS karşılığı: tv-webos/platform.js
+// Android TV'ye özgü işler; asıl iş MainActivity.java ve OverlayService.java'dadır. webOS karşılığı: tv-webos/platform.js
 (function () {
   'use strict';
 
   var bridge = window.AndroidTV;
   var hdmiStatus = function () {};
   var relaunch = function () {};
+  // Katman modu: sayfa TV'nin kendi HDMI ekranının üstündeki, kumandanın ulaşmadığı şeffaf pencerede çalışır.
+  var overlay = !!(bridge.isOverlay && bridge.isOverlay());
+  // Bağlantı bu süre içinde gelmezse katmanda küçük kırmızı nokta görünür.
+  var DOT_AFTER_MS = 5000;
+  var dot = null;
+  var dotTimer = null;
 
   window.__onHdmiStatus = function (kind) { hdmiStatus(kind); };
   window.__onRelaunch = function (raw) { relaunch(raw); };
@@ -16,10 +22,69 @@
     document.dispatchEvent(event);
   };
 
+  // Bağlantı kopukken katmanda sağ üstte küçük bir nokta; bağlıyken hiçbir şey görünmez.
+  function connection(open) {
+    if (!dot) return;
+    clearTimeout(dotTimer);
+    if (open) {
+      dot.className = 'hidden';
+      return;
+    }
+    dotTimer = setTimeout(function () { dot.className = ''; }, DOT_AFTER_MS);
+  }
+
+  function setupOverlay() {
+    var style = document.createElement('style');
+    // Bekleme kutusu ve demo kumandayla kapatılamaz; oyunun üstünde asılı kalmasın.
+    style.textContent = 'body.overlay #waiting, body.overlay #demo-badge { display: none !important; }' +
+      '#overlay-dot { position: absolute; top: 32px; right: 32px; width: 14px; height: 14px; border-radius: 50%;' +
+      ' background: #E5484D; opacity: 0.8; z-index: 50; }' +
+      '#overlay-dot.hidden { display: none; }';
+    document.head.appendChild(style);
+    document.body.className += ' overlay';
+    dot = document.createElement('div');
+    dot.id = 'overlay-dot';
+    dot.className = 'hidden';
+    document.body.appendChild(dot);
+    connection(false);
+  }
+
+  // Ortak sayfanın EventSource'u sarılır: bilgisayarın görüntü modu seçimi (style olayındaki displayMode) Android'e
+  // iletilir, bağlantı durumu katmandaki noktayı yönetir. Sayfanın kendi dinleyicileri olduğu gibi çalışır.
+  var NativeSource = window.EventSource;
+  if (NativeSource) {
+    var Source = function (url, options) {
+      var source = options === undefined ? new NativeSource(url) : new NativeSource(url, options);
+      source.addEventListener('open', function () { connection(true); });
+      source.addEventListener('error', function () { connection(source.readyState === 1); });
+      source.addEventListener('style', function (e) {
+        var mode;
+        try { mode = JSON.parse(e.data).displayMode; } catch (err) { return; }
+        if (typeof mode === 'string' && bridge.setDisplayMode) bridge.setDisplayMode(mode);
+      });
+      return source;
+    };
+    Source.prototype = NativeSource.prototype;
+    Source.CONNECTING = 0;
+    Source.OPEN = 1;
+    Source.CLOSED = 2;
+    window.EventSource = Source;
+  }
+
   window.COUCHSUBS_PLATFORM = {
     backKey: 4,
 
-    init: function () {},
+    init: function () {
+      if (overlay) setupOverlay();
+      // Panelde Android uygulamasının kendi sürümü görünsün (ortak sayfadaki sayı LG ve Samsung'unkidir).
+      var version = bridge.appVersion ? bridge.appVersion() : '';
+      if (version) {
+        window.addEventListener('load', function () {
+          var el = document.getElementById('app-version');
+          if (el) el.textContent = version;
+        });
+      }
+    },
 
     launchParams: function () { return bridge.launchParams(); },
 

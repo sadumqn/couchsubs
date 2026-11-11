@@ -86,11 +86,45 @@ public sealed partial class AndroidTvInstaller(string host, string keyDirectory,
     {
         await using var adb = await ConnectAsync(cancellationToken);
         var installed = VersionFromDumpsys(await adb.RunAsync($"shell:dumpsys package {PackageName}", cancellationToken: cancellationToken));
-        if (installed is not null && !Versions.IsNewer(version, installed)) return (installed, false);
+        if (installed is not null && !Versions.IsNewer(version, installed))
+        {
+            // Bu izni vermeyen eski bir CouchSubs'ın kurduğu güncel uygulama da izni alsın.
+            await GrantOverlayAsync(adb, cancellationToken);
+            return (installed, false);
+        }
         await InstallAsync(adb, apkPath, cancellationToken);
+        await GrantOverlayAsync(adb, cancellationToken);
         await adb.RunAsync($"shell:am start -n {PackageName}/.MainActivity", cancellationToken: cancellationToken);
         return (version, true);
     }
+
+    /// <summary>
+    /// "Diğer uygulamaların üzerinde göster" iznini verir. Katman modunda (bazı TV'lerde uygulama içindeki HDMI görüntüsü
+    /// siyah kalıyor) altyazı TV'nin kendi HDMI ekranının üstündeki şeffaf pencerede çizilir ve bu izin gerekir. Android TV'de
+    /// bu ayar çoğu zaman menüde yoktur; ADB ile verilir. Verilemezse kurulum yine başarılıdır, TV uygulaması nasıl
+    /// verileceğini kendisi anlatır.
+    /// </summary>
+    /// <returns>İzin verildi mi.</returns>
+    internal static async Task<bool> GrantOverlayAsync(AdbConnection adb, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var output = await adb.RunAsync($"shell:appops set {PackageName} SYSTEM_ALERT_WINDOW allow", cancellationToken: cancellationToken);
+            if (!LooksFailed(output)) return true;
+            // Bazı Android sürümlerinde appops yerine izin olarak verilir.
+            output = await adb.RunAsync($"shell:pm grant {PackageName} android.permission.SYSTEM_ALERT_WINDOW", cancellationToken: cancellationToken);
+            return !LooksFailed(output);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>appops ve pm başarıda bir şey yazmaz; hata metni döner.</summary>
+    internal static bool LooksFailed(string output) =>
+        output.Contains("Error", StringComparison.OrdinalIgnoreCase) || output.Contains("Exception", StringComparison.OrdinalIgnoreCase)
+        || output.Contains("Unknown", StringComparison.OrdinalIgnoreCase) || output.Contains("not allowed", StringComparison.OrdinalIgnoreCase);
 
     internal static string? VersionFromDumpsys(string output) =>
         VersionName().Match(output) is { Success: true } match ? match.Groups[1].Value : null;
