@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<resources>
+    <string name="overlay_running">Altyazı TV\'nin HDMI görüntüsünün üstünde gösteriliyor</string>
+    <string name="overlay_stopped">CouchSubs altyazısı kapatıldı. Yeniden açmak için CouchSubs\'ı tekrar başlatın.</string>
+    <string name="overlay_selected">Katman modu: altyazı TV\'nin kendi HDMI görüntüsünün üstünde çıkar.</string>
+    <string name="overlay_fallback">CouchSubs\'ın içinde görüntü gelmedi. Katman moduna geçiliyor: altyazı TV\'nin kendi HDMI görüntüsünün üstünde çıkar.</string>
+    <string name="overlay_choose_input">TV\'yi kumandadan PS5\'in girişine (HDMI %1$d) alın. Altyazı görüntünün üstünde çıkar.</string>
+    <string name="overlay_permission_needed">Katman modu için \"Diğer uygulamaların üzerinde göster\" izni gerekiyor.</string>
+    <string name="overlay_fallback_needs_permission">PS5 görüntüsü CouchSubs\'ın içinde gelmiyor. Bazı TV\'lerde görüntü burada siyah kalır; katman modu bunu çözer ama \"Diğer uygulamaların üzerinde göster\" izni gerekiyor.</string>
+    <string name="overlay_permission_how">Bilgisayardaki CouchSubs bu izni TV uygulamasını kurarken kendisi verir: USB hata ayıklama açıkken çeviriyi orada başlatın. Ya da TV\'de Ayarlar › Uygulamalar › Özel uygulama erişimi › Diğer uygulamaların üzerinde göster\'den CouchSubs\'ı açın.</string>
+</resources>

@@ -21,6 +21,14 @@ public enum SubtitleTextColor: String, Codable, CaseIterable, Sendable {
     case yellow
 }
 
+/// Android TV'de PS5 görüntüsünün nasıl gösterildiği.
+public enum TVDisplayMode: String, Codable, CaseIterable, Sendable {
+    /// HDMI CouchSubs'ın içinde; görüntü hiç gelmezse TV uygulaması kendiliğinden katmana geçer.
+    case inApp
+    /// TV HDMI'yı kendi ekranında gösterir, altyazı üstteki şeffaf katmanda (bazı TV'lerde uygulama içi görüntü siyah kalıyor).
+    case overlay
+}
+
 /// TV'de altyazının görünümü.
 public struct SubtitleStyle: Codable, Equatable, Sendable {
     /// 36 (küçük), 46 (orta), 58 (büyük), 72 (çok büyük)
@@ -32,18 +40,21 @@ public struct SubtitleStyle: Codable, Equatable, Sendable {
     public var background: Int
     public var bold: Bool
     public var textColor: SubtitleTextColor
+    /// Yalnız Android TV uygulaması kullanır; diğer TV'ler ve OBS katmanı alanı tanımaz.
+    public var displayMode: TVDisplayMode
 
     public init(fontSize: Int = 46, bottomPercent: Int = 7, placement: SubtitlePlacement = .cover, background: Int = 72, bold: Bool = false,
-                textColor: SubtitleTextColor = .white) {
+                textColor: SubtitleTextColor = .white, displayMode: TVDisplayMode = .inApp) {
         self.fontSize = fontSize
         self.bottomPercent = bottomPercent
         self.placement = placement
         self.background = background
         self.bold = bold
         self.textColor = textColor
+        self.displayMode = displayMode
     }
 
-    private enum CodingKeys: String, CodingKey { case fontSize, bottomPercent, placement, background, bold, textColor }
+    private enum CodingKeys: String, CodingKey { case fontSize, bottomPercent, placement, background, bold, textColor, displayMode }
 
     /// Eski sürümün kaydettiği ayarlarda yeni alanlar yoktur; eksikler varsayılanla dolar.
     public init(from decoder: Decoder) throws {
@@ -55,12 +66,14 @@ public struct SubtitleStyle: Codable, Equatable, Sendable {
         background = try values.decodeIfPresent(Int.self, forKey: .background) ?? defaults.background
         bold = try values.decodeIfPresent(Bool.self, forKey: .bold) ?? defaults.bold
         textColor = (try? values.decodeIfPresent(SubtitleTextColor.self, forKey: .textColor)) ?? defaults.textColor
+        displayMode = (try? values.decodeIfPresent(TVDisplayMode.self, forKey: .displayMode)) ?? defaults.displayMode
     }
 
     /// TV'ye giden `style` olayının gövdesi.
     var json: [String: Any] {
         ["fontSize": fontSize, "bottomPercent": bottomPercent, "placement": placement.rawValue,
-         "background": max(0, min(100, background)), "bold": bold, "textColor": textColor.rawValue]
+         "background": max(0, min(100, background)), "bold": bold, "textColor": textColor.rawValue,
+         "displayMode": displayMode.rawValue]
     }
 }
 

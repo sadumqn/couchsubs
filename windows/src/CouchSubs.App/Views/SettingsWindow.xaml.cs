@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
 using CouchSubs.Core;
+using CouchSubs.Core.LgTv;
 using CouchSubs.Shell;
 
 namespace CouchSubs.App.Views;
@@ -35,6 +36,7 @@ public partial class SettingsWindow : Window
         BackgroundOpacity.Value = settings.Style.Background;
         Bold.IsChecked = settings.Style.Bold;
         TextColor.SelectedItem = TextColor.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.Style.TextColor.ToString());
+        DisplayMode.SelectedItem = DisplayMode.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.Style.DisplayMode.ToString());
         // Yalnız çeviri modeli olan diller listelenir; tek dil varsa seçim gösterilmez.
         foreach (var (code, name) in Languages.Where(l => controller.SupportsLanguage(l.Code)))
             GameLanguage.Items.Add(new ComboBoxItem { Content = Localizer.Current[name], Tag = code, IsSelected = code == settings.SourceLanguage });
@@ -65,8 +67,13 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>Altyazı bilgisayar ekranında da gösteriliyorsa görünüm kartı yalnız TV'ye ait değildir.</summary>
-    private void ShowStyleTitle() =>
+    private void ShowStyleTitle()
+    {
         StyleCard.Title = Localizer.Current[controller.Settings.Output == SubtitleOutput.Tv ? "On the TV" : "Subtitle appearance"];
+        // Görüntü modu yalnız Android TV uygulamasında var.
+        DisplayModePanel.Visibility = controller.ShowsOnTv && controller.Tv?.Brand == TvBrand.AndroidTv
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
     /// <summary>Kurulu oyun paketleri: ad ve satır sayısı.</summary>
     private void ShowPacks()
     {
@@ -302,6 +309,12 @@ public partial class SettingsWindow : Window
     {
         if (TextColor.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
         Update(s => s with { Style = s.Style with { TextColor = Enum.Parse<SubtitleTextColor>(tag) } });
+    }
+
+    private void OnDisplayMode(object sender, SelectionChangedEventArgs e)
+    {
+        if (DisplayMode.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
+        Update(s => s with { Style = s.Style with { DisplayMode = Enum.Parse<TvDisplayMode>(tag) } });
     }
 
     private void OnLanguage(object sender, SelectionChangedEventArgs e)

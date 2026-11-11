@@ -80,6 +80,16 @@
                             <ComboBoxItem Content="{t:T 'White'}" Tag="White" />
                             <ComboBoxItem Content="{t:T 'Yellow'}" Tag="Yellow" />
                         </ComboBox>
+                        <!-- Yalnız Android TV: bazı TV'lerde (ör. TCL) uygulama içindeki PS5 görüntüsü siyah kalıyor. -->
+                        <StackPanel x:Name="DisplayModePanel" Visibility="Collapsed">
+                            <TextBlock Text="{t:T 'Picture mode'}" Margin="0,0,0,8" />
+                            <ComboBox x:Name="DisplayMode" SelectionChanged="OnDisplayMode" Margin="0,0,0,8">
+                                <ComboBoxItem Content="{t:T 'Inside the app'}" Tag="InApp" />
+                                <ComboBoxItem Content="{t:T 'Overlay (for a black screen)'}" Tag="Overlay" />
+                            </ComboBox>
+                            <TextBlock Style="{StaticResource HintText}" Margin="0,0,0,16"
+                                       Text="{t:T 'If the PS5 picture stays black inside the CouchSubs TV app, choose Overlay: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. If the picture never arrives, the TV app switches to Overlay by itself.'}" />
+                        </StackPanel>
                         <Button Content="{t:T 'Send test subtitle'}" Click="OnTest" />
                     </StackPanel>
                 </c:Card>
