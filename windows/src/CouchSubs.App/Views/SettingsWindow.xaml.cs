@@ -74,18 +74,55 @@ public partial class SettingsWindow : Window
         DisplayModePanel.Visibility = controller.ShowsOnTv && controller.Tv?.Brand == TvBrand.AndroidTv
             ? Visibility.Visible : Visibility.Collapsed;
     }
-    /// <summary>Kurulu oyun paketleri: ad ve satır sayısı.</summary>
+    /// <summary>
+    /// Kurulu oyun paketleri: iki sütunlu karolar (kısaltma rozeti, ad, satır sayısı) ve üstte "Ücretsiz · n oyun" hapı.
+    /// Masaüstünde paketler ücretsizdir.
+    /// </summary>
     private void ShowPacks()
     {
         var text = Localizer.Current;
         PackList.Items.Clear();
-        if (controller.InstalledPacks.Count == 0)
+        var packs = controller.InstalledPacks;
+        PacksPill.Visibility = packs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        PacksPillText.Text = text.Format("Free · %lld games", packs.Count);
+        if (packs.Count == 0)
         {
-            PackList.Items.Add(new TextBlock { Text = text["No game pack is installed."], Style = (Style)FindResource("HintText"), TextWrapping = TextWrapping.Wrap });
+            PackList.Items.Add(new TextBlock
+            {
+                Text = text["No game pack is installed."], Style = (Style)FindResource("HintText"), TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(8),
+            });
             return;
         }
-        foreach (var pack in controller.InstalledPacks)
-            PackList.Items.Add(new TextBlock { Text = text.Format("%1$@ · %2$@ lines", pack.Title, pack.Entries.ToString("N0")), Margin = new Thickness(0, 0, 0, 4) });
+        foreach (var pack in packs) PackList.Items.Add(PackTile(pack.Title, text.Format("%@ lines", pack.Entries.ToString("N0"))));
+    }
+
+    /// <summary>Bir paketin karosu: adın baş harflerinden rozet, ad ve satır sayısı.</summary>
+    private FrameworkElement PackTile(string title, string lines)
+    {
+        var badge = new Border { Style = (Style)FindResource("AccentIcon"), Width = 52, Height = 52, Margin = new Thickness(0, 0, 16, 0) };
+        var initials = new TextBlock
+        {
+            Text = Initials(title), FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.NoWrap,
+        };
+        initials.SetResourceReference(TextBlock.FontSizeProperty, "captionFontSize");
+        badge.Child = initials;
+        var name = new TextBlock { Text = title, Style = (Style)FindResource("HeadlineText") };
+        var count = new TextBlock { Text = lines, Style = (Style)FindResource("CaptionText"), Margin = new Thickness(0, 4, 0, 0) };
+        var row = new DockPanel();
+        DockPanel.SetDock(badge, Dock.Left);
+        row.Children.Add(badge);
+        row.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { name, count } });
+        return new Controls.Card { Content = row, Margin = new Thickness(8) };
+    }
+
+    /// <summary>"Grand Theft Auto V" → "GTA": ilk üç sözcüğün baş harfleri (rakam olduğu gibi).</summary>
+    internal static string Initials(string title)
+    {
+        var words = title.Split([' ', ':', '-', '(', ')'], StringSplitOptions.RemoveEmptyEntries);
+        var letters = words.Where(word => char.IsLetterOrDigit(word[0])).Take(3).Select(word => char.ToUpperInvariant(word[0]));
+        return string.Concat(letters);
     }
 
     private void OnGamePacks(object sender, RoutedEventArgs e) => Update(s => s with { GamePacks = GamePacks.IsChecked == true });

@@ -57,6 +57,28 @@ public class DesignTokensTests
         AssertContrast("accentText", "accentSoft", 4.5);
     }
 
+    /// <summary>Bento renkleri: Pro moru, tonlu zeminler ve yüzey-2 üstündeki yazılar.</summary>
+    [Fact]
+    public void BentoColorsAreReadable()
+    {
+        foreach (var background in new[] { "background", "surface", "proSoft" }) AssertContrast("pro", background, 4.5);
+        AssertContrast("danger", "dangerSoft", 4.5);
+        AssertContrast("success", "successSoft", 4.5);
+        AssertContrast("textPrimary", "surface2", 7);
+        AssertContrast("textSecondary", "surface2", 4.5);
+    }
+
+    [Fact]
+    public void GlowsUseValidColors()
+    {
+        Assert.NotEmpty(tokens.Glow);
+        foreach (var (name, glow) in tokens.Glow)
+        {
+            Assert.True(DesignTokens.Rgb(glow.Color) is not null, name);
+            Assert.InRange(glow.Opacity, 0, 1);
+        }
+    }
+
     [Fact]
     public void ButtonTextIsReadable()
     {

@@ -23,14 +23,20 @@ public class StepLayout : ContentControl
     public string Message { get => (string)GetValue(MessageProperty); set => SetValue(MessageProperty, value); }
 }
 
-/// <summary>Başlıklı ya da başlıksız içerik kartı.</summary>
+/// <summary>Karonun görünümü: sıradan, etkin (sarı çerçeve ve parıltı) ya da Pro/paket (mor→sarı çerçeve, mor parıltı).</summary>
+public enum TileKind { Normal, Active, Pro }
+
+/// <summary>Başlıklı ya da başlıksız içerik kartı (bento karo).</summary>
 public class Card : ContentControl
 {
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(Card));
+    public static readonly DependencyProperty KindProperty = DependencyProperty.Register(nameof(Kind), typeof(TileKind), typeof(Card),
+        new FrameworkPropertyMetadata(TileKind.Normal));
 
     static Card() => DefaultStyleKeyProperty.OverrideMetadata(typeof(Card), new FrameworkPropertyMetadata(typeof(Card)));
 
     public string? Title { get => (string?)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
+    public TileKind Kind { get => (TileKind)GetValue(KindProperty); set => SetValue(KindProperty, value); }
 }
 
 /// <summary>Numaralı talimat satırı.</summary>
@@ -45,18 +51,21 @@ public class NumberedRow : Control
     public string Text { get => (string)GetValue(TextProperty); set => SetValue(TextProperty, value); }
 }
 
-/// <summary>Renkli durum noktası, adı ve değeri.</summary>
+/// <summary>Durum karosunun içi: simge ve renkli durum noktası, altında ad ve değer.</summary>
 public class StatusRow : Control
 {
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(StatusRow));
     public static readonly DependencyProperty ValueProperty = DependencyProperty.Register(nameof(Value), typeof(string), typeof(StatusRow));
     public static readonly DependencyProperty ToneProperty = DependencyProperty.Register(nameof(Tone), typeof(StatusTone), typeof(StatusRow));
+    public static readonly DependencyProperty GlyphProperty = DependencyProperty.Register(nameof(Glyph), typeof(string), typeof(StatusRow));
 
     static StatusRow() => DefaultStyleKeyProperty.OverrideMetadata(typeof(StatusRow), new FrameworkPropertyMetadata(typeof(StatusRow)));
 
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string Value { get => (string)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
     public StatusTone Tone { get => (StatusTone)GetValue(ToneProperty); set => SetValue(ToneProperty, value); }
+    /// <summary>Karonun sol üstündeki simge (Segoe Fluent Icons).</summary>
+    public string? Glyph { get => (string?)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
 }
 
 /// <summary>Segoe Fluent Icons simge adları (Mac'teki SF Symbols karşılıkları).</summary>
@@ -76,4 +85,10 @@ public static class Glyphs
     public const string Settings = "";
     public const string Check = "";
     public const string Warning = "";
+    /// <summary>Segoe Fluent Icons "Globe" (U+E774); çeviri motoru karosu.</summary>
+    public const string Globe = "\uE774";
+    /// <summary>Segoe Fluent Icons "KeyboardClassic" (U+E765); kısayol karosu.</summary>
+    public const string Keyboard = "\uE765";
+    /// <summary>Segoe Fluent Icons "Lightning" (U+E945); oyun paketi karosu.</summary>
+    public const string Bolt = "\uE945";
 }
