@@ -98,17 +98,30 @@ final class GamePackTests: XCTestCase {
         XCTAssertNil(library.match("Get Down!"))
     }
 
-    /// Uygulamayla gelen paketler (ilki Mafia: The Old Country, 18 binden çok satır) yüklenir ve hızlı aranır.
-    func testBundledPacksLoad() {
-        let library = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: nil)
+    /// Yalnız tek bir gömülü paketle kitaplık: paketler birleşince ortak satırlarda ("Get down!") sonraki paket kazanır.
+    private func bundledOnly(_ file: String) throws -> GamePackLibrary {
+        let directory = temporaryDirectory()
+        let source = try XCTUnwrap(GamePackLibrary.bundledDirectory).appendingPathComponent(file)
+        try FileManager.default.copyItem(at: source, to: directory.appendingPathComponent(file))
+        return GamePackLibrary(bundled: directory, user: nil)
+    }
+
+    /// Uygulamayla gelen paketler (Mafia, GTA V, RDR2) birlikte yüklenir ve hızlı aranır.
+    func testBundledPacksLoad() throws {
+        let all = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: nil)
         let start = Date()
-        let mafia = library.packs.first { $0.id == "mafia-the-old-country" }
+        let ids = all.packs.map(\.id)
         let elapsed = Date().timeIntervalSince(start)
-        print("paket yükleme: \(Int(elapsed * 1000)) ms")
+        print("paket yükleme: \(Int(elapsed * 1000)) ms, \(all.packs.reduce(0) { $0 + $1.entries }) satır")
+        XCTAssertEqual(ids, ["gta-v", "mafia-the-old-country", "red-dead-redemption-2"])
+        XCTAssertTrue(all.packs.allSatisfy(\.builtIn))
+        XCTAssertLessThan(elapsed, 10)
+
+        let library = try bundledOnly("mafia-the-old-country.json.gz")
+        let mafia = library.packs.first { $0.id == "mafia-the-old-country" }
         XCTAssertEqual(mafia?.title, "Mafia: The Old Country")
         XCTAssertGreaterThan(mafia?.entries ?? 0, 18000)
         XCTAssertEqual(mafia?.builtIn, true)
-        XCTAssertLessThan(elapsed, 2)
         XCTAssertEqual(library.match("You fucked up now, boy!")?.text, "Şimdi ayvayı yedin, evlat!")
         XCTAssertEqual(library.match("It’s his mother, she passed.")?.text, "Annesi vefat etti.")
         XCTAssertEqual(library.match("MARIA: Get Down!")?.text, "MARIA: Yere yat!")
@@ -117,6 +130,34 @@ final class GamePackTests: XCTestCase {
         let lookups = Date()
         for _ in 0..<1000 { _ = library.match("You fucked up now, boy!") }
         print("1000 arama: \(Int(Date().timeIntervalSince(lookups) * 1000)) ms")
+    }
+
+    /// Her gömülü paket kendi başına açılır, en az beklenen satırı taşır ve bilinen satırlar (anahtarlar canon.py ile
+    /// hesaplandı) boş olmayan Türkçeye çıkar.
+    func testEachBundledPackHasItsLines() throws {
+        let expected: [(file: String, id: String, title: String, minimum: Int, keys: [String])] = [
+            ("mafia-the-old-country.json.gz", "mafia-the-old-country", "Mafia: The Old Country", 18000,
+             ["e7f18c8f6d1083ab", "15014c246455f36c"]),
+            // "Are you listening to me?", "Cool, I'll see you later.", "Take out the Lost."
+            ("gta-v.json.gz", "gta-v", "Grand Theft Auto V", 150_000,
+             ["e43b873bf7992f8f", "cc57fc6e0542ca05", "aaa1a152be96d47f"]),
+            // "Can't see where I'm going.", "I'm not afraid to fight you.", "Burn the tobacco fields"
+            ("red-dead-redemption-2.json.gz", "red-dead-redemption-2", "Red Dead Redemption 2", 150_000,
+             ["7fab2b68b3726a28", "3484a8ef3d8c7fc7", "bc0c9435160e8723"]),
+        ]
+        let directory = try XCTUnwrap(GamePackLibrary.bundledDirectory)
+        for pack in expected {
+            let data = try Data(contentsOf: directory.appendingPathComponent(pack.file))
+            let decoded = try GamePack.decode(data, name: GamePackLibrary.baseName(directory.appendingPathComponent(pack.file)))
+            XCTAssertEqual(decoded.id, pack.id)
+            XCTAssertEqual(decoded.title, pack.title)
+            XCTAssertGreaterThan(decoded.entries.count, pack.minimum, pack.id)
+            for key in pack.keys {
+                let turkish = decoded.entries[try XCTUnwrap(PackKey.number(key))] ?? ""
+                XCTAssertFalse(turkish.isEmpty, "\(pack.id) \(key)")
+                XCTAssertFalse(turkish.contains("~"), "\(pack.id) \(key): \(turkish)")
+            }
+        }
     }
 }
 
