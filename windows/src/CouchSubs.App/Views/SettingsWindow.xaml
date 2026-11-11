@@ -215,9 +215,9 @@
                             <Border Style="{StaticResource SegmentGroup}" Margin="0,0,0,12" HorizontalAlignment="Left">
                                 <StackPanel Orientation="Horizontal">
                                     <RadioButton Content="{t:T 'Subtitles'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="0" IsChecked="True" />
-                                    <RadioButton Content="{t:T 'Area 1 (Num 1)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="1" />
-                                    <RadioButton Content="{t:T 'Area 2 (Num 2)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="2" />
-                                    <RadioButton Content="{t:T 'Area 3 (Num 3)'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="3" />
+                                    <RadioButton Content="{t:T 'Area 1'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="1" />
+                                    <RadioButton Content="{t:T 'Area 2'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="2" />
+                                    <RadioButton Content="{t:T 'Area 3'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="3" />
                                 </StackPanel>
                             </Border>
                             <CheckBox x:Name="UseArea" Content="{t:T 'Use this area'}" Foreground="{DynamicResource textPrimaryBrush}" Margin="0,0,0,12"
@@ -233,18 +233,18 @@
                                 </Border>
                             </StackPanel>
                             <c:RegionPicker x:Name="Region" RegionChanged="OnRegion" />
-                            <Button Content="{t:T 'Refresh picture (Num 8)'}" Click="OnRefresh" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                            <Button Content="{t:T 'Refresh picture (Num 8 or Ctrl+Shift+8)'}" Click="OnRefresh" HorizontalAlignment="Left" Margin="0,12,0,0" />
                             <TextBlock x:Name="AreaHint" Style="{StaticResource HintText}" Margin="0,12,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </c:Card>
-                    <c:Card Title="{t:T 'Translate the screen (Num 9)'}" Margin="0,16,0,0">
+                    <c:Card Title="{t:T 'Translate the screen (Num 9 or Ctrl+Shift+9)'}" Margin="0,16,0,0">
                         <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap"
-                                   Text="{t:T 'Press Num 9 while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations.'}" />
+                                   Text="{t:T 'Press Num 9 or Ctrl+Shift+9 while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations.'}" />
                     </c:Card>
-                    <c:Card Title="{t:T 'Free area (Num 5)'}" Margin="0,16,0,0">
+                    <c:Card Title="{t:T 'Free area (Num 5 or Ctrl+Shift+5)'}" Margin="0,16,0,0">
                         <StackPanel>
                             <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,12"
-                                       Text="{t:T 'Press Num 5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes.'}" />
+                                       Text="{t:T 'Press Num 5 or Ctrl+Shift+5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes.'}" />
                             <TextBlock Text="{t:T 'Show the result'}" Margin="0,0,0,8" />
                             <Border Style="{StaticResource SegmentGroup}" Margin="0,0,0,12" HorizontalAlignment="Left">
                                 <StackPanel Orientation="Horizontal">
@@ -254,9 +254,9 @@
                                 </StackPanel>
                             </Border>
                             <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,8"
-                                       Text="{t:T 'Num 0 pauses or resumes the live subtitle translation, which helps when you translate areas.'}" />
+                                       Text="{t:T 'Num 0 or Ctrl+Shift+0 pauses or resumes the live subtitle translation, which helps when you translate areas.'}" />
                             <TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap"
-                                       Text="{t:T 'The Num shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on.'}" />
+                                       Text="{t:T 'The shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on for the Num keys. No numeric keypad? Hold Ctrl+Shift and press the number keys above the letters.'}" />
                         </StackPanel>
                     </c:Card>
                 </StackPanel>

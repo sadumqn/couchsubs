@@ -6,7 +6,7 @@
   'use strict';
 
   // TV uygulamasının sürümü: appinfo.json, tv-tizen/config.xml ve tv-android/app/build.gradle ile aynı tutulur.
-  var APP_VERSION = '0.9.10';
+  var APP_VERSION = '0.9.13';
   var t = window.t;
   var config = window.COUCHSUBS_CONFIG || {};
   var platform = window.COUCHSUBS_PLATFORM;
@@ -524,23 +524,40 @@
   // Bilgisayar her cümleyi seslendirip adresini gönderir; TV oyunun sesiyle birlikte çalar. Bilgisayar sıradakini
   // bu ses bitince gönderir; yine de üst üste gelirse eskisi kesilir.
 
+  // Her cümlenin oynatıcısı bitince, kesilince ya da hata verince bırakılır (src boşaltılıp load()). Samsung'da
+  // duraklatılmış ya da bitmiş ama bırakılmamış oynatıcı sesi tutuyor, HDMI'deki oyunun ve PS5'in sesi dublaj
+  // kapatılsa da uygulama kapanana dek gelmiyordu.
   var speech = null;
 
   function playSpeech(url) {
     stopSpeech();
+    var audio = null;
     try {
-      speech = new Audio(url);
-      var played = speech.play();
-      if (played && played.catch) played.catch(function () { speech = null; });
+      audio = new Audio(url);
+      speech = audio;
+      audio.addEventListener('ended', function () { releaseSpeech(audio); });
+      audio.addEventListener('error', function () { releaseSpeech(audio); });
+      var played = audio.play();
+      if (played && played.catch) played.catch(function () { releaseSpeech(audio); });
     } catch (e) {
+      if (audio) releaseSpeech(audio);
       speech = null;
     }
   }
 
+  function releaseSpeech(audio) {
+    if (speech === audio) speech = null;
+    if (audio.couchsubsReleased) return;
+    audio.couchsubsReleased = true;
+    try { audio.pause(); } catch (e) { /* yok */ }
+    try {
+      audio.removeAttribute('src');
+      audio.load();
+    } catch (e) { /* yok */ }
+  }
+
   function stopSpeech() {
-    if (!speech) return;
-    try { speech.pause(); } catch (e) { /* yok */ }
-    speech = null;
+    if (speech) releaseSpeech(speech);
   }
 
   // --- Bilgisayarı ağda bulma ---

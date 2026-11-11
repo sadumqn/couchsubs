@@ -397,7 +397,7 @@ public partial class SettingsWindow : Window
             Region.IsEnabled = extra is not null;
             Region.DefaultRegion = ExtraDefaults[slot - 1];
             Region.ShowRegion(extra ?? ExtraDefaults[slot - 1]);
-            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."];
+            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3, or Ctrl+Shift+1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."];
         }
         loading = wasLoading;
     }

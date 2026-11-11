@@ -76,7 +76,8 @@ Samsung, uygulamanın her TV için ayrı imzalanmasını ister. CouchSubs bunu s
    Bazı yeni modellerde (ör. 2025 QN90F) bu, **Uygulamalar › Uygulama Ayarları** ekranında çalışır.
 3. **Developer mode**'u **On** yapın.
 4. **Host PC IP** alanına bilgisayarınızın adresini yazıp **OK**'e basın. Adresi CouchSubs TV adımında gösterir.
-5. TV'yi yeniden başlatın. Uygulamalar ekranında **Develop Mode** yazısı görünür.
+5. TV'yi yeniden başlatın: kumandanın güç tuşunu TV kapanana kadar yaklaşık 2 saniye basılı tutun, sonra açın. Kısa
+   basınca Samsung TV yalnız bekleme moduna geçer, tam kapanmaz. Uygulamalar ekranında **Develop Mode** yazısı görünür.
 
 ### 2. CouchSubs kursun
 
@@ -94,6 +95,11 @@ Samsung, uygulamanın her TV için ayrı imzalanmasını ister. CouchSubs bunu s
   başlatın. Sonra CouchSubs'ta sağ üstteki dişliye (Ayarlar) basın, **CouchSubs TV uygulaması** kutusunda **Yeniden
   dene**'ye basın. Yarım kalan kurulumların çoğu böyle düzeliyor. Yine olmazsa kutuda TV'nin verdiği sebep yazar;
   onu [Issues](https://github.com/yorulmazsinan/couchsubs/issues) sayfasına yazın.
+- **TV sürekli HDMI 1'e ya da başka bir kaynağa geçiyorsa** (CouchSubs TV uygulaması açıkken ya da kurulurken):
+  **Ayarlar › Tüm Ayarlar › Bağlantı › Harici Cihaz Yöneticisi** altında **Anynet+ (HDMI-CEC)** ve **Otomatik Kaynak
+  Değiştirme**'yi kapatın.
+- **Kurulum sürerken CouchSubs'ı kapattıysanız:** kurulum bitmiş sayılmaz; CouchSubs yeniden açılınca TV adımından
+  devam eder ve TV uygulamasını kurmayı sürdürür.
 - **TV'de sürekli "İzin ver" penceresi çıkıyorsa:** kumandayla bir kez **İzin ver**'i seçin. Pencere, TV uygulaması
   henüz kurulmamışken CouchSubs onu açmaya çalıştıkça çıkar; uygulama kurulunca kesilir. Ayarlarda
   **Bağlantı › Harici Cihaz Yöneticisi › Cihaz Bağlantı Yöneticisi** altında bilgisayarı **İzin Ver** yapabilirsiniz

@@ -660,7 +660,7 @@ final class AppModel {
         let tv = store.load(LGTV.self, for: StoreKey.tv)
         let tvKeySaved = store.load(String.self, for: StoreKey.tvKey) != nil
         let paired = tv != nil && tvKeySaved
-        let ready = accountId != nil && console != nil && (paired || store.load(Bool.self, for: StoreKey.setupComplete) == true)
+        let ready = Self.setupIsComplete(store: store, accountId: accountId, console: console, paired: paired)
         self.tvKeySaved = tvKeySaved
         self.accountId = accountId
         self.console = console
@@ -679,7 +679,8 @@ final class AppModel {
         pool = LinePool(file: poolFile, app: AppIdentity.version, platform: "mac", enabled: curated.sharePool && !testing)
         // Listede olmayan model varsayılana döndüyse ayar hemen kaydedilir.
         if curated != loaded, let data = try? JSONEncoder().encode(curated) { defaults.set(data, forKey: StoreKey.settings) }
-        step = ready ? .done : .welcome
+        // Yarım kalan kurulum (ör. TV uygulaması kurulurken kapatıldı) PS5 kayıtlıysa TV adımından sürer.
+        step = ready ? .done : (accountId != nil && console != nil ? .tv : .welcome)
         savedKeys = Set(TranslationEngine.allCases.filter { engine in
             engine.storeKey.flatMap { store.load(String.self, for: $0) }?.isEmpty == false
         })
@@ -693,6 +694,17 @@ final class AppModel {
         }
         // Testlerde havuz hiçbir şey göndermez.
         if !testing { startPool() }
+    }
+
+    /// Kurulum bitmiş mi. "Bitti" yalnız sihirbazın sonuna gelinince kaydedilir (TV adımı başarıyla geçildi ya da
+    /// "TV'm yok" seçildi). Sihirbaz başlarken `false` yazılır: Samsung'da TV eşleşip uygulama kurulurken CouchSubs
+    /// kapatılırsa eşleşme kayıtlı olsa da kurulum bitmiş sayılmaz. Hiç kayıt yoksa (beta.25'ten önce kurulmuş)
+    /// eskisi gibi eşleşmiş TV yeter ve "bitti" kaydedilir.
+    static func setupIsComplete(store: AppStore, accountId: Data?, console: RegisteredConsole?, paired: Bool) -> Bool {
+        let saved = store.load(Bool.self, for: StoreKey.setupComplete)
+        let ready = accountId != nil && console != nil && (saved ?? paired)
+        if saved == nil { store.save(ready, for: StoreKey.setupComplete) }
+        return ready
     }
 
     /// Sunucunun TV sayısını, altyazı yerini ve bilgisayar ekranına giden olayları bağlar (sunucu yeniden kurulunca da).

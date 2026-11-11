@@ -186,7 +186,7 @@ Play dahil) üstünde; odağı almaz, görev çubuğunda / Dock'ta görünmez. A
 1080 satırlık ekrana göre ölçeklenir, beyaz ya da sarı yazı, siyah yarı saydam zemin, üstteki satırlar küçük ve soluk,
 en çok üç satır). Altyazı yokken pencere gizlenir. "Tıklamalar geçsin" kapalıyken yazıdan tutup sürüklenir; açıkken
 fare alttaki pencereye gider, geri almak için Mac'te ⌥⌘L ya da menü çubuğundaki CouchSubs simgesi, Windows'ta Num 7
-ya da ana ekran. "Altyazı penceresini ayarla": `accent` kesik çizgili çerçeve, üstte açıklama ve "Bitti" (birincil),
+(ya da sayı tuş takımı olmayan klavyede Ctrl+Shift+7) ya da ana ekran. "Altyazı penceresini ayarla": `accent` kesik çizgili çerçeve, üstte açıklama ve "Bitti" (birincil),
 iki yanda genişletme tutamakları; yer, genişlik ve ekran hatırlanır.
 
 **Hakkında**: 88 pt logo, ad, sürüm, lisans, teşekkür, bağlantılar, Sony ile ilişkisizlik notu.
