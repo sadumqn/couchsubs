@@ -1,8 +1,9 @@
 name: CouchSubs
 options:
   bundleIdPrefix: com.couchsubs
+  # En eski desteklenen macOS; scripts/build-chiaki-macos.sh (MIN) ve package-mac.sh denetimiyle aynı.
   deploymentTarget:
-    macOS: "26.0"
+    macOS: "13.0"
   developmentLanguage: en
 settings:
   base:
@@ -12,9 +13,13 @@ settings:
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_IDENTITY: "-"
     ENABLE_HARDENED_RUNTIME: YES
-    # libchiaki ve bağımlılıkları yalnız Apple Silicon için derleniyor.
-    ARCHS: arm64
+    # Evrensel uygulama: Apple Silicon ve Intel. libchiaki ve bağımlılıkları iki mimari için derlenir
+    # (build-chiaki-macos.sh); Debug yalnız bu Mac'in mimarisini derler.
+    ARCHS: "arm64 x86_64"
     ONLY_ACTIVE_ARCH: NO
+  configs:
+    Debug:
+      ONLY_ACTIVE_ARCH: YES
 packages:
   CouchSubsCore:
     path: ../core

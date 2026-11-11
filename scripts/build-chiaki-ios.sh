@@ -21,7 +21,7 @@ VENV="$ROOT/third-party/build/venv-ios"
 JOBS="${JOBS:-4}"
 SLICES=(${=SLICES:-iphoneos iphonesimulator})
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-# Uygulama iOS 26 ister; kütüphaneler daha eskiyi hedefleyebilir. chiaki-ng kendi CMakeLists'inde Apple için hedefi
+# Uygulama iOS 16 ister; kütüphaneler daha eskiyi hedefleyebilir. chiaki-ng kendi CMakeLists'inde Apple için hedefi
 # 13.0'a sabitliyor (CACHE FORCE); bağımlılıklar da aynı hedefle derlenir ki bağlayıcı uyarı vermesin.
 MIN="13.0"
 OPENSSL_VERSION="3.5.4"

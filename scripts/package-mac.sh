@@ -13,14 +13,18 @@ setopt pipefail
 cd "${0:A:h}/.."
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
-[[ -f third-party/build/CChiaki.xcframework/Info.plist ]] || ./scripts/build-chiaki-macos.sh
+# Eski (yalnız Apple Silicon) Remote Play kütüphanesi varsa evrensel olarak yeniden derlenir.
+MAC_SLICE=(third-party/build/CChiaki.xcframework/macos-*/libCChiaki.a(N))
+if (( ${#MAC_SLICE} == 0 )) || ! lipo "${MAC_SLICE[1]}" -verify_arch arm64 x86_64; then ./scripts/build-chiaki-macos.sh; fi
 
 ./scripts/package-tv.sh
 ./scripts/package-tizen.sh
 # Android TV APK'sı verilirse (CI: tv-android iş akışının çıktısı) uygulamaya gömülür.
 [[ -n "$ANDROID_APK" ]] && ./scripts/bundle-android-apk.sh "$ANDROID_APK"
-[[ -x dist/tv-helper/couchsubs-tv-helper ]] || ./scripts/build-tv-helper.sh
-[[ -x dist/tts/pocket-tts ]] || ./scripts/fetch-pocket-tts.sh mac
+# Yardımcılar da evrensel olmalı (önceden yalnız Apple Silicon için hazırlanmış olabilir).
+universal() { [[ -x "$1" ]] && lipo "$1" -verify_arch arm64 x86_64; }
+universal dist/tv-helper/couchsubs-tv-helper || ./scripts/build-tv-helper.sh
+universal dist/tts/pocket-tts || ./scripts/fetch-pocket-tts.sh mac
 
 BUILD="$PWD/build/mac"
 rm -rf "$BUILD"
@@ -61,11 +65,23 @@ xcodebuild -project mac/CouchSubs.xcodeproj -scheme CouchSubs -configuration Rel
 
 APP="$BUILD/Build/Products/Release/CouchSubs.app"
 [[ -d "$APP" ]] || { echo "Derleme başarısız."; exit 1; }
-# Uygulama macOS 26'yı hedefler; 27 SDK'sıyla gelen pipe2/dup3 zorunlu istenirse uygulama 26'da açılışta kapanır
-# (fikir: jardeux, #10).
+# En eski desteklenen macOS (mac/project.yml) ve mimariler: her program Apple Silicon ve Intel dilimini içermeli, o
+# macOS'tan yenisini istememeli. 27 SDK'sıyla gelen pipe2/dup3 zorunlu istenirse uygulama eski macOS'ta açılışta kapanır
+# (fikir: jardeux, #10). Translation çerçevesi macOS 15'te geldi; zayıf bağlanmazsa uygulama macOS 13/14'te açılmaz.
+MIN_MACOS=$(/usr/libexec/PlistBuddy -c "Print LSMinimumSystemVersion" "$APP/Contents/Info.plist")
 for BIN in "$APP"/Contents/MacOS/*; do
+  for ARCH in arm64 x86_64; do
+    lipo "$BIN" -verify_arch $ARCH || { echo "$BIN içinde $ARCH dilimi yok (Apple Silicon ve Intel)."; exit 1; }
+    NEWEST=$(otool -arch $ARCH -l "$BIN" | awk '/minos/ {print $2}' | sort -V | tail -1)
+    if [[ -n "$NEWEST" && "$(printf '%s\n%s\n' "$NEWEST" "$MIN_MACOS" | sort -V | tail -1)" != "$MIN_MACOS" ]]; then
+      echo "$BIN ($ARCH) macOS $NEWEST istiyor; en eski desteklenen macOS $MIN_MACOS."; exit 1
+    fi
+  done
   if dyld_info -imports "$BIN" | grep -E "[[:space:]]_(pipe2|dup3)[[:space:]]" | grep -qv weak-import; then
-    echo "$BIN macOS 26'da olmayan pipe2/dup3'ü istiyor; uygulama macOS 26'da açılmaz."; exit 1
+    echo "$BIN macOS $MIN_MACOS'te olmayan pipe2/dup3'ü istiyor; uygulama eski macOS'ta açılmaz."; exit 1
+  fi
+  if otool -L "$BIN" | grep "Translation.framework" | grep -qv weak; then
+    echo "$BIN Translation çerçevesine zayıf bağlanmamış; uygulama macOS 13/14'te açılmaz."; exit 1
   fi
 done
 if [[ -n "$DEVELOPER_ID" ]]; then
@@ -140,7 +156,7 @@ if [[ -n "$DEVELOPER_ID" && -n "$NOTARY_PROFILE" ]]; then
       echo "      <pubDate>$PUBDATE</pubDate>"
       echo "      <sparkle:version>$BUILD_NUMBER</sparkle:version>"
       echo "      <sparkle:shortVersionString>$APP_VERSION</sparkle:shortVersionString>"
-      echo '      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>'
+      echo "      <sparkle:minimumSystemVersion>$MIN_MACOS</sparkle:minimumSystemVersion>"
       echo "      <link>$PAGE</link>"
       echo "      <sparkle:fullReleaseNotesLink>$PAGE</sparkle:fullReleaseNotesLink>"
       echo "      <enclosure url=\"https://github.com/yorulmazsinan/couchsubs/releases/download/v$APP_VERSION/CouchSubs-macos.zip\""
