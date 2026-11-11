@@ -161,18 +161,50 @@
         }
       }
     },
-    "4. Restart the TV. This screen continues by itself.": {
+    "4. Restart the TV: hold the power button on the remote for about 2 seconds until the TV turns off, then turn it on again. This screen continues by itself.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "4. Restart the TV. This screen continues by itself."
+            "value": "4. Restart the TV: hold the power button on the remote for about 2 seconds until the TV turns off, then turn it on again. This screen continues by itself."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "4. TV'yi yeniden başlatın. Bu ekran kendiliğinden devam eder."
+            "value": "4. TV'yi yeniden başlatın: kumandanın güç tuşunu TV kapanana kadar yaklaşık 2 saniye basılı tutun, sonra yeniden açın. Bu ekran kendiliğinden devam eder."
+          }
+        }
+      }
+    },
+    "If the TV keeps switching to HDMI 1 or another source while the CouchSubs TV app is open, turn off Anynet+ (HDMI-CEC) and Auto Source Switching on the TV: Settings › All Settings › Connection › External Device Manager.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the TV keeps switching to HDMI 1 or another source while the CouchSubs TV app is open, turn off Anynet+ (HDMI-CEC) and Auto Source Switching on the TV: Settings › All Settings › Connection › External Device Manager."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs TV uygulaması açıkken TV sürekli HDMI 1'e ya da başka bir kaynağa geçiyorsa TV'de Ayarlar › Tüm Ayarlar › Bağlantı › Harici Cihaz Yöneticisi altında Anynet+ (HDMI-CEC) ve Otomatik Kaynak Değiştirme'yi kapatın."
+          }
+        }
+      }
+    },
+    "To restart a Samsung TV fully, hold the power button on the remote for about 2 seconds until it turns off; a short press only puts it on standby.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To restart a Samsung TV fully, hold the power button on the remote for about 2 seconds until it turns off; a short press only puts it on standby."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samsung TV'yi tam yeniden başlatmak için kumandanın güç tuşunu TV kapanana kadar yaklaşık 2 saniye basılı tutun; kısa basınca TV yalnız bekleme moduna geçer."
           }
         }
       }
@@ -353,50 +385,50 @@
         }
       }
     },
-    "Area 1 (Num 1)": {
+    "Area 1": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Area 1 (Num 1)"
+            "value": "Area 1"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bölge 1 (Num 1)"
+            "value": "Bölge 1"
           }
         }
       }
     },
-    "Area 2 (Num 2)": {
+    "Area 2": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Area 2 (Num 2)"
+            "value": "Area 2"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bölge 2 (Num 2)"
+            "value": "Bölge 2"
           }
         }
       }
     },
-    "Area 3 (Num 3)": {
+    "Area 3": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Area 3 (Num 3)"
+            "value": "Area 3"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bölge 3 (Num 3)"
+            "value": "Bölge 3"
           }
         }
       }
@@ -1041,18 +1073,18 @@
         }
       }
     },
-    "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background.": {
+    "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3, or Ctrl+Shift+1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."
+            "value": "Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3, or Ctrl+Shift+1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken kendi tuşuna (Num 1, 2 ya da 3) basınca bu alan bir kez okunup çevrilir. Sonucun nerede görüneceğini seçin. CouchSubs arka plandayken de çalışır."
+            "value": "Çevrilecek alanı çizin (ör. görev paneli). Oynarken kendi tuşuna (Num 1, 2 ya da 3; ya da Ctrl+Shift+1, 2 ya da 3) basınca bu alan bir kez okunup çevrilir. Sonucun nerede görüneceğini seçin. CouchSubs arka plandayken de çalışır."
           }
         }
       }
@@ -1121,18 +1153,18 @@
         }
       }
     },
-    "Free area (Num 5)": {
+    "Free area (Num 5 or Ctrl+Shift+5)": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free area (Num 5)"
+            "value": "Free area (Num 5 or Ctrl+Shift+5)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Serbest alan (Num 5)"
+            "value": "Serbest alan (Num 5 ya da Ctrl+Shift+5)"
           }
         }
       }
@@ -1713,18 +1745,18 @@
         }
       }
     },
-    "Num 0 pauses or resumes the live subtitle translation, which helps when you translate areas.": {
+    "Num 0 or Ctrl+Shift+0 pauses or resumes the live subtitle translation, which helps when you translate areas.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Num 0 pauses or resumes the live subtitle translation, which helps when you translate areas."
+            "value": "Num 0 or Ctrl+Shift+0 pauses or resumes the live subtitle translation, which helps when you translate areas."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Num 0, canlı altyazı çevirisini duraklatır ya da devam ettirir; alan çevirirken işe yarar."
+            "value": "Num 0 ya da Ctrl+Shift+0, canlı altyazı çevirisini duraklatır ya da devam ettirir; alan çevirirken işe yarar."
           }
         }
       }
@@ -2017,18 +2049,18 @@
         }
       }
     },
-    "Press Num 5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes.": {
+    "Press Num 5 or Ctrl+Shift+5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Press Num 5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes."
+            "value": "Press Num 5 or Ctrl+Shift+5 while playing: the picture freezes on the PC, drag over any part of it to translate that part once. Esc closes."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oynarken Num 5'e basın: görüntü bilgisayarda donar, çevirmek istediğiniz yeri fareyle seçin, o kısım bir kez çevrilir. Esc kapatır."
+            "value": "Oynarken Num 5'e ya da Ctrl+Shift+5'e basın: görüntü bilgisayarda donar, çevirmek istediğiniz yeri fareyle seçin, o kısım bir kez çevrilir. Esc kapatır."
           }
         }
       }
@@ -2049,18 +2081,18 @@
         }
       }
     },
-    "Refresh picture (Num 8)": {
+    "Refresh picture (Num 8 or Ctrl+Shift+8)": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Refresh picture (Num 8)"
+            "value": "Refresh picture (Num 8 or Ctrl+Shift+8)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Görüntüyü yenile (Num 8)"
+            "value": "Görüntüyü yenile (Num 8 ya da Ctrl+Shift+8)"
           }
         }
       }
@@ -2769,18 +2801,18 @@
         }
       }
     },
-    "The Num shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on.": {
+    "The shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on for the Num keys. No numeric keypad? Hold Ctrl+Shift and press the number keys above the letters.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The Num shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on."
+            "value": "The shortcuts work only while translating, so the number keys stay free in other apps. Keep Num Lock on for the Num keys. No numeric keypad? Hold Ctrl+Shift and press the number keys above the letters."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Num kısayolları yalnız çeviri açıkken çalışır; böylece sayı tuşları diğer uygulamalarda serbest kalır. Num Lock açık olmalı."
+            "value": "Kısayollar yalnız çeviri açıkken çalışır; böylece sayı tuşları diğer uygulamalarda serbest kalır. Num tuşları için Num Lock açık olmalı. Sayı tuş takımı yoksa Ctrl+Shift'i basılı tutup harflerin üstündeki sayı tuşlarına basın."
           }
         }
       }
@@ -4017,34 +4049,34 @@
         }
       }
     },
-    "Translate the screen (Num 9)": {
+    "Translate the screen (Num 9 or Ctrl+Shift+9)": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Translate the screen (Num 9)"
+            "value": "Translate the screen (Num 9 or Ctrl+Shift+9)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ekranı çevir (Num 9)"
+            "value": "Ekranı çevir (Num 9 ya da Ctrl+Shift+9)"
           }
         }
       }
     },
-    "Press Num 9 while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations.": {
+    "Press Num 9 or Ctrl+Shift+9 while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Press Num 9 while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations."
+            "value": "Press Num 9 or Ctrl+Shift+9 while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oynarken Num 9'a basın: ekrandaki bütün yazılar bir kez çevrilir ve TV'de her biri kendi yerinde gösterilir. Çevirileri kaldırmak için yeniden basın."
+            "value": "Oynarken Num 9'a ya da Ctrl+Shift+9'a basın: ekrandaki bütün yazılar bir kez çevrilir ve TV'de her biri kendi yerinde gösterilir. Çevirileri kaldırmak için yeniden basın."
           }
         }
       }
@@ -5201,18 +5233,18 @@
         }
       }
     },
-    "When on, clicks go through to the window below. Press Num 7 to turn it off.": {
+    "When on, clicks go through to the window below. Press Num 7 or Ctrl+Shift+7 to turn it off.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When on, clicks go through to the window below. Press Num 7 to turn it off."
+            "value": "When on, clicks go through to the window below. Press Num 7 or Ctrl+Shift+7 to turn it off."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Açıkken tıklamalar alttaki pencereye geçer. Kapatmak için Num 7'ye basın."
+            "value": "Açıkken tıklamalar alttaki pencereye geçer. Kapatmak için Num 7'ye ya da Ctrl+Shift+7'ye basın."
           }
         }
       }

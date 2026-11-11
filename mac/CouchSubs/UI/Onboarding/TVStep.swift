@@ -78,7 +78,11 @@ struct TVStep: View {
                 }
             }
         }
-        .task { await search() }
+        .task {
+            // Kurulum yarıda kaldıysa (ör. TV uygulaması kurulurken kapatıldı) eşleşmiş TV'deki uygulamaya yeniden bakılır.
+            if model.hasTV, model.tvApp == .unknown { Task { await model.refreshTVApp() } }
+            await search()
+        }
     }
 
     private func search() async {

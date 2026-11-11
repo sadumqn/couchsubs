@@ -289,6 +289,62 @@ public class AppControllerTests
         store.Save(StoreKeys.Tv, new LgTv("LG TV", "192.168.1.153"));
         store.Save(StoreKeys.TvKey, "tv-key");
         Assert.Equal(OnboardingStep.Done, Make(store: store).Step);
+        Assert.True(store.Load<bool?>(StoreKeys.SetupComplete), "Eski kurulum bir kez 'bitti' diye kaydedilir");
+    }
+
+    /// Sihirbaz PS5 adımını geçmiş: hesap ve konsol kayıtlı, kurulum bitmemiş.
+    private static MemoryStore StoreUpToTv()
+    {
+        var store = new MemoryStore();
+        store.Save(StoreKeys.AccountId, Enumerable.Repeat((byte)1, 8).ToArray());
+        store.Save(StoreKeys.Console, Console);
+        return store;
+    }
+
+    /// Samsung: TV eşleşti, uygulama kurulurken CouchSubs kapatıldı. Yeniden açılınca kurulum bitmiş sayılmaz, TV
+    /// adımından sürer.
+    [Fact]
+    public async Task InterruptedTvInstallIsNotComplete()
+    {
+        var store = StoreUpToTv();
+        var controller = Make(store: store);
+        Assert.Equal(OnboardingStep.Tv, controller.Step);
+        await controller.PairAsync(new LgTv("Samsung", "192.168.1.20", TvBrand.Samsung));
+        Assert.True(controller.HasTv);
+        var reopened = Make(store: store);
+        Assert.Equal(OnboardingStep.Tv, reopened.Step);
+        Assert.True(reopened.HasTv, "Eşleşme kaybolmaz; TV adımında uygulama kurulumu sürer");
+        Assert.False(store.Load<bool?>(StoreKeys.SetupComplete));
+    }
+
+    [Fact]
+    public async Task FinishedTvSetupIsComplete()
+    {
+        var store = StoreUpToTv();
+        var controller = Make(store: store);
+        await controller.PairAsync(new LgTv("Samsung", "192.168.1.20", TvBrand.Samsung));
+        controller.Advance(); // TV -> çeviri modeli
+        controller.Advance(); // çeviri modeli -> deneme
+        controller.Advance(); // deneme -> daha iyi çeviri
+        controller.Advance(); // daha iyi çeviri -> bitti
+        Assert.Equal(OnboardingStep.Done, controller.Step);
+        Assert.Equal(OnboardingStep.Done, Make(store: store).Step);
+    }
+
+    /// "TV'm yok, bilgisayar ekranında göster" de kurulumu bitirir; yarıda kapatılırsa TV adımından sürer.
+    [Fact]
+    public void ComputerScreenChoiceCompletesSetup()
+    {
+        var store = StoreUpToTv();
+        var settings = new MemorySettings();
+        var controller = Make(store: store, settings: settings);
+        controller.UseComputerScreen();
+        Assert.Equal(OnboardingStep.Tv, Make(store: store, settings: settings).Step);
+        controller.Advance();
+        controller.Advance();
+        controller.Advance();
+        Assert.Equal(OnboardingStep.Done, controller.Step);
+        Assert.Equal(OnboardingStep.Done, Make(store: store, settings: settings).Step);
     }
 
     [Fact]
@@ -677,7 +733,8 @@ public class AppControllerRunTests
         var settings = new MemorySettings();
         var controller = AppControllerTests.Make(store: store, settings: settings);
         controller.Settings = controller.Settings with { Style = new SubtitleStyle(58, 7) };
-        Assert.Empty(store.Values);
+        // Güvenli depoda yalnız kurulumun bitip bitmediği durur.
+        Assert.Equal([StoreKeys.SetupComplete], store.Values.Keys);
         Assert.Equal(58, AppControllerTests.Make(store: store, settings: settings).Settings.Style.FontSize);
     }
 
@@ -1176,6 +1233,26 @@ public class TvAppInstallTests
         var state = new TvAppState(TvAppKind.Failed, Error: DevModeError.InstallFailed, Reason: "Invalid package");
         var text = TvAppMessages.Problem(state, TvBrand.Lg, Localizer.ForLanguage("en"), "x.log");
         Assert.EndsWith("TV says: Invalid package", text);
+    }
+
+    /// Samsung kısa basışta tam kapanmaz: "yeniden başlatın" diyen hatada güç tuşunun basılı tutulacağı yazar.
+    /// Kurulum sırasında bağlantı koparsa HDMI-CEC (Anynet+) ve otomatik kaynak değiştirme anlatılır.
+    [Fact]
+    public void SamsungFailureExplainsRestartAndSourceSwitching()
+    {
+        var text = Localizer.ForLanguage("tr");
+        var unreachable = TvAppMessages.Problem(new TvAppState(TvAppKind.Failed, Error: DevModeError.Unreachable), TvBrand.Samsung, text, "x.log");
+        Assert.Contains("2 saniye", unreachable);
+        Assert.DoesNotContain("Anynet+", unreachable);
+        var dropped = TvAppMessages.Problem(new TvAppState(TvAppKind.Failed, Error: DevModeError.ConnectionLost), TvBrand.Samsung, text, "x.log");
+        Assert.Contains("Anynet+ (HDMI-CEC)", dropped);
+        Assert.Contains("Otomatik Kaynak Değiştirme", dropped);
+        Assert.EndsWith("x.log", dropped);
+        Assert.NotEqual(TvAppMessages.SourceSwitchTip, text[TvAppMessages.SourceSwitchTip]);
+        Assert.NotEqual(TvAppMessages.RestartTip, text[TvAppMessages.RestartTip]);
+        // LG'de Samsung'a özgü ipucu çıkmaz.
+        var lg = TvAppMessages.Problem(new TvAppState(TvAppKind.Failed, Error: DevModeError.Unreachable), TvBrand.Lg, text, "x.log");
+        Assert.DoesNotContain("2 saniye", lg);
     }
 
     [Fact]
