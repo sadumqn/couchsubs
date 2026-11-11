@@ -69,7 +69,9 @@ public class PackLookupTests
     [Fact]
     public void BundledPackIsSearched()
     {
-        var library = new GamePackLibrary(GamePackLibrary.EmbeddedPacks, null);
+        // Yalnız Mafia paketi: ortak satırlarda ("Get Down!") birleşik kitaplıkta sonraki oyunun çevirisi kazanır.
+        var library = new GamePackLibrary(
+            () => GamePackLibrary.EmbeddedPacks().Where(pack => pack.Name == "mafia-the-old-country.json.gz"), null);
         Assert.Equal("MARIA: Yere yat!", PackLookup.Match(library, "MARIA: Get Down!")?.Text);
         Assert.Equal("Yere yat!\nMinchia! Sana at sürmeyi yasaklamak lazım!",
             PackLookup.Match(library, "Get Down!\nMinchia! You shouldn't be allowed to ride!")?.Text);

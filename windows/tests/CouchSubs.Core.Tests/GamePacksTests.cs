@@ -129,24 +129,60 @@ public class GamePackTests
         Assert.Null(library.Find("Get Down!"));
     }
 
-    /// <summary>Uygulamaya gömülü paketler (ilki Mafia: The Old Country, 18 binden çok satır) yüklenir ve hızlı aranır.</summary>
+    /// <summary>Yalnız tek bir gömülü paket: paketler birleşince ortak satırlarda ("Get down!") sonraki paket kazanır.</summary>
+    internal static IEnumerable<(string Name, byte[] Data)> EmbeddedOnly(string file) =>
+        GamePackLibrary.EmbeddedPacks().Where(pack => pack.Name == file);
+
+    /// <summary>Uygulamaya gömülü paketler (Mafia, GTA V, RDR2) birlikte yüklenir ve hızlı aranır.</summary>
     [Fact]
     public void EmbeddedPacksLoad()
     {
         var before = GC.GetTotalMemory(true);
         var watch = Stopwatch.StartNew();
-        var library = new GamePackLibrary(GamePackLibrary.EmbeddedPacks, null);
-        var mafia = library.Packs.Single(pack => pack.Id == "mafia-the-old-country");
+        var all = new GamePackLibrary(GamePackLibrary.EmbeddedPacks, null);
+        var ids = all.Packs.Select(pack => pack.Id).ToList();
         watch.Stop();
         var memory = GC.GetTotalMemory(true) - before;
-        Console.WriteLine($"paket yükleme: {watch.ElapsedMilliseconds} ms, bellek: {memory / 1024} KB");
+        Console.WriteLine($"paket yükleme: {watch.ElapsedMilliseconds} ms, bellek: {memory / 1024} KB, {all.Packs.Sum(p => p.Entries)} satır");
+        Assert.Equal(["gta-v", "mafia-the-old-country", "red-dead-redemption-2"], ids);
+        Assert.All(all.Packs, pack => Assert.True(pack.BuiltIn));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10));
+        GC.KeepAlive(all);
+
+        var library = new GamePackLibrary(() => EmbeddedOnly("mafia-the-old-country.json.gz"), null);
+        var mafia = library.Packs.Single(pack => pack.Id == "mafia-the-old-country");
         Assert.Equal("Mafia: The Old Country", mafia.Title);
         Assert.True(mafia.Entries > 18000);
         Assert.True(mafia.BuiltIn);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2));
         Assert.Equal("Şimdi ayvayı yedin, evlat!", library.Find("You fucked up now, boy!"));
         Assert.Equal("Annesi vefat etti.", library.Find("It’s his mother, she passed."));
         Assert.Equal("Yere yat!", library.Find("Get Down!"));
         GC.KeepAlive(library);
+    }
+
+    /// <summary>Her gömülü paket kendi başına açılır, en az beklenen satırı taşır ve bilinen satırlar (anahtarlar canon.py
+    /// ile hesaplandı) boş olmayan Türkçeye çıkar. Mac'teki testEachBundledPackHasItsLines ile aynı.</summary>
+    [Theory]
+    [InlineData("mafia-the-old-country.json.gz", "mafia-the-old-country", "Mafia: The Old Country", 18000,
+        new[] { "e7f18c8f6d1083ab", "15014c246455f36c" })]
+    // "Are you listening to me?", "Cool, I'll see you later.", "Take out the Lost."
+    [InlineData("gta-v.json.gz", "gta-v", "Grand Theft Auto V", 150_000,
+        new[] { "e43b873bf7992f8f", "cc57fc6e0542ca05", "aaa1a152be96d47f" })]
+    // "Can't see where I'm going.", "I'm not afraid to fight you.", "Burn the tobacco fields"
+    [InlineData("red-dead-redemption-2.json.gz", "red-dead-redemption-2", "Red Dead Redemption 2", 150_000,
+        new[] { "7fab2b68b3726a28", "3484a8ef3d8c7fc7", "bc0c9435160e8723" })]
+    public void EachEmbeddedPackHasItsLines(string file, string id, string title, int minimum, string[] keys)
+    {
+        var (name, data) = EmbeddedOnly(file).Single();
+        var pack = GamePack.Decode(data, name[..^".json.gz".Length]);
+        Assert.Equal(id, pack.Id);
+        Assert.Equal(title, pack.Title);
+        Assert.True(pack.Entries.Count > minimum, $"{id}: {pack.Entries.Count}");
+        foreach (var key in keys)
+        {
+            var turkish = pack.Entries.GetValueOrDefault(PackKey.Number(key)!.Value, "");
+            Assert.False(string.IsNullOrEmpty(turkish), $"{id} {key}");
+            Assert.DoesNotContain("~", turkish);
+        }
     }
 }
