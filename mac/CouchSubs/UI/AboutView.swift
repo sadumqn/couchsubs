@@ -10,6 +10,8 @@ struct AboutView: View {
             LogoView(size: 88)
             Text(verbatim: "CouchSubs").font(.csTitle)
             Text(verbatim: AppIdentity.version).foregroundStyle(Color.csSecondary)
+            Text(verbatim: "Copyright © 2026 Sinan Yorulmaz")
+                .foregroundStyle(Color.csSecondary)
             Text("Free and open source under the GNU AGPL-3.0 license.")
                 .multilineTextAlignment(.center)
             Text("Remote Play connection by chiaki-ng (AGPL-3.0). Thanks to its developers.")

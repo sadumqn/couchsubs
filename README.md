@@ -138,7 +138,8 @@ Sürümler `v*` etiketiyle `.github/workflows/release.yml` tarafından derlenip 
 
 ## Lisans
 
-[GNU AGPL-3.0](LICENSE). Kullanılan açık kaynak bileşenler ve lisansları:
+Copyright (C) 2026 Sinan Yorulmaz. [GNU AGPL-3.0](LICENSE) ile lisanslanmıştır; çatallar ve değiştirilmiş
+sürümler bu telif satırını korumalı ve [NOTICE](NOTICE) dosyasındaki koşullara uymalıdır. Kullanılan açık kaynak bileşenler ve lisansları:
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Remote Play bağlantısı
 [chiaki-ng](https://github.com/chiaki-ng/chiaki-ng) sayesinde mümkün; geliştiricilerine teşekkürler.
 
@@ -169,6 +170,7 @@ TV brand and then installs the TV app by itself (LG: type the on-screen passphra
 Samsung account once; Android TV: allow debugging on the TV). Guide: [docs/tv-setup.md](docs/tv-setup.md).
 On Windows, if SmartScreen appears, choose **More info › Run anyway**.
 
-Licensed under the [GNU AGPL-3.0](LICENSE); third-party components are listed in
+Copyright (C) 2026 Sinan Yorulmaz. Licensed under the [GNU AGPL-3.0](LICENSE) (forks must keep this notice, see
+[NOTICE](NOTICE)); third-party components are listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). CouchSubs is not affiliated with or endorsed by Sony
 Interactive Entertainment. "PlayStation" and "PS5" are trademarks of Sony Interactive Entertainment Inc.

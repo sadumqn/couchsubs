@@ -1,0 +1,16 @@
+CouchSubs
+Copyright (C) 2026 Sinan Yorulmaz
+https://github.com/yorulmazsinan/couchsubs
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License version 3 (see LICENSE).
+
+If you distribute a modified version or a fork of CouchSubs, the AGPL-3.0
+requires you to, among other things:
+  - keep this copyright notice and the license notices intact (section 4);
+  - carry prominent notices stating that you modified the work and giving a
+    relevant date, e.g. "Based on CouchSubs by Sinan Yorulmaz
+    (https://github.com/yorulmazsinan/couchsubs), modified on YYYY-MM-DD"
+    (section 5a);
+  - license the whole work under the AGPL-3.0 and provide its source code
+    (sections 5c and 6).
