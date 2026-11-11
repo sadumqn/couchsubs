@@ -87,6 +87,11 @@ final class TvPage {
         evaluate("window.__onHdmiStatus(" + quoted(kind) + ")");
     }
 
+    /** Uygulama arka plana geçti ya da öne geldi: arka plandayken dublaj sesi çıkmaz (bkz. platform.js). */
+    void background(boolean hidden) {
+        evaluate("window.__onBackground && window.__onBackground(" + hidden + ")");
+    }
+
     void key(int code) {
         evaluate("window.__onKey(" + code + ")");
     }

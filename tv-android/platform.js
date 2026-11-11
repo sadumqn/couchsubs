@@ -13,6 +13,26 @@
   var dot = null;
   var dotTimer = null;
 
+  // Uygulamadan çıkılınca (Ana ekran, başka uygulama) Türkçe dublaj susar, öne gelince yeniden duyulur. Ortak sayfa sesi
+  // new Audio(...) ile çalar; burada sarılır ki çalan ve arka plandayken başlayan ses kısılsın. Zamanlama değişmez.
+  var NativeAudio = window.Audio;
+  var muted = false;
+  var lastAudio = null;
+  if (NativeAudio) {
+    var TrackedAudio = function (url) {
+      var audio = url === undefined ? new NativeAudio() : new NativeAudio(url);
+      audio.muted = muted;
+      lastAudio = audio;
+      return audio;
+    };
+    TrackedAudio.prototype = NativeAudio.prototype;
+    window.Audio = TrackedAudio;
+  }
+  window.__onBackground = function (hidden) {
+    muted = !!hidden;
+    if (lastAudio) lastAudio.muted = muted;
+  };
+
   window.__onHdmiStatus = function (kind) { hdmiStatus(kind); };
   window.__onRelaunch = function (raw) { relaunch(raw); };
   // Kumanda tuşunu sayfaya iletir (Geri ve renk tuşları sayfaya kendiliğinden gelmez).
@@ -75,6 +95,11 @@
     backKey: 4,
 
     init: function () {
+      // Android TV'nin güvenli alanı (yanlarda 48dp, üstte 27dp: 1080p'de 96 ve 54 piksel): panel ve demo notu kenara
+      // taşan (overscan) TV'lerde kesilmesin (TV-OV).
+      var safe = document.createElement('style');
+      safe.textContent = '#panel { top: 54px; left: 96px; } #demo-badge { top: 54px; right: 96px; }';
+      document.head.appendChild(safe);
       if (overlay) setupOverlay();
       // Panelde Android uygulamasının kendi sürümü görünsün (ortak sayfadaki sayı LG ve Samsung'unkidir).
       var version = bridge.appVersion ? bridge.appVersion() : '';

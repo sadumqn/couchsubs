@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Android TV uygulaması. İmza isteğe bağlıdır; şu depo sırları tanımlıysa yapılır:
-#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD
+# Android TV uygulaması. İki çıktı:
+#   - CouchSubs-androidtv.apk (sideload): masaüstü uygulamalarına gömülür, ADB ile kurulur; katman modu vardır.
+#   - CouchSubs-androidtv-play.aab (play): Google Play'e elle yüklenir; katman modu yoktur (docs/play-store-tv.md).
+# İmza isteğe bağlıdır; şu depo sırları tanımlıysa yapılır:
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD: sürüm anahtarı (APK; yükleme anahtarı yoksa AAB de)
+#   ANDROID_UPLOAD_KEYSTORE_BASE64, ANDROID_UPLOAD_KEYSTORE_PASSWORD, ANDROID_UPLOAD_KEY_ALIAS: Play yükleme anahtarı (AAB)
 name: tv-android
 
 on:
@@ -26,21 +30,36 @@ jobs:
       - name: İmza anahtarı
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
             echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
           fi
+          if [ -n "$ANDROID_UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
+            echo "ANDROID_UPLOAD_KEYSTORE_FILE=$RUNNER_TEMP/upload.keystore" >> "$GITHUB_ENV"
+          fi
       - name: Derle
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
         working-directory: tv-android
         run: |
-          gradle testReleaseUnitTest assembleRelease --no-daemon
-          mkdir -p ../dist
-          cp app/build/outputs/apk/release/*.apk ../dist/CouchSubs-androidtv.apk
+          gradle testSideloadReleaseUnitTest testPlayReleaseUnitTest assembleSideloadRelease bundlePlayRelease --no-daemon
+          mkdir -p ../dist ../dist-play
+          cp app/build/outputs/apk/sideload/release/*.apk ../dist/CouchSubs-androidtv.apk
+          cp app/build/outputs/bundle/playRelease/*.aab ../dist-play/CouchSubs-androidtv-play.aab
+      # Masaüstü paketleri bu yapıttaki tek APK'yı alır (release.yml, windows.yml); AAB ayrı yapıttadır.
       - uses: actions/upload-artifact@v4
         with:
           name: couchsubs-android
           path: dist/*.apk
+          if-no-files-found: error
+      # Google Play'e Play Console'dan elle yüklenir; GitHub sürümüne konmaz.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: couchsubs-android-play
+          path: dist-play/*.aab
           if-no-files-found: error
