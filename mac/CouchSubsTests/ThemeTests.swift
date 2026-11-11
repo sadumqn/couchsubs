@@ -42,6 +42,22 @@ final class ThemeTests: XCTestCase {
             assertContrast(text, on: "surface", atLeast: 4.5)
         }
         assertContrast("accentText", on: "accentSoft", atLeast: 4.5)
+        // Paket moru, tonlu zeminler ve ikinci yüzey (alanlar, ikincil düğme).
+        assertContrast("pro", on: "background", atLeast: 4.5)
+        assertContrast("pro", on: "surface", atLeast: 4.5)
+        assertContrast("pro", on: "proSoft", atLeast: 4.5)
+        assertContrast("success", on: "successSoft", atLeast: 4.5)
+        assertContrast("danger", on: "dangerSoft", atLeast: 4.5)
+        assertContrast("textPrimary", on: "surface2", atLeast: 7)
+        assertContrast("textSecondary", on: "surface2", atLeast: 4.5)
+    }
+
+    func testGlowsAreDefined() {
+        for name in ["primary", "primaryDrop", "activeTile", "activeBorder", "pro", "backgroundAccent", "backgroundPro"] {
+            let glow = tokens.glow[name]
+            XCTAssertNotNil(glow.flatMap { DesignTokens.rgb($0.color) }, name)
+            XCTAssertLessThanOrEqual(glow?.opacity ?? 1, 0.6, "parıltı metnin okunmasını bozmasın: \(name)")
+        }
     }
 
     func testButtonTextIsReadable() {

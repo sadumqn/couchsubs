@@ -33,6 +33,7 @@ public partial class MainView : UserControl
             connectionWatch.Stop();
         };
         Refresh();
+        ShowTiles();
         ShowUpdate();
         _ = controller.CheckForUpdateAsync();
     }
@@ -42,6 +43,8 @@ public partial class MainView : UserControl
         if (e.PropertyName is nameof(AppController.IsRunning) or nameof(AppController.TranslatorStatus) or nameof(AppController.ModelInstalled)
             or nameof(AppController.OnlineIssue) or nameof(AppController.CanStart) or nameof(AppController.IsStarting))
             Refresh();
+        if (e.PropertyName is nameof(AppController.Settings) or nameof(AppController.InstalledPacks))
+            ShowTiles();
         if (e.PropertyName is nameof(AppController.UpdateVersion) or nameof(AppController.Updating)
             or nameof(AppController.UpdateProgress) or nameof(AppController.UpdateError))
             ShowUpdate();
@@ -58,6 +61,21 @@ public partial class MainView : UserControl
         UpdateBar.Value = controller.UpdateProgress;
         UpdateErrorText.Text = controller.UpdateError ?? "";
         UpdateErrorText.Visibility = controller.UpdateError is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Çeviri karosunda seçili motor; paket karosu yalnız paketler açık, çeviri İngilizce→Türkçe ve kurulu paket varken
+    /// görünür (paketler yalnız o dil çiftinde kullanılır).
+    /// </summary>
+    private void ShowTiles()
+    {
+        var text = Localizer.Current;
+        var settings = controller.Settings;
+        EngineText.Text = settings.Engine == TranslationEngine.Free ? text["Free"] : settings.Engine.DisplayName();
+        var packs = controller.InstalledPacks.Count;
+        var active = settings.GamePacks && settings.SourceLanguage == "en" && settings.TargetLanguage == "tr" && packs > 0;
+        PackTile.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        PackText.Text = text.Format("Game packs are on · %lld games translated in advance", packs);
     }
 
     private async void OnUpdate(object sender, RoutedEventArgs e) => await controller.InstallUpdateAsync();
