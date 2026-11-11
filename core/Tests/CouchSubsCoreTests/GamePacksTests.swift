@@ -159,6 +159,30 @@ final class GamePackTests: XCTestCase {
             }
         }
     }
+
+    /// Assassin's Creed Shadows, Death Stranding 2 ve Modern Warfare (2019) paketleri de uygulamayla gelir.
+    func testMoreBundledPacksLoad() {
+        let library = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: nil)
+        let expected: [(id: String, title: String, minimum: Int)] = [
+            ("assassins-creed-shadows", "Assassin's Creed Shadows", 39000),
+            ("death-stranding-2", "Death Stranding 2: On the Beach", 23000),
+            ("call-of-duty-modern-warfare-2019", "Call of Duty: Modern Warfare (2019)", 50000),
+        ]
+        for game in expected {
+            let pack = library.packs.first { $0.id == game.id }
+            XCTAssertEqual(pack?.title, game.title, game.id)
+            XCTAssertGreaterThan(pack?.entries ?? 0, game.minimum, game.id)
+            XCTAssertEqual(pack?.builtIn, true, game.id)
+        }
+        XCTAssertEqual(library.match("NAOE: Yagoro? What are you doing here?")?.text, "NAOE: Yagoro? Burada ne yapıyorsun?")
+        // Sahne notu ("[laughs]") ekranda kalsa da kalmasa da aynı satır bulunur.
+        let gnats = "Her yerdeler, biliyorsun, sinekler gibi! Ne arıyorsan bulacaksın. Naoe'me her zaman güvenebilirim."
+        XCTAssertEqual(library.match("They are everywhere, you know, like gnats! Whatever it is, you will find it. I can always count on my Naoe.")?.text, gnats)
+        XCTAssertEqual(library.match("They are everywhere, you know, like gnats! [laughs] Whatever it is, you will find it. I can always count on my Naoe.")?.text, gnats)
+        XCTAssertEqual(library.match("Terminal Fort Knot is in danger. A voidout would kill them all!")?.text,
+                       "Terminal Fort Knot tehlikede. Bir boşluk patlaması hepsini öldürür!")
+        XCTAssertEqual(library.match("Requesting air drop on my position!")?.text, "Konumuma hava ikmali talep ediyorum!")
+    }
 }
 
 final class PackLookupTests: XCTestCase {
