@@ -1,0 +1,26 @@
+CouchSubs shows the English subtitles of games on your HDMI-connected game console in Turkish, on top of the game picture.
+
+<b>Important: this TV app does not translate on its own.</b> The free CouchSubs app on a computer (macOS or Windows) on the same home network reads the subtitles, translates them and sends them to this TV. A phone app is on the way. Computer app: https://github.com/yorulmazsinan/couchsubs
+
+<b>How it works</b>
+• Open CouchSubs on your computer and pair it with your console. The computer reads the subtitles from the console's remote play connection and translates them on the computer itself.
+• Open CouchSubs on the TV. It finds the computer on your home network by itself, opens the HDMI input your console is on and draws the translation over the game.
+• When people talk fast, the previous line stays above the new one for a moment so you can finish reading it.
+• Move the subtitles with the remote's up/down keys; pick the HDMI input from the status panel.
+• If you turn on Turkish dubbing on the computer, the voice plays from the TV as well.
+
+<b>What you need</b>
+• A TV with an HDMI input that runs Android TV or Google TV. Streaming devices plugged into a TV (HDMI sticks and boxes) can't show the console picture inside the app, so it does not work on them.
+• A Mac or Windows computer with CouchSubs on the same network.
+• A second user account on the console for remote play. Supported consoles and setup steps are on the project page.
+• On some TVs the HDMI picture stays black inside apps. The "overlay mode" these TVs need is only in the TV app that CouchSubs on your computer installs; the app explains on screen what to do in that case.
+
+<b>See it first</b>
+Without a console or computer, press "Watch the demo" on the first screen to see sample subtitles.
+
+<b>Privacy</b>
+The TV app needs no account, contains no ads, analytics or tracking code and collects no personal data. It talks only to the CouchSubs computer on your home network and does not connect to the internet.
+
+CouchSubs is free and open source (AGPL-3.0). Published by Enmera.
+
+CouchSubs is an independent app. It is not affiliated with, endorsed or sponsored by Sony Interactive Entertainment or any other console maker. All trademarks belong to their owners.

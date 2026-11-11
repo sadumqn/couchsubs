@@ -26,6 +26,9 @@ import android.widget.Toast;
  *   ortak arayüz çalışır. Görüntü hiç gelmezse (bazı TV'lerde TvView siyah kalıyor) ve izin varsa katmana geçer.
  * - Katman: HDMI'yı TV kendi giriş ekranında gösterir, altyazıyı OverlayService üstte çizer. Bu ekran yalnız servisi
  *   başlatıp kapanır; servis çalışırken CouchSubs yeniden açılırsa katman kapanır.
+ *
+ * Google Play paketinde katman modu yoktur (BuildConfig.OVERLAY_MODE; bkz. docs/play-store-tv.md): orada yalnız uygulama
+ * içinde çalışır, katman gerektiğinde ne yapılacağı anlatılır.
  */
 public class MainActivity extends Activity implements TvPage.Host {
     /** Katman servisi uygulamayı kendisi açtı (izin yok ya da bilgisayarda "Uygulama içinde" seçildi). */
@@ -70,7 +73,7 @@ public class MainActivity extends Activity implements TvPage.Host {
             return;
         }
 
-        DisplayMode.Start start = DisplayMode.atLaunch(TvPage.storedDisplayMode(this), Settings.canDrawOverlays(this));
+        DisplayMode.Start start = DisplayMode.atLaunch(TvPage.storedDisplayMode(this), overlayAllowed());
         if (start == DisplayMode.Start.OVERLAY) {
             startOverlay();
             return;
@@ -79,22 +82,27 @@ public class MainActivity extends Activity implements TvPage.Host {
         if (start == DisplayMode.Start.IN_APP_NEEDS_PERMISSION) showPermissionHelp(R.string.overlay_permission_needed);
     }
 
+    /** Katman açılabilir mi: bu derlemede var (Play paketinde yok) ve "Diğer uygulamaların üzerinde göster" izni verilmiş. */
+    private boolean overlayAllowed() {
+        return BuildConfig.OVERLAY_MODE && Settings.canDrawOverlays(this);
+    }
+
     private void showInApp() {
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         if (getSystemService(TV_INPUT_SERVICE) != null) {
             tvView = new TvView(this);
             tvView.setCallback(new TvView.TvInputCallback() {
-                @Override public void onConnectionFailed(String inputId) { trouble(); status("inputError"); retuneLater(); }
-                @Override public void onDisconnected(String inputId) { trouble(); status("inputError"); retuneLater(); }
+                @Override public void onConnectionFailed(String inputId) { noVideo(); retuneLater(); }
+                @Override public void onDisconnected(String inputId) { noVideo(); retuneLater(); }
                 @Override public void onVideoAvailable(String inputId) {
                     retuneAttempts = 0;
                     watch.videoAvailable();
                     hideHelp();
+                    keepScreenOn(true);
                     status("playing");
                 }
-                @Override public void onVideoUnavailable(String inputId, int reason) { trouble(); status("inputError"); }
+                @Override public void onVideoUnavailable(String inputId, int reason) { noVideo(); }
             });
             root.addView(tvView);
         }
@@ -117,6 +125,22 @@ public class MainActivity extends Activity implements TvPage.Host {
         setContentView(root);
         page.load();
         page.webView.requestFocus();
+    }
+
+    /** HDMI görüntüsü kesildi ya da gelmiyor. */
+    private void noVideo() {
+        keepScreenOn(false);
+        trouble();
+        status("inputError");
+    }
+
+    /**
+     * Ekran yalnız HDMI görüntüsü oynarken açık tutulur; görüntü yokken (bekleme ekranı, demo, PS5 kapalı) TV kendi ekran
+     * koruyucusuna geçebilir (Android TV kalite kuralları TV-BU ve TV-BY).
+     */
+    private void keepScreenOn(boolean on) {
+        if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
     /** 1920 piksellik sayfa ölçüsünü ekran pikseline çevirir (yardım kutusu sayfayla aynı boyda görünsün). */
@@ -162,7 +186,7 @@ public class MainActivity extends Activity implements TvPage.Host {
         if (isFinishing() || tvView == null || watch.played()) return;
         long now = SystemClock.elapsedRealtime();
         boolean source = HdmiInputs.hasSource(this, tunedInput);
-        boolean permitted = Settings.canDrawOverlays(this);
+        boolean permitted = overlayAllowed();
         if (watch.shouldSwitch(now, source, permitted)) {
             switchToOverlay(R.string.overlay_fallback);
             return;
@@ -177,7 +201,10 @@ public class MainActivity extends Activity implements TvPage.Host {
     private void showPermissionHelp(int message) {
         if (help == null) return;
         helpShown = true;
-        help.setText(getString(message) + "\n\n" + getString(R.string.overlay_permission_how));
+        // Play paketinde izin işe yaramaz: katman modu yalnız bilgisayarın kurduğu sürümde var.
+        help.setText(BuildConfig.OVERLAY_MODE
+                ? getString(message) + "\n\n" + getString(R.string.overlay_permission_how)
+                : getString(R.string.overlay_unavailable));
         help.setVisibility(View.VISIBLE);
         handler.removeCallbacks(hideHelpTask);
         handler.postDelayed(hideHelpTask, HELP_VISIBLE_MS);
@@ -206,7 +233,7 @@ public class MainActivity extends Activity implements TvPage.Host {
     @Override
     public void displayModeChanged(String mode) {
         if (!DisplayMode.OVERLAY.equals(mode)) return;
-        if (Settings.canDrawOverlays(this)) switchToOverlay(R.string.overlay_selected);
+        if (overlayAllowed()) switchToOverlay(R.string.overlay_selected);
         else showPermissionHelp(R.string.overlay_permission_needed);
     }
 
@@ -215,7 +242,7 @@ public class MainActivity extends Activity implements TvPage.Host {
         super.onNewIntent(intent);
         TvPage.storeDisplayMode(this, intent.getStringExtra(EXTRA_DISPLAY_MODE));
         if (page == null) return;
-        if (DisplayMode.OVERLAY.equals(TvPage.storedDisplayMode(this)) && Settings.canDrawOverlays(this)) {
+        if (DisplayMode.OVERLAY.equals(TvPage.storedDisplayMode(this)) && overlayAllowed()) {
             String params = paramsOf(intent);
             if (!params.isEmpty()) launchParams = params;
             switchToOverlay(R.string.overlay_selected);
@@ -258,6 +285,19 @@ public class MainActivity extends Activity implements TvPage.Host {
         super.onResume();
         resumed = true;
         if (tvView != null && tunedInput != null) tune(tunedInput);
+    }
+
+    /** Uygulamadan çıkılınca (Ana ekran, başka uygulama) Türkçe dublaj susar; altyazı bağlantısı sürer (TV-NP). */
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (page != null) page.background(true);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (page != null) page.background(false);
     }
 
     /** Arka plandayken katmana geçilmez (kullanıcı başka bir şey izliyor olabilir); öne gelince saat yeniden başlar. */
