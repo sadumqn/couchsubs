@@ -36,19 +36,17 @@ https://github.com/user-attachments/assets/bb8569d8-115d-49c7-a772-da2d9e171c17
 | **Bilgisayar ekranındaki altyazı penceresi** | |
 | <img src="docs/screenshots/windows/pencere.png" width="420" alt="Altyazı penceresi tasarımı"> | |
 
-**Telefon uygulaması (yakında)** (tasarım; yatay altyazı ekranı:
-[10-altyazi.png](docs/screenshots/telefon/10-altyazi.png)):
+**Telefon uygulaması (yakında)** (tasarım; o da tamamen ücretsiz, hesap gerekmez; yatay altyazı ekranı:
+[09-altyazi.png](docs/screenshots/telefon/09-altyazi.png)):
 
 | | | | |
 |---|---|---|---|
-| <img src="docs/screenshots/telefon/01-karsilama-1.png" width="180" alt="Karşılama"> | <img src="docs/screenshots/telefon/02-karsilama-2.png" width="180" alt="Karşılama"> | <img src="docs/screenshots/telefon/03-kayit.png" width="180" alt="Kayıt"> | <img src="docs/screenshots/telefon/04-psn.png" width="180" alt="PSN girişi"> |
-| Karşılama | Karşılama | Kayıt | PSN girişi |
-| <img src="docs/screenshots/telefon/05-ps5.png" width="180" alt="PS5 eşleme"> | <img src="docs/screenshots/telefon/06-hedef.png" width="180" alt="Altyazı nerede"> | <img src="docs/screenshots/telefon/07-tur.png" width="180" alt="Kullanım turu"> | <img src="docs/screenshots/telefon/08-ana.png" width="180" alt="Ana ekran"> |
-| PS5 eşleme | Altyazı nerede | Kullanım turu | Ana ekran |
-| <img src="docs/screenshots/telefon/09-calisiyor.png" width="180" alt="Çeviri sürüyor"> | <img src="docs/screenshots/telefon/11-paketler-kilitli.png" width="180" alt="Paketler"> | <img src="docs/screenshots/telefon/12-paywall.png" width="180" alt="Pro"> | <img src="docs/screenshots/telefon/13-paketler.png" width="180" alt="Paketler (Pro)"> |
-| Çeviri sürüyor | Paketler | Pro | Paketler (Pro) |
-| <img src="docs/screenshots/telefon/14-profil.png" width="180" alt="Profil"> | <img src="docs/screenshots/telefon/15-hesap.png" width="180" alt="Hesap"> | <img src="docs/screenshots/telefon/16-abonelik.png" width="180" alt="Abonelik"> | <img src="docs/screenshots/telefon/17-ayarlar.png" width="180" alt="Ayarlar"> |
-| Profil | Hesap | Abonelik | Ayarlar |
+| <img src="docs/screenshots/telefon/01-karsilama-1.png" width="180" alt="Karşılama"> | <img src="docs/screenshots/telefon/02-karsilama-2.png" width="180" alt="Karşılama"> | <img src="docs/screenshots/telefon/03-psn.png" width="180" alt="PSN girişi"> | <img src="docs/screenshots/telefon/04-ps5.png" width="180" alt="PS5 eşleme"> |
+| Karşılama | Karşılama | PSN girişi | PS5 eşleme |
+| <img src="docs/screenshots/telefon/05-hedef.png" width="180" alt="Altyazı nerede"> | <img src="docs/screenshots/telefon/06-tur.png" width="180" alt="Kullanım turu"> | <img src="docs/screenshots/telefon/07-ana.png" width="180" alt="Ana ekran"> | <img src="docs/screenshots/telefon/08-calisiyor.png" width="180" alt="Çeviri sürüyor"> |
+| Altyazı nerede | Kullanım turu | Ana ekran | Çeviri sürüyor |
+| <img src="docs/screenshots/telefon/10-paketler.png" width="180" alt="Oyun paketleri"> | <img src="docs/screenshots/telefon/11-cihazlarim.png" width="180" alt="Cihazlarım"> | <img src="docs/screenshots/telefon/12-ayarlar.png" width="180" alt="Ayarlar"> | |
+| Oyun paketleri | Cihazlarım | Ayarlar | |
 
 ## İndir
 
@@ -205,7 +203,7 @@ all tested on real TVs. CouchSubs installs the TV app on all of them. Mac and Wi
 ([main screen](docs/screenshots/windows/ana.png), [setup](docs/screenshots/windows/kurulum.png),
 [translation](docs/screenshots/windows/ceviri.png), [game packs](docs/screenshots/windows/paketler.png),
 [subtitle window](docs/screenshots/windows/pencere.png)) and the design of the upcoming phone app
-([docs/screenshots/telefon](docs/screenshots/telefon)). On desktop, game packs are free.
+([docs/screenshots/telefon](docs/screenshots/telefon)). Everything is free, game packs included; no account is needed.
 
 **Setup:** open the app and follow the setup assistant. On the TV step it shows how to turn on developer mode for your
 TV brand and then installs the TV app by itself (LG: type the on-screen passphrase once; Samsung: sign in with a
