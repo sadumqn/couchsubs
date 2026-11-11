@@ -24,15 +24,13 @@ public sealed class AndroidInstallException(AndroidInstallError error, string? d
 public sealed class AdbConnection : IAsyncDisposable
 {
     internal const uint Cnxn = 0x4e584e43, Auth = 0x48545541, Open = 0x4e45504f, Okay = 0x59414b4f,
-        Clse = 0x45534c43, Wrte = 0x45545257, Stls = 0x534c5453;
-    /// <summary>Kablosuz hata ayıklamada TV, CNXN'e STLS ile yanıt verir; bağlantı TLS 1.3'e geçer.</summary>
-    internal const uint StlsVersion = 0x01000000;
+        Clse = 0x45534c43, Wrte = 0x45545257;
     internal const uint AuthToken = 1, AuthSignature = 2, AuthPublicKey = 3;
     internal const uint Version = 0x01000001;
     private const uint OfferedMaxPayload = 256 * 1024;
 
     private readonly TcpClient tcp;
-    private Stream stream;
+    private readonly NetworkStream stream;
     private uint maxPayload = 4096;
     private uint nextLocalId = 1;
 
@@ -105,15 +103,10 @@ public sealed class AdbConnection : IAsyncDisposable
                     signed = true;
                     await WriteAsync(Auth, AuthSignature, 0, SignToken(key, packet.Data), cancellationToken);
                     break;
-                case Stls:
-                    // Kablosuz hata ayıklama portu: TV yalnız eşleştirmede öğrendiği anahtarın sertifikasını kabul eder.
-                    await WriteAsync(Stls, StlsVersion, 0, [], cancellationToken);
-                    var raw = stream;
-                    stream = await Task.Run(() => AdbTlsClient.Connect(raw, key).Stream, cancellationToken);
-                    break;
                 case Auth when packet.Arg0 == AuthToken:
                     // İmza tanınmadı: TV bu anahtarı ilk kez görüyor. Açık anahtarı gönderince TV kullanıcıya sorar.
-                    await WriteAsync(Auth, AuthPublicKey, 0, Encoding.ASCII.GetBytes(PublicKeyString(key) + "\0"), cancellationToken);
+                    var publicKey = Convert.ToBase64String(EncodePublicKey(key)) + " couchsubs@CouchSubs\0";
+                    await WriteAsync(Auth, AuthPublicKey, 0, Encoding.ASCII.GetBytes(publicKey), cancellationToken);
                     waitingForApproval = true;
                     deadline.CancelAfter(approvalTimeout);
                     onApprovalNeeded?.Invoke();
@@ -130,9 +123,6 @@ public sealed class AdbConnection : IAsyncDisposable
     /// </summary>
     internal static byte[] SignToken(RSA key, byte[] token) =>
         key.SignHash(token, HashAlgorithmName.SHA1, RSASignaturePadding.Pkcs1);
-
-    /// <summary>adb'nin açık anahtar satırı: Android biçimindeki anahtarın base64'ü ve "kullanıcı@bilgisayar".</summary>
-    internal static string PublicKeyString(RSA key) => Convert.ToBase64String(EncodePublicKey(key)) + " couchsubs@CouchSubs";
 
     /// <summary>Android'in kendi RSA açık anahtar biçimi (system/core/libcrypto_utils android_pubkey.c).</summary>
     internal static byte[] EncodePublicKey(RSA key)
