@@ -6096,6 +6096,422 @@
           }
         }
       }
+    },
+    "Your phone reads the English subtitles of your PS5 game, translates them into Turkish and shows them on the TV or on this screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your phone reads the English subtitles of your PS5 game, translates them into Turkish and shows them on the TV or on this screen."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefonunuz PS5 oyunundaki İngilizce altyazıyı okur, Türkçeye çevirir ve TV'de ya da bu ekranda gösterir."
+          }
+        }
+      }
+    },
+    "Your PS5 and this phone on the same Wi-Fi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your PS5 and this phone on the same Wi-Fi"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 ve bu telefon aynı Wi-Fi ağında"
+          }
+        }
+      }
+    },
+    "Optional: a TV with the CouchSubs TV app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional: a TV with the CouchSubs TV app"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İsteğe bağlı: CouchSubs TV uygulaması kurulu bir TV"
+          }
+        }
+      }
+    },
+    "No PS5 found. Make sure it is on and on the same Wi-Fi, or enter its IP address (PS5: Settings › Network › Connection Status).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No PS5 found. Make sure it is on and on the same Wi-Fi, or enter its IP address (PS5: Settings › Network › Connection Status)."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 bulunamadı. Açık ve aynı Wi-Fi ağında olduğundan emin olun ya da IP adresini yazın (PS5: Ayarlar › Ağ › Bağlantı Durumu)."
+          }
+        }
+      }
+    },
+    "Where should the subtitles appear?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where should the subtitles appear?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazılar nerede görünsün?"
+          }
+        }
+      }
+    },
+    "Choose a TV that already has the CouchSubs TV app, or show the subtitles on this phone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a TV that already has the CouchSubs TV app, or show the subtitles on this phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs TV uygulaması kurulu bir TV seçin ya da altyazıları bu telefonda gösterin."
+          }
+        }
+      }
+    },
+    "No TV found. Enter the TV's IP address, or choose Android TV: its CouchSubs app finds this phone by itself.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No TV found. Enter the TV's IP address, or choose Android TV: its CouchSubs app finds this phone by itself."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV bulunamadı. TV'nin IP adresini yazın ya da Android TV'yi seçin: oradaki CouchSubs uygulaması bu telefonu kendisi bulur."
+          }
+        }
+      }
+    },
+    "Could not connect to the TV. Accept the request on the TV screen and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not connect to the TV. Accept the request on the TV screen and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'ye bağlanılamadı. TV ekranındaki isteği onaylayıp yeniden deneyin."
+          }
+        }
+      }
+    },
+    "I don't have a TV: show subtitles on this phone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I don't have a TV: show subtitles on this phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'm yok: altyazıları bu telefonda göster"
+          }
+        }
+      }
+    },
+    "The CouchSubs TV app did not open on the TV.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The CouchSubs TV app did not open on the TV."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs TV uygulaması TV'de açılmadı."
+          }
+        }
+      }
+    },
+    "To install the TV app for the first time, use CouchSubs on a computer once. After that this phone is enough.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To install the TV app for the first time, use CouchSubs on a computer once. After that this phone is enough."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV uygulamasını ilk kez kurmak için bir kez bilgisayardaki CouchSubs'ı kullanın. Sonrasında bu telefon yeterli."
+          }
+        }
+      }
+    },
+    "Keep CouchSubs open on the screen while you play. iOS stops the connection when the app goes to the background; the screen stays on while translating.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep CouchSubs open on the screen while you play. iOS stops the connection when the app goes to the background; the screen stays on while translating."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynarken CouchSubs ekranda açık kalsın. iOS, arka plana geçen uygulamanın bağlantısını keser; çeviri sürerken ekran kararmaz."
+          }
+        }
+      }
+    },
+    "Show subtitles on this phone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show subtitles on this phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazıları bu telefonda göster"
+          }
+        }
+      }
+    },
+    "The English–Turkish language pack is not downloaded yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The English–Turkish language pack is not downloaded yet."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İngilizce–Türkçe dil paketi henüz indirilmedi."
+          }
+        }
+      }
+    },
+    "The online translation is not answering right now. Meanwhile the free translation is used.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The online translation is not answering right now. Meanwhile the free translation is used."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çevrimiçi çeviri şu an yanıt vermiyor. Bu arada ücretsiz çeviri kullanılıyor."
+          }
+        }
+      }
+    },
+    "From the game pack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From the game pack"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oyun paketinden"
+          }
+        }
+      }
+    },
+    "Free (on this device)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free (on this device)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretsiz (bu cihazda)"
+          }
+        }
+      }
+    },
+    "Use the ready Turkish translations of game packs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use the ready Turkish translations of game packs"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oyun paketlerindeki hazır Türkçe çevirileri kullan"
+          }
+        }
+      }
+    },
+    "Show subtitles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show subtitles"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazıyı göster"
+          }
+        }
+      }
+    },
+    "On this phone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On this phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefonda"
+          }
+        }
+      }
+    },
+    "Text colour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text colour"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazı rengi"
+          }
+        }
+      }
+    },
+    "Share lines missing from the packs (anonymous)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share lines missing from the packs (anonymous)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paketlerde olmayan satırları paylaş (anonim)"
+          }
+        }
+      }
+    },
+    "English lines that no game pack has yet are sent without any personal data, so the packs grow.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English lines that no game pack has yet are sent without any personal data, so the packs grow."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henüz hiçbir oyun paketinde olmayan İngilizce satırlar kişisel bilgi olmadan gönderilir; paketler böyle büyür."
+          }
+        }
+      }
+    },
+    "The key did not work. Check it and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key did not work. Check it and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahtar çalışmadı. Kontrol edip yeniden deneyin."
+          }
+        }
+      }
+    },
+    "The PS5 did not answer. Make sure it is on (not in rest mode), on the same Wi-Fi as this phone, and that Remote Play is turned on, then try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PS5 did not answer. Make sure it is on (not in rest mode), on the same Wi-Fi as this phone, and that Remote Play is turned on, then try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 yanıt vermedi. Açık olduğundan (dinlenme modunda değil), bu telefonla aynı Wi-Fi ağında olduğundan ve Uzaktan Oynatma'nın açık olduğundan emin olup yeniden deneyin."
+          }
+        }
+      }
+    },
+    "iOS blocked the connection to the home network. Turn on CouchSubs in Settings › Privacy & Security › Local Network, then enter a new code.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS blocked the connection to the home network. Turn on CouchSubs in Settings › Privacy & Security › Local Network, then enter a new code."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS ev ağına bağlantıyı engelledi. Ayarlar › Gizlilik ve Güvenlik › Yerel Ağ'dan CouchSubs'ı açıp yeni kodu girin."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

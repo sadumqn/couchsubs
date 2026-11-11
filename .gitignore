@@ -7,6 +7,7 @@ build/
 third-party/build/
 .build/
 mac/CouchSubs.xcodeproj/
+couchsubs-ios/CouchSubs.xcodeproj/
 
 # Claude Code kişisel ayarları
 .claude/settings.local.json
