@@ -447,39 +447,63 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         await InstallTvAppAsync(target, devKey, bundled);
     }
 
-    /// <summary>Kurulum hatasında TV'nin verdiği sebep de gösterilir; genel mesaj tek başına sorunu bulmaya yetmiyordu.</summary>
-    private static TvAppState FailedState(DevModeException error) =>
+    /// <summary>
+    /// Kurulum hatasında TV'nin verdiği sebep de gösterilir; genel mesaj tek başına sorunu bulmaya yetmiyordu. Samsung'da
+    /// her hatanın ayrıntısı (Samsung'un yanıtı, sdb hatası, TV'nin kurulum çıktısı) gösterilir: hiçbiri sessiz kalmasın.
+    /// </summary>
+    private static TvAppState FailedState(DevModeException error, bool alwaysShowDetail = false) =>
         new(TvAppKind.Failed, Error: error.Error,
-            Reason: error.Error is DevModeError.InstallFailed or DevModeError.NotEnoughSpace && !string.IsNullOrWhiteSpace(error.Detail)
+            Reason: (alwaysShowDetail || error.Error is DevModeError.InstallFailed or DevModeError.NotEnoughSpace) &&
+                    !string.IsNullOrWhiteSpace(error.Detail)
                 ? error.Detail.Trim() : null);
 
-    /// <summary>Samsung: geliştirici modu açıksa uygulamayı imzalayıp kurar. Sertifika yoksa Samsung girişi istenir.</summary>
+    /// <summary>Samsung kurulumu ya da sürüm denetimi sürüyor: olaylar (giriş, kurulum adımı) kartı değiştirebilir.</summary>
+    private bool samsungCheckRunning;
+
+    /// <summary>
+    /// Samsung: geliştirici modu açıksa TV'deki CouchSubs sürümüne bakar, yoksa ya da eskiyse imzalayıp kurar
+    /// (sertifika yoksa Samsung girişi istenir). Önceden yalnız bu bilgisayarın kurduğu sürüm hatırlanıyordu; TV'de eski
+    /// kalan uygulama (ör. 0.9.10 gelirken 0.9.7) hiç güncellenmiyordu.
+    /// </summary>
     private async Task RefreshSamsungAppAsync(LgTv target)
     {
         if (services.BundledApp(TvBrand.Samsung) is not { } bundled) return;
-        if (!NeedsInstall(bundled))
-        {
-            TvApp = new TvAppState(TvAppKind.UpToDate, InstalledAppVersion ?? bundled.Version);
-            return;
-        }
+        var remembered = !NeedsInstall(bundled);
         if (!await services.IsSamsungDevModeOnAsync(target.Host))
         {
-            TvApp = new TvAppState(TvAppKind.DevModeOff);
+            // Geliştirici modu kapalıyken TV'ye sorulamaz; bu bilgisayarın kurduğu sürüme bakılır.
+            TvApp = remembered ? new TvAppState(TvAppKind.UpToDate, InstalledAppVersion ?? bundled.Version) : new TvAppState(TvAppKind.DevModeOff);
             return;
         }
-        TvApp = new TvAppState(TvAppKind.Working);
+        // Güncel bilinen uygulamada denetim sessiz sürer; kart ancak kurulum başlarsa değişir.
+        TvApp = remembered ? new TvAppState(TvAppKind.UpToDate, InstalledAppVersion ?? bundled.Version) : new TvAppState(TvAppKind.Working);
+        samsungCheckRunning = true;
         try
         {
-            await services.InstallSamsungAppAsync(target.Host, bundled, e => post(() => InstallEvent(e)));
-            store.Save(StoreKeys.TvAppVersion, bundled.Version);
-            TvApp = new TvAppState(TvAppKind.UpToDate, bundled.Version);
-            await OpenTvAppAfterInstallAsync(target);
+            var (version, installed) = await services.InstallSamsungAppAsync(target.Host, bundled, e => post(() => InstallEvent(e)));
+            version = string.IsNullOrWhiteSpace(version) ? bundled.Version : version;
+            store.Save(StoreKeys.TvAppVersion, version);
+            TvApp = new TvAppState(TvAppKind.UpToDate, version);
+            if (installed) await OpenTvAppAfterInstallAsync(target);
+        }
+        catch (DevModeException error) when (remembered && error.Error == DevModeError.Unreachable)
+        {
+            // TV sdb bağlantısını kabul etmedi (ör. Host PC IP değişti): çalışan uygulama "kurulamadı" diye gösterilmez.
+            TvApp = new TvAppState(TvAppKind.UpToDate, InstalledAppVersion ?? bundled.Version);
         }
         catch (DevModeException error)
         {
-            TvApp = FailedState(error);
+            TvApp = FailedState(error, alwaysShowDetail: true);
+        }
+        finally
+        {
+            samsungCheckRunning = false;
         }
     }
+
+    /// <summary>Kurulumun TV'yi değiştiren adımları (yalnız sürüm okumak değil).</summary>
+    private static bool IsInstallStep(string? step) =>
+        step is "signin" or "certificate" or "signing" or "installing" or "uninstalling";
 
     /// <summary>Android TV: ağda ADB'si açık TV'yi bulur, uygulamayı kurar ve açar.</summary>
     private async Task RefreshAndroidAppAsync(LgTv target)
@@ -522,7 +546,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private void InstallEvent(TvInstallEvent e)
     {
         // Kurulum bittikten sonra gelen geç olay sonucu ezmesin.
-        if (TvApp.Kind is not (TvAppKind.Working or TvAppKind.SignIn or TvAppKind.ApproveOnTv)) return;
+        if (!samsungCheckRunning && TvApp.Kind is not (TvAppKind.Working or TvAppKind.SignIn or TvAppKind.ApproveOnTv)) return;
         switch (e.Kind)
         {
             case TvInstallEventKind.SignIn when e.Url is { } url:
@@ -533,6 +557,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 TvApp = new TvAppState(TvAppKind.ApproveOnTv);
                 break;
             case TvInstallEventKind.Progress when TvApp.Kind == TvAppKind.SignIn:
+                TvApp = new TvAppState(TvAppKind.Working);
+                break;
+            // Sürüm denetimi güncelleme kurmaya başladı: kart "kuruluyor"a geçer.
+            case TvInstallEventKind.Progress when TvApp.Kind != TvAppKind.Working && IsInstallStep(e.Step):
                 TvApp = new TvAppState(TvAppKind.Working);
                 break;
         }

@@ -210,7 +210,9 @@ protocol AppServices: AnyObject {
     /// Samsung ve Android TV için uygulamayla gelen paket (geliştirici derlemesinde olmayabilir).
     func bundledApp(for brand: TVBrand) -> BundledTVApp?
     func isSamsungDevModeOn(host: String) async -> Bool
-    func installSamsungApp(host: String, app: BundledTVApp, onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws
+    /// TV'deki sürüme bakar, eksik ya da eskiyse kurar; TV'deki sürümü ve kurulup kurulmadığını döner.
+    func installSamsungApp(host: String, app: BundledTVApp,
+                           onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws -> (version: String, installed: Bool)
     func isAndroidDebugOn(host: String) async -> Bool
     /// Ağda ADB'si açık cihazlar.
     func scanAndroidTVs() async -> [String]
@@ -394,9 +396,13 @@ final class LiveServices: AppServices {
 
     func isSamsungDevModeOn(host: String) async -> Bool { await Self.isPortOpen(host: host, port: 26101) }
 
-    func installSamsungApp(host: String, app: BundledTVApp, onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws {
-        _ = try await TVHelper.run(["samsung-install", "--host", host, "--package", app.url.path, "--version", app.version,
-                                    "--profiles", TVHelper.dataDirectory.appendingPathComponent("samsung").path], onEvent: onEvent)
+    func installSamsungApp(host: String, app: BundledTVApp,
+                           onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws -> (version: String, installed: Bool) {
+        let result = try await TVHelper.run(["samsung-install", "--host", host, "--package", app.url.path, "--version", app.version,
+                                    "--profiles", TVHelper.dataDirectory.appendingPathComponent("samsung").path,
+                                    "--log", TVInstallLog.file.path], onEvent: onEvent)
+        let version = result.version.flatMap { $0.isEmpty ? nil : $0 } ?? app.version
+        return (version, result.installed)
     }
 
     func isAndroidDebugOn(host: String) async -> Bool { await Self.isPortOpen(host: host, port: 5555) }
@@ -551,6 +557,8 @@ final class AppModel {
     private var tvAppMissing = false
     /// TV uygulaması denetimi sürüyor (bekleme ekranı ve çeviri başlangıcı aynı anda çağırabilir).
     private var refreshingTVApp = false
+    /// Samsung kurulumu ya da sürüm denetimi sürüyor: olaylar (giriş, kurulum adımı) kartı değiştirebilir.
+    private var samsungCheckRunning = false
     var settings: UserSettings {
         didSet {
             // Sıradan tercih; her kaydırıcı hareketinde Anahtarlık'a yazılmasın.
@@ -874,28 +882,49 @@ final class AppModel {
         await install(tv: tv, devKey: devKey, bundled: bundled)
     }
 
-    /// Samsung: geliştirici modu açıksa uygulamayı imzalayıp kurar. Sertifika yoksa Samsung girişi istenir.
+    /// Samsung: geliştirici modu açıksa TV'deki CouchSubs sürümüne bakar, yoksa ya da eskiyse imzalayıp kurar
+    /// (sertifika yoksa Samsung girişi istenir). Önceden yalnız bu Mac'in kurduğu sürüm hatırlanıyordu; TV'de eski
+    /// kalan uygulama (ör. 0.9.10 gelirken 0.9.7) hiç güncellenmiyordu.
     private func refreshSamsungApp(_ tv: LGTV) async {
         guard let bundled = services.bundledApp(for: .samsung) else { return }
-        guard needsInstall(bundled) else {
-            tvApp = .upToDate(installedAppVersion ?? bundled.version)
-            return
-        }
+        let remembered = !needsInstall(bundled)
+        let current = TVAppState.upToDate(installedAppVersion ?? bundled.version)
         guard await services.isSamsungDevModeOn(host: tv.host) else {
-            tvApp = .devModeOff
+            // Geliştirici modu kapalıyken TV'ye sorulamaz; bu Mac'in kurduğu sürüme bakılır.
+            tvApp = remembered ? current : .devModeOff
             return
         }
-        tvApp = .working
+        // Güncel bilinen uygulamada denetim sessiz sürer; kart ancak kurulum başlarsa değişir.
+        tvApp = remembered ? current : .working
+        samsungCheckRunning = true
+        defer { samsungCheckRunning = false }
         do {
-            try await services.installSamsungApp(host: tv.host, app: bundled) { [weak self] event in
+            let result = try await services.installSamsungApp(host: tv.host, app: bundled) { [weak self] event in
                 Task { @MainActor in self?.installEvent(event) }
             }
-            store.save(bundled.version, for: StoreKey.tvAppVersion)
-            tvApp = .upToDate(bundled.version)
-            await openTVAppAfterInstall(tv)
+            store.save(result.version, for: StoreKey.tvAppVersion)
+            tvApp = .upToDate(result.version)
+            if result.installed { await openTVAppAfterInstall(tv) }
+        } catch let failure as DevModeFailure where remembered && failure.error == .unreachable {
+            // TV sdb bağlantısını kabul etmedi (ör. Host PC IP değişti): çalışan uygulama "kurulamadı" diye gösterilmez.
+            tvApp = current
+        } catch DevModeError.unreachable where remembered {
+            tvApp = current
         } catch {
-            tvApp = .failed(error as? DevModeError ?? .installFailed)
+            tvApp = Self.failedState(error)
         }
+    }
+
+    /// Kurulumun TV'yi değiştiren adımları (yalnız sürüm okumak değil).
+    static func isInstallStep(_ step: String) -> Bool {
+        ["signin", "certificate", "signing", "installing", "uninstalling"].contains(step)
+    }
+
+    /// Kurulum hatası ve yardımcının verdiği sebep (TV'nin kurulum çıktısı, Samsung'un yanıtı); sebep de gösterilir.
+    static func failedState(_ error: Error) -> TVAppState {
+        guard let failure = error as? DevModeFailure else { return .failed(error as? DevModeError ?? .installFailed) }
+        let reason = failure.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return .failed(failure.error, reason: reason.isEmpty ? nil : reason)
     }
 
     /// Android TV: ağda ADB'si açık TV'yi bulur, uygulamayı kurar ve açar.
@@ -927,7 +956,7 @@ final class AppModel {
             store.save(version, for: StoreKey.tvAppVersion)
             tvApp = .upToDate(version)
         } catch {
-            tvApp = .failed(error as? DevModeError ?? .installFailed)
+            tvApp = Self.failedState(error)
         }
     }
 
@@ -935,7 +964,7 @@ final class AppModel {
         // Kurulum bittikten sonra gelen geç olay sonucu ezmesin.
         switch tvApp {
         case .working, .signIn, .approveOnTV: break
-        default: return
+        default: if !samsungCheckRunning { return }
         }
         switch event {
         case .signIn(let url):
@@ -943,8 +972,13 @@ final class AppModel {
             openInBrowser(url)
         case .approveOnTV:
             tvApp = .approveOnTV
-        case .progress:
-            if case .signIn = tvApp { tvApp = .working }
+        case .progress(let step):
+            if case .signIn = tvApp {
+                tvApp = .working
+            } else if tvApp != .working, Self.isInstallStep(step) {
+                // Sürüm denetimi güncelleme kurmaya başladı: kart "kuruluyor"a geçer.
+                tvApp = .working
+            }
         }
     }
 
@@ -955,7 +989,15 @@ final class AppModel {
     }
 
     /// Testlerde tarayıcı açılmasın diye değiştirilebilir.
-    var openInBrowser: (URL) -> Void = { _ = NSWorkspace.shared.open($0) }
+    var openInBrowser: (URL) -> Void = { url in
+        // Tarayıcı öne gelsin: sayfa arkada açılınca kullanıcı giriş penceresini görmüyordu. Açılmazsa kart "Sayfayı
+        // yeniden aç" ve "Bağlantıyı kopyala" ile bekler; günlükte de görünür.
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.open(url, configuration: configuration) { _, error in
+            if let error { TVInstallLog.write("Tarayıcı açılamadı: \(url.absoluteString): \(error.localizedDescription)") }
+        }
+    }
 
     /// Samsung'da geliştirici modunda "Host PC IP" olarak yazılacak bu Mac'in adresi.
     var computerAddress: String? {

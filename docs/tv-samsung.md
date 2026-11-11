@@ -25,13 +25,20 @@ Samsung'da paket, TV'nin DUID'ini içeren distributor sertifikasıyla imzalanır
 TV'sine kurmak mümkün değildir. Mac ve Windows uygulamaları bunu kullanıcının yerine yapar
 (`windows/src/CouchSubs.TvInstall/Samsung/`; Mac'te aynı kod gömülü `couchsubs-tv-helper` ile çalışır):
 
-1. sdb (26101) ile TV'ye bağlanır, `0 getduid` ile DUID'i okur.
+1. sdb (26101) ile TV'ye bağlanır, `0 vd_applist` ile TV'deki CouchSubs sürümüne bakar (güncelse burada durur),
+   `0 getduid` ile DUID'i okur.
 2. Bu TV için geçerli sertifika yoksa Samsung'un SignInGate sayfasını tarayıcıda açar; jeton `localhost:4794`'e POST
    edilir.
 3. Yazar ve dağıtıcı CSR'lerini `svdca.samsungqbe.com`'a gönderir (dağıtıcı CSR'sinde `URN:tizen:deviceid=<DUID>`),
    gelen sertifikaları Samsung ara sertifikasıyla PKCS#12'ye yazar (Mac: `~/Library/Application Support/CouchSubs/samsung`,
    Windows: `%LOCALAPPDATA%\CouchSubs\samsung`).
-4. Uygulamayla gelen imzasız `couchsubs-samsung_<sürüm>.wgt`'yi imzalar, `vd_appinstall` ile kurar ve açar.
+4. Uygulamayla gelen imzasız `couchsubs-samsung_<sürüm>.wgt`'yi imzalar, `vd_appinstall` ile kurar ve `was_execute` ile açar.
+   TV başka sertifikalı eski kopya ya da paket kimliği yüzünden reddederse (`[118, -12]`, `[118, -11]`, `[118, -22]`)
+   eski kopyayı kaldırıp bir kez daha dener; TV sertifikayı reddederse kayıtlı sertifika bırakılır, bir sonraki
+   denemede yenisi alınır. Hata kodlarının anlamı `SamsungInstallDiagnostics.cs`'te.
+
+Her adım ve TV'nin, Samsung'un bütün yanıtları `tvinstall.log`'a yazılır (Mac: `~/Library/Logs/CouchSubs/`,
+Windows: `%LOCALAPPDATA%\CouchSubs\`); hata iletisi bu dosyayı da söyler.
 
 Uç noktalar belgesizdir ve Apps2Samsung'dan alınmıştır; Samsung değiştirirse burası güncellenir. Herkes için kalıcı
 yol yine mağaza yayınıdır (`docs/magaza.md`).

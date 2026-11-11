@@ -31,6 +31,16 @@ public enum DevModeError: Error, Equatable {
     case notApproved
     /// TV kurulumda yer kalmadığını söyledi.
     case notEnoughSpace
+    /// Samsung: TV'de başka sertifikayla imzalı eski kopya var ve kaldırılamadı.
+    case certificateMismatch
+    /// Samsung: TV imza sertifikasını reddetti (internet, saat ya da sertifika).
+    case certificateRejected
+    /// Samsung: TV'nin saati geride; sertifika ona göre henüz geçerli değil.
+    case tvClockWrong
+    /// Samsung: TV, silinmiş eski kopyanın kaydı yüzünden uygulamayı kabul etmiyor ([118, -22]).
+    case packageBlocked
+    /// Kurulum sırasında TV bağlantısı koptu.
+    case connectionLost
 }
 
 /// Kurulum hatası ve TV'nin verdiği sebep (luna yanıtındaki errorText/reason ya da komut çıktısı).

@@ -200,16 +200,21 @@ internal sealed class FakeServices : IAppServices
     public bool SamsungDevMode { get; set; }
     public List<string> AndroidHosts { get; } = [];
     public DevModeError? InstallError { get; set; }
+    public string? InstallDetail { get; set; }
     public List<TvInstallEvent> Events { get; } = [];
     public List<(TvBrand Brand, string Host)> BrandInstalls { get; } = [];
     public BundledTvApp? BundledApp(TvBrand brand) => Bundled.GetValueOrDefault(brand);
     public Task<bool> IsSamsungDevModeOnAsync(string host) => Task.FromResult(SamsungDevMode);
-    public Task InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
+    /// <summary>Samsung TV'de kurulu sürüm (sahte TV'nin vd_applist'i); null: uygulama yok.</summary>
+    public string? SamsungOnTv { get; set; }
+    public Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
     {
+        if (SamsungOnTv is { } onTv && !DevModeInstaller.IsNewer(app.Version, onTv)) return Task.FromResult((onTv, false));
         Events.ForEach(onEvent);
-        if (InstallError is { } error) throw new DevModeException(error);
+        if (InstallError is { } error) throw new DevModeException(error, InstallDetail);
         BrandInstalls.Add((TvBrand.Samsung, host));
-        return Task.CompletedTask;
+        SamsungOnTv = app.Version;
+        return Task.FromResult((app.Version, true));
     }
     public Task<bool> IsAndroidDebugOnAsync(string host) => Task.FromResult(AndroidHosts.Contains(host));
     public Task<IReadOnlyList<string>> ScanAndroidTvsAsync() => Task.FromResult<IReadOnlyList<string>>([.. AndroidHosts]);
@@ -950,6 +955,55 @@ public class TvAppInstallTests
     }
 
     [Fact]
+    public async Task OldSamsungAppOnTheTvIsUpdatedEvenIfThisComputerThinksItIsCurrent()
+    {
+        // Q60: TV'de 0.9.7 kalmıştı, bilgisayar kendi kaydına bakıp hiç güncellemiyordu.
+        var services = new FakeServices { SamsungOnTv = "0.6.0" };
+        services.Bundled[TvBrand.Samsung] = SamsungApp;
+        var store = new MemoryStore();
+        var controller = Make(services, store);
+        await controller.PairAsync(Samsung);
+        store.Save(StoreKeys.TvAppVersion, "0.7.0");
+        services.SamsungDevMode = true;
+        await controller.RefreshTvAppAsync();
+        Assert.Single(services.BrandInstalls);
+        Assert.Equal(new TvAppState(TvAppKind.UpToDate, "0.7.0"), controller.TvApp);
+    }
+
+    [Fact]
+    public async Task CurrentSamsungAppOnTheTvIsNotReinstalled()
+    {
+        var services = new FakeServices { SamsungDevMode = true, SamsungOnTv = "0.7.0" };
+        services.Bundled[TvBrand.Samsung] = SamsungApp;
+        var store = new MemoryStore();
+        var controller = Make(services, store);
+        await controller.PairAsync(Samsung);
+        Assert.Empty(services.BrandInstalls);
+        Assert.Equal("0.7.0", store.Load<string>(StoreKeys.TvAppVersion));
+        Assert.Equal(new TvAppState(TvAppKind.UpToDate, "0.7.0"), controller.TvApp);
+    }
+
+    [Fact]
+    public async Task SamsungCheckThatCannotReachTheTvKeepsAWorkingAppReady()
+    {
+        var services = new FakeServices { InstallError = DevModeError.Unreachable, InstallDetail = "sdb: closed" };
+        services.Bundled[TvBrand.Samsung] = SamsungApp;
+        var store = new MemoryStore();
+        var controller = Make(services, store);
+        await controller.PairAsync(Samsung);
+        store.Save(StoreKeys.TvAppVersion, "0.7.0");
+        services.SamsungDevMode = true;
+        await controller.RefreshTvAppAsync();
+        Assert.Equal(new TvAppState(TvAppKind.UpToDate, "0.7.0"), controller.TvApp);
+
+        // Bu bilgisayar kurmadıysa aynı hata gösterilir.
+        store.Remove(StoreKeys.TvAppVersion);
+        await controller.RefreshTvAppAsync();
+        Assert.Equal(DevModeError.Unreachable, controller.TvApp.Error);
+        Assert.Equal("sdb: closed", controller.TvApp.Reason);
+    }
+
+    [Fact]
     public async Task SamsungFailureIsShown()
     {
         var services = new FakeServices { SamsungDevMode = true, InstallError = DevModeError.SignInFailed };
@@ -957,6 +1011,72 @@ public class TvAppInstallTests
         var controller = Make(services);
         await controller.PairAsync(Samsung);
         Assert.Equal(new TvAppState(TvAppKind.Failed, Error: DevModeError.SignInFailed), controller.TvApp);
+    }
+
+    [Fact]
+    public async Task SamsungFailureShowsWhatSamsungOrTheTvSaid()
+    {
+        var services = new FakeServices
+        {
+            SamsungDevMode = true, InstallError = DevModeError.PackageBlocked,
+            InstallDetail = "app_id[CouchSubsT.CouchSubs] install failed[118, -22]",
+        };
+        services.Bundled[TvBrand.Samsung] = SamsungApp;
+        var controller = Make(services);
+        await controller.PairAsync(Samsung);
+        Assert.Equal(new TvAppState(TvAppKind.Failed, Error: DevModeError.PackageBlocked,
+            Reason: "app_id[CouchSubsT.CouchSubs] install failed[118, -22]"), controller.TvApp);
+
+        var text = TvAppMessages.Problem(controller.TvApp, TvBrand.Samsung, Localizer.ForLanguage("tr"), @"C:\CouchSubs\tvinstall.log");
+        Assert.Contains("Smart Hub", text);
+        Assert.Contains("Ayrıntı: app_id[CouchSubsT.CouchSubs] install failed[118, -22]", text);
+        Assert.EndsWith(@"C:\CouchSubs\tvinstall.log", text);
+    }
+
+    [Fact]
+    public async Task SamsungSignInFailureAlsoShowsItsReason()
+    {
+        var services = new FakeServices { SamsungDevMode = true, InstallError = DevModeError.SignInFailed, InstallDetail = "giriş 10 dakika içinde tamamlanmadı" };
+        services.Bundled[TvBrand.Samsung] = SamsungApp;
+        var controller = Make(services);
+        await controller.PairAsync(Samsung);
+        Assert.Equal("giriş 10 dakika içinde tamamlanmadı", controller.TvApp.Reason);
+    }
+
+    [Theory]
+    [InlineData(DevModeError.CertificateMismatch)]
+    [InlineData(DevModeError.CertificateRejected)]
+    [InlineData(DevModeError.TvClockWrong)]
+    [InlineData(DevModeError.PackageBlocked)]
+    [InlineData(DevModeError.ConnectionLost)]
+    public void SamsungInstallErrorsHaveTheirOwnTranslatedMessage(DevModeError error)
+    {
+        var key = TvAppMessages.Key(error, TvBrand.Samsung);
+        Assert.NotEqual(TvAppMessages.Key(DevModeError.InstallFailed, TvBrand.Samsung), key);
+        Assert.NotEqual(key, Localizer.ForLanguage("tr")[key]);
+    }
+
+    [Fact]
+    public void SamsungPairingSaysWhetherThePermissionBoxWasMissedOrRefused()
+    {
+        var text = Localizer.ForLanguage("tr");
+        var timeout = TvAppMessages.PairingProblem(new TaskCanceledException(), TvBrand.Samsung, text);
+        var refused = TvAppMessages.PairingProblem(new SsapException("rejected"), TvBrand.Samsung, text);
+        Assert.Contains("60 saniye", timeout);
+        Assert.Contains("reddetti", refused);
+        Assert.Equal(timeout, TvAppMessages.PairingProblem(new SsapException("cannot connect"), TvBrand.Samsung, text));
+        var offline = TvAppMessages.PairingProblem(new System.Net.WebSockets.WebSocketException(), TvBrand.Samsung, text);
+        Assert.Equal(text["The TV did not respond. Make sure it is on and on the same network."], offline);
+        // LG'de eski davranış: sebep parantez içinde.
+        Assert.EndsWith("(timeout)", TvAppMessages.PairingProblem(new SsapException("timeout"), TvBrand.Lg, Localizer.ForLanguage("en")));
+    }
+
+    [Fact]
+    public void LgFailureKeepsItsShortForm()
+    {
+        var state = new TvAppState(TvAppKind.Failed, Error: DevModeError.InstallFailed, Reason: "Invalid package");
+        var text = TvAppMessages.Problem(state, TvBrand.Lg, Localizer.ForLanguage("en"), "x.log");
+        Assert.EndsWith("TV says: Invalid package", text);
     }
 
     [Fact]

@@ -30,6 +30,16 @@ public enum DevModeError
     NotApproved,
     /// <summary>TV kurulumda yer kalmadığını söyledi.</summary>
     NotEnoughSpace,
+    /// <summary>Samsung: TV'de başka sertifikayla imzalı eski kopya var ve kaldırılamadı.</summary>
+    CertificateMismatch,
+    /// <summary>Samsung: TV imza sertifikasını reddetti (internet, saat ya da sertifika).</summary>
+    CertificateRejected,
+    /// <summary>Samsung: TV'nin saati geride; sertifika ona göre henüz geçerli değil.</summary>
+    TvClockWrong,
+    /// <summary>Samsung: TV, silinmiş eski kopyanın kaydı yüzünden uygulamayı kabul etmiyor ([118, -22]).</summary>
+    PackageBlocked,
+    /// <summary>Kurulum sırasında TV bağlantısı koptu.</summary>
+    ConnectionLost,
 }
 
 /// <param name="detail">Sorunu bulmak için ayrıntı (komut çıktısı gibi); hata günlüğüne yazılır, kullanıcıya gösterilmez.</param>

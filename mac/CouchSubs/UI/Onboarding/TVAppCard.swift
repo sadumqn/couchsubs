@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import AppKit
 import CouchSubsCore
 import SwiftUI
 
@@ -46,13 +47,19 @@ struct TVAppCard: View {
                 passphraseCard(error: error)
             case .signIn(let url):
                 Card(title: "CouchSubs TV app") {
-                    Text("Samsung signs the app for your TV. Sign in with your Samsung account on the page that opened in your browser.")
+                    Text("The Samsung account page opened in your browser. Finish signing in there. If you do not see it, switch to the browser or press Open the page again.")
+                    HintText(text: "Samsung signs the app for your TV with your free Samsung account.")
                     HintText(text: "No account? You can create a free one on the same page. If the browser asks to allow access to devices on your network, allow it.")
                     HStack(spacing: Theme.space("s")) {
                         ProgressView().controlSize(.small)
                         Text("Waiting for sign-in…").foregroundStyle(Color.csSecondary)
                         Spacer()
                         Button("Open the page again") { model.openInBrowser(url) }.buttonStyle(.secondary)
+                        // Tarayıcı açılmazsa bağlantı başka bir tarayıcıya yapıştırılabilir.
+                        Button("Copy the link") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                        }.buttonStyle(.secondary)
                     }
                 }
             case .approveOnTV:
@@ -86,8 +93,8 @@ struct TVAppCard: View {
         case .samsung:
             Card(title: "CouchSubs TV app") {
                 Text("The TV app is not installed. CouchSubs installs it once Developer Mode is on.")
-                HintText(text: "1. On the TV, open Apps.")
-                HintText(text: "2. Press 1 2 3 4 5 on the remote (or type 12345 on the on-screen keypad). The Developer Mode window opens.")
+                HintText(text: "1. On the TV, open Apps and scroll to the very bottom of the page.")
+                HintText(text: "2. There, press 1 2 3 4 5 on the remote (or type 12345 on the on-screen keypad). The Developer Mode window opens.")
                 HintText(text: "3. Turn Developer mode On, type this computer's address as Host PC IP: \(model.computerAddress ?? "?") and press OK.")
                 HintText(text: "4. Restart the TV. This screen continues by itself.")
                 HintText(text: "Later you sign in once with a free Samsung account; Samsung needs it to sign the app for your TV.")
@@ -123,11 +130,21 @@ struct TVAppCard: View {
         }
     }
 
-    /// `reason`: TV'nin verdiği sebep; varsa mesajın altına eklenir.
+    /// `reason`: TV'nin verdiği sebep; varsa mesajın altına eklenir. Samsung'da ayrıntı (TV'nin kurulum çıktısı,
+    /// Samsung'un yanıtı) ve gönderilecek günlük dosyası da yazılır: hiçbir hata genel mesajda kalmasın.
     static func message(for error: DevModeError, brand: TVBrand, reason: String?) -> String {
-        let text = message(for: error, brand: brand, hasReason: reason != nil)
-        guard let reason else { return text }
-        return text + "\n\n" + String(localized: "TV says:") + " " + reason
+        var text = message(for: error, brand: brand, hasReason: reason != nil)
+        let samsung = brand == .samsung
+        if let reason {
+            let label = samsung ? String(localized: "Details:") : String(localized: "TV says:")
+            text += "\n\n" + label + " " + reason
+        }
+        guard samsung else { return text }
+        if error == .installFailed || error == .certificateRejected {
+            text += "\n\n" + String(localized: "If the TV shows “Server under maintenance”, it cannot reach Samsung's servers: check the TV's internet connection and its date and time, restart the TV and try again.")
+        }
+        let send = String(format: String(localized: "If this keeps happening, send us this file: %@"), TVInstallLog.displayPath)
+        return text + "\n\n" + send
     }
 
     static func message(for error: DevModeError, brand: TVBrand, hasReason: Bool = false) -> String {
@@ -147,6 +164,16 @@ struct TVAppCard: View {
         case .signInFailed: String(localized: "Samsung sign-in did not complete. Try again and finish signing in on the page that opens.")
         case .certificateFailed: String(localized: "Samsung did not issue the signing certificate. Try again in a few minutes.")
         case .notApproved: String(localized: "Debugging was not allowed on the TV. Try again and choose Allow on the TV.")
+        case .certificateMismatch:
+            String(localized: "A CouchSubs TV app signed on another computer is still on the TV and could not be removed. On the TV, open Apps, select CouchSubs, delete it and try again.")
+        case .certificateRejected:
+            String(localized: "The TV did not accept the signing certificate. Make sure the TV is connected to the internet (it checks the certificate with Samsung) and its date and time are right (Settings › General › System Manager › Time), then try again. CouchSubs gets a new certificate, so you sign in to Samsung once more.")
+        case .tvClockWrong:
+            String(localized: "The TV's clock is behind, so the new certificate is not valid for it yet. Set the TV's date and time (Settings › General › System Manager › Time) or wait a few minutes, then try again.")
+        case .packageBlocked:
+            String(localized: "The TV refuses CouchSubs because an earlier CouchSubs is still registered on it (Tizen error 118, -22), even if it no longer appears among the apps. If CouchSubs is among the TV's apps, delete it there and try again. Otherwise reset Smart Hub (Settings › Support › Device Care › Self Diagnosis › Reset Smart Hub; menu names differ a little by model) and try again. Resetting Smart Hub also removes the other apps you downloaded.")
+        case .connectionLost:
+            String(localized: "The connection to the TV dropped during the install. Keep the TV on and on the same network as this computer, then try again.")
         }
     }
 }

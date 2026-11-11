@@ -36,10 +36,12 @@ public static class SamsungLogin
         var listener = new TcpListener(IPAddress.IPv6Any, CallbackPort);
         listener.Server.DualMode = true;
         try { listener.Start(); }
-        catch (SocketException error) { throw new SamsungInstallException(SamsungInstallError.LoginFailed, $"port {CallbackPort}: {error.Message}"); }
+        catch (SocketException error) { throw new SamsungInstallException(SamsungInstallError.LoginFailed, $"giriş dönüşü için localhost:{CallbackPort} açılamadı (başka bir CouchSubs kurulumu açık olabilir): {error.Message}"); }
 
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(timeout);
+        // Samsung geri döndü ama jeton yoksa (ör. hesap doğrulanmamış) zaman aşımında bu da söylenir.
+        string? rejected = null;
         try
         {
             openBrowser(AuthorizeUrl);
@@ -50,13 +52,15 @@ public static class SamsungLogin
                 var (method, path, body) = await ReadRequestAsync(stream, limit.Token);
                 var isCallback = method == "POST" && path.StartsWith(CallbackPath, StringComparison.Ordinal);
                 var account = isCallback ? ParseCallback(body) : null;
+                if (isCallback && account is null) rejected = CallbackProblem(body);
                 await RespondAsync(stream, account is not null ? 200 : isCallback ? 400 : 404, account is not null, limit.Token);
                 if (account is not null) return account;
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new SamsungInstallException(SamsungInstallError.LoginFailed, "zaman aşımı");
+            throw new SamsungInstallException(SamsungInstallError.LoginFailed, $"giriş {timeout.TotalMinutes:0} dakika içinde tamamlanmadı" +
+                (rejected is null ? "" : $"; Samsung'un geri dönüşünde hesap bilgisi yoktu ({rejected})"));
         }
         finally
         {
@@ -89,6 +93,21 @@ public static class SamsungLogin
         {
             return null;
         }
+    }
+
+    /// <summary>Geri dönüşte jeton neden yok: alan adları ve Samsung'un hata alanları (jetonun kendisi yazılmaz).</summary>
+    internal static string CallbackProblem(string body)
+    {
+        var parts = new List<string>();
+        foreach (var part in body.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = part.Split('=', 2);
+            var name = WebUtility.UrlDecode(pair[0]);
+            if (name is "error" or "error_description" or "error_code" or "state") parts.Add($"{name}={WebUtility.UrlDecode(pair.ElementAtOrDefault(1) ?? "")}");
+            else parts.Add(name);
+        }
+        var text = string.Join(", ", parts);
+        return text.Length <= 200 ? text : text[..200];
     }
 
     private static async Task<(string Method, string Path, string Body)> ReadRequestAsync(NetworkStream stream, CancellationToken cancellationToken)
