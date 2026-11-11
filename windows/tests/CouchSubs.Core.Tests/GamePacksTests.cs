@@ -143,10 +143,38 @@ public class GamePackTests
         Assert.Equal("Mafia: The Old Country", mafia.Title);
         Assert.True(mafia.Entries > 18000);
         Assert.True(mafia.BuiltIn);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2));
+        // Bütün gömülü paketler birlikte yüklenir (açılışta arka planda); hata ayıklama derlemesinde ölçülür.
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(6), $"{watch.ElapsedMilliseconds} ms");
         Assert.Equal("Şimdi ayvayı yedin, evlat!", library.Find("You fucked up now, boy!"));
         Assert.Equal("Annesi vefat etti.", library.Find("It’s his mother, she passed."));
         Assert.Equal("Yere yat!", library.Find("Get Down!"));
         GC.KeepAlive(library);
+    }
+
+    /// <summary>Assassin's Creed Shadows, Death Stranding 2 ve Modern Warfare (2019) paketleri de uygulamaya gömülüdür.</summary>
+    [Theory]
+    [InlineData("assassins-creed-shadows", "Assassin's Creed Shadows", 39000)]
+    [InlineData("death-stranding-2", "Death Stranding 2: On the Beach", 23000)]
+    [InlineData("call-of-duty-modern-warfare-2019", "Call of Duty: Modern Warfare (2019)", 50000)]
+    public void MoreEmbeddedPacksLoad(string id, string title, int minimum)
+    {
+        var library = new GamePackLibrary(GamePackLibrary.EmbeddedPacks, null);
+        var pack = library.Packs.Single(p => p.Id == id);
+        Assert.Equal(title, pack.Title);
+        Assert.True(pack.Entries > minimum, $"{id}: {pack.Entries}");
+        Assert.True(pack.BuiltIn);
+    }
+
+    [Fact]
+    public void MoreEmbeddedPacksTranslate()
+    {
+        var library = new GamePackLibrary(GamePackLibrary.EmbeddedPacks, null);
+        Assert.Equal("Yagoro? Burada ne yapıyorsun?", library.Find("Yagoro? What are you doing here?"));
+        // Sahne notu ("[laughs]") ekranda kalsa da kalmasa da aynı satır bulunur.
+        const string gnats = "Her yerdeler, biliyorsun, sinekler gibi! Ne arıyorsan bulacaksın. Naoe'me her zaman güvenebilirim.";
+        Assert.Equal(gnats, library.Find("They are everywhere, you know, like gnats! Whatever it is, you will find it. I can always count on my Naoe."));
+        Assert.Equal(gnats, library.Find("They are everywhere, you know, like gnats! [laughs] Whatever it is, you will find it. I can always count on my Naoe."));
+        Assert.Equal("Terminal Fort Knot tehlikede. Bir boşluk patlaması hepsini öldürür!", library.Find("Terminal Fort Knot is in danger. A voidout would kill them all!"));
+        Assert.Equal("Konumuma hava ikmali talep ediyorum!", library.Find("Requesting air drop on my position!"));
     }
 }
