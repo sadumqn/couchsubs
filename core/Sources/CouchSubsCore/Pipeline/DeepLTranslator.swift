@@ -1,25 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import CouchSubsCore
 import Foundation
 
 /// Çevrimiçi çeviri anahtarı (DeepL ya da yapay zekâ hizmeti) denendiğinde ne çıktı.
-enum OnlineKeyState: Equatable {
+public enum OnlineKeyState: Equatable {
     /// `modelRejected`: hizmet model adını kabul etmedi (yalnız yapay zekâ hizmetlerinde).
     case valid, invalid, quotaExceeded, modelRejected, unreachable
 }
 
 /// Çevrimiçi çevirmen hatasını bildirir; ana ekran "şu an çevirmiyor" uyarısını bundan gösterir.
-protocol OnlineTranslating: AnyObject {
+public protocol OnlineTranslating: AnyObject {
     /// Hata başlayınca durumla, düzelince nil ile çağrılır (yalnız değişince).
     var onFailureChanged: ((OnlineKeyState?) -> Void)? { get set }
 }
 
-struct OnlineKeyCheck: Equatable {
-    var state: OnlineKeyState
+public struct OnlineKeyCheck: Equatable {
+    public var state: OnlineKeyState
     /// Bu ay kullanılan karakter ve aylık sınır (geçerli anahtarda).
-    var used: Int64 = 0
-    var limit: Int64 = 0
+    public var used: Int64 = 0
+    public var limit: Int64 = 0
+
+    public init(state: OnlineKeyState, used: Int64 = 0, limit: Int64 = 0) {
+        self.state = state
+        self.used = used
+        self.limit = limit
+    }
 }
 
 /// İsteğe bağlı çevrimiçi çeviri: kullanıcının kendi DeepL anahtarıyla (Windows'taki `DeepLTranslator` ile aynı).
@@ -28,11 +33,11 @@ struct OnlineKeyCheck: Equatable {
 /// the context parameter will not be counted toward billing", developers.deepl.com/docs/api-reference/translate,
 /// Kasım 2026). Önbellekteki çeviri bağlamsız eski haliyle döner; anahtar yalnız satırın kendisidir.
 /// DeepL'e ulaşılamazsa ya da kota biterse o satır Apple'ın cihaz üstü çevirisiyle çevrilir; oyun altyazısız kalmaz.
-final class DeepLTranslator: TextTranslator, OnlineTranslating {
+public final class DeepLTranslator: TextTranslator, OnlineTranslating {
     /// Kalıcı önbellek dosyasındaki motor adı.
-    static let engineID = "deepl"
+    public static let engineID = "deepl"
     /// Bağlama giden önceki satır sayısı.
-    static let contextLines = 3
+    public static let contextLines = 3
     /// Hata sonrası bu süre DeepL denenmez; her satırda bağlantı zaman aşımını beklemeyelim.
     private static let retryAfter: TimeInterval = 60
 
@@ -46,10 +51,10 @@ final class DeepLTranslator: TextTranslator, OnlineTranslating {
     private var recent: [String] = []
     private var pausedUntil = Date.distantPast
     private var failure: OnlineKeyState?
-    var onFailureChanged: ((OnlineKeyState?) -> Void)?
+    public var onFailureChanged: ((OnlineKeyState?) -> Void)?
 
     /// `cache`: kalıcı önbellek; verilmezse yalnız bellekte tutulur.
-    init(key: String, fallback: TextTranslator, session: URLSession = DeepLTranslator.makeSession(),
+    public init(key: String, fallback: TextTranslator, session: URLSession = DeepLTranslator.makeSession(),
          cache: TranslationCache = TranslationCache()) {
         self.key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         self.fallback = fallback
@@ -57,19 +62,19 @@ final class DeepLTranslator: TextTranslator, OnlineTranslating {
         self.cache = cache
     }
 
-    static func makeSession() -> URLSession {
+    public static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 4
         return URLSession(configuration: configuration)
     }
 
     /// Ücretsiz anahtarlar ":fx" ile biter ve ayrı adrese gider.
-    static func baseURL(for key: String) -> URL {
+    public static func baseURL(for key: String) -> URL {
         URL(string: key.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix(":fx")
             ? "https://api-free.deepl.com/v2/" : "https://api.deepl.com/v2/")!
     }
 
-    func translate(_ text: String) async throws -> String {
+    public func translate(_ text: String) async throws -> String {
         // Bağlam, bu satırdan önce gösterilenlerdir; satırın kendisi bağlama girmez.
         let context = recent.isEmpty ? nil : recent.joined(separator: "\n")
         shown(text)
@@ -116,7 +121,7 @@ final class DeepLTranslator: TextTranslator, OnlineTranslating {
         if recent.count > Self.contextLines { recent.removeFirst() }
     }
 
-    func spokenLines(for text: String) -> [SpokenLine] {
+    public func spokenLines(for text: String) -> [SpokenLine] {
         if let lines = speech[text] { return lines }
         let cached = SpeechScript.fromCache(text, cache: cache)
         return cached.isEmpty ? fallback.spokenLines(for: text) : cached
@@ -143,7 +148,7 @@ final class DeepLTranslator: TextTranslator, OnlineTranslating {
     }
 
     /// Ayarlardaki "Kaydet ve dene": anahtar geçerli mi, bu ay ne kadar kullanıldı.
-    static func check(key: String, session: URLSession = makeSession()) async -> OnlineKeyCheck {
+    public static func check(key: String, session: URLSession = makeSession()) async -> OnlineKeyCheck {
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return OnlineKeyCheck(state: .invalid) }
         var request = URLRequest(url: baseURL(for: key).appending(path: "usage"))

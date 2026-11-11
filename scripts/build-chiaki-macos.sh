@@ -97,25 +97,6 @@ for lib in "$OUT"/lib/*.a; do
 done
 if nm -u "$OUT"/lib/*.a 2>/dev/null | grep -qx "_pipe2"; then echo "HATA: pipe2 hâlâ kullanılıyor" >&2; exit 1; fi
 
-# Swift'ten "import CChiaki" ile kullanılmak üzere tek statik kütüphane + başlıklar + modül haritası.
-FW="$ROOT/third-party/build/CChiaki.xcframework"
-STAGE="$ROOT/third-party/build/xcframework-stage"
-rm -rf "$FW" "$STAGE"
-mkdir -p "$STAGE/include"
-libtool -static -o "$STAGE/libCChiaki.a" "$OUT"/lib/*.a
-cp -R "$OUT/include/chiaki" "$STAGE/include/"
-{
-  echo '#include <stdbool.h>'
-  for h in common log session regist discovery controller video; do echo "#include \"chiaki/$h.h\""; done
-} > "$STAGE/include/CChiaki.h"
-cat > "$STAGE/include/module.modulemap" <<'MAP'
-module CChiaki {
-  umbrella header "CChiaki.h"
-  export *
-}
-MAP
-xcodebuild -create-xcframework -library "$STAGE/libCChiaki.a" -headers "$STAGE/include" -output "$FW" >/dev/null
-rm -rf "$STAGE"
-
-echo "Hazır: $FW"
+# Swift'ten "import CChiaki" ile kullanılmak üzere XCFramework (varsa iOS dilimleri de girer; bkz. build-chiaki-ios.sh).
+"$ROOT/scripts/make-cchiaki-xcframework.sh"
 ls "$OUT/lib"

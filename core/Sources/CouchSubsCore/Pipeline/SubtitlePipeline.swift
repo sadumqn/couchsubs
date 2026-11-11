@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import CoreGraphics
-import CouchSubsCore
 import Foundation
 
 /// Altyazıları TV'ye ileten taraf (gerçekte `SubtitleServer`).
-protocol SubtitleSending: AnyObject {
+public protocol SubtitleSending: AnyObject {
     /// `box`: oyundaki altyazının karedeki yeri (kenarlara oranla), bilinmiyorsa nil.
     func sendSubtitle(_ text: String, durationMs: Int, box: TextBox?)
     func clear()
@@ -15,9 +14,9 @@ extension SubtitleServer: SubtitleSending {}
 
 /// Kare → bölge → yazı tanıma → kararlılık → çeviri → TV.
 @MainActor
-final class SubtitlePipeline {
+public final class SubtitlePipeline {
     /// Satır ekrandan bundan uzun süre önce kalktıysa geç gelen çevirisi gösterilmez (sonraki sahnenin üstüne düşmesin).
-    static let lateResultMs = 1000
+    public static let lateResultMs = 1000
     private static let rememberedPairs = 8
 
     /// Bir çeviri isteği; satır ekrandan kalkınca `leftAt` not edilir.
@@ -60,30 +59,30 @@ final class SubtitlePipeline {
     /// Son okunan satırlar; kare değişmediyse yeniden okunmaz, bunlar kullanılır.
     private var lastReading = Reading.empty
 
-    private(set) var lastPair: (source: String, translation: String)?
+    public private(set) var lastPair: (source: String, translation: String)?
     /// Son gösterilen çevirinin oyundaki altyazının yeri.
-    private(set) var lastBox: TextBox?
-    private(set) var lastError: TranslatorError?
-    var onPair: ((String, String) -> Void)?
+    public private(set) var lastBox: TextBox?
+    public private(set) var lastError: TranslatorError?
+    public var onPair: ((String, String) -> Void)?
     /// TV'ye giden her yeni altyazının seslendirilecek cümleleri (dublaj).
-    var onSpeech: (([SpokenLine]) -> Void)?
+    public var onSpeech: (([SpokenLine]) -> Void)?
     /// Her yazı tanıma denemesinden sonra çağrılır (başarılıysa nil). Disk dolunca macOS okumayı hep hata ile bitirir.
-    var onReadResult: ((Error?) -> Void)?
+    public var onReadResult: ((Error?) -> Void)?
     /// Her çeviri denemesinden sonra çağrılır (başarılıysa nil).
-    var onTranslationResult: ((TranslatorError?) -> Void)?
+    public var onTranslationResult: ((TranslatorError?) -> Void)?
     /// Oyun paketi: kararlı satırın hazır Türkçesi (yoksa nil). Çeviri motorundan ve önbellekten önce bakılır; bulunursa
     /// motor hiç çağrılmaz ve çeviri beklemeden gösterilir. Uygulama paketler açıkken verir.
-    var packLookup: ((String) -> PackMatch?)?
+    public var packLookup: ((String) -> PackMatch?)?
     /// Hiçbir pakette bulunmayan kararlı satır (ortak havuz için).
-    var onPackMiss: ((String) -> Void)?
+    public var onPackMiss: ((String) -> Void)?
     /// Son gösterilen çevirinin nereden geldiği: "paket" ya da "motor" (günlük ve sayım için).
-    private(set) var lastOrigin: String?
+    public private(set) var lastOrigin: String?
     /// Bu hatta paketten gelen satır sayısı.
-    private(set) var packHits = 0
+    public private(set) var packHits = 0
 
     /// `scheduler`: varsayılanı her kareyi okur; uygulama gereksiz okumaları atlayan planı verir.
     /// `clock`: milisaniye saati; testlerde sahtesi verilir.
-    init(reader: TextReader, translator: TextTranslator, server: SubtitleSending, scheduler: ReadScheduler = .always,
+    public init(reader: TextReader, translator: TextTranslator, server: SubtitleSending, scheduler: ReadScheduler = .always,
          clock: @escaping () -> Int = SubtitleStabilizer.uptimeMs) {
         self.reader = reader
         self.translator = translator
@@ -94,7 +93,7 @@ final class SubtitlePipeline {
     }
 
     /// Okuma çeviriyi beklemez; böylece çeviri sürerken gelen satırlar da yakalanır.
-    func process(_ frame: CGImage, region: CropRegion) async {
+    public func process(_ frame: CGImage, region: CropRegion) async {
         // Yazı tanıma uzun sürebilir; arayüz takılmasın diye ana iş parçacığının dışında yapılır.
         let reader = self.reader
         let (area, signature) = await Task.detached(priority: .userInitiated) {
@@ -214,12 +213,12 @@ final class SubtitlePipeline {
     }
 
     /// Süren bütün çevirilerin bitmesini bekler.
-    func waitForTranslations() async {
+    public func waitForTranslations() async {
         while inFlight != nil, let pump { await pump.value }
     }
 
     /// Satır ekrandan kalktıktan sonra gelen çevirinin TV'de kalacağı süre (TV uygulamasıyla aynı kural).
-    static func readingTime(for text: String) -> Int {
+    public static func readingTime(for text: String) -> Int {
         min(8000, 2000 + text.count * 60)
     }
 
@@ -264,7 +263,7 @@ final class SubtitlePipeline {
     }
 
     /// Okumanın hemen başlaması için modelleri önceden yükler; ilk okuma yoksa saniyelerce sürer.
-    func warmUp() {
+    public func warmUp() {
         let reader = self.reader
         Task.detached(priority: .utility) {
             let context = CGContext(data: nil, width: 64, height: 32, bitsPerComponent: 8, bytesPerRow: 0,
@@ -276,7 +275,7 @@ final class SubtitlePipeline {
     }
 
     /// Okuma durunca TV'deki son altyazıyı kaldırır.
-    func reset() {
+    public func reset() {
         session += 1
         lineOnScreen = nil
         pending = nil
