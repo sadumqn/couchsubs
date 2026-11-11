@@ -400,10 +400,18 @@ public sealed class StreamSession : IStreamSession
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
         private static unsafe void OnLog(int level, byte* message, nint user)
         {
-            var text = NativeMethods.Utf8(message);
-            // Oturum başlatılamazsa nedeni son hata satırıdır (cs_session_start aynı iş parçacığında yazar).
-            if (level == 0 && text is not null && From(user) is { } box) box.lastError = text;
-            RemotePlayLog.Write(level, text);
+            // UnmanagedCallersOnly işlevinden kaçan hata süreci uyarısız kapatır (diğer geri çağrılar gibi yakalanır).
+            try
+            {
+                var text = NativeMethods.Utf8(message);
+                // Oturum başlatılamazsa nedeni son hata satırıdır (cs_session_start aynı iş parçacığında yazar).
+                if (level == 0 && text is not null && From(user) is { } box) box.lastError = text;
+                RemotePlayLog.Write(level, text);
+            }
+            catch
+            {
+                // Günlük satırı kaybolsa da oturum sürer.
+            }
         }
     }
 }

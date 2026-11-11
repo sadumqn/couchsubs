@@ -82,9 +82,22 @@ public partial class MainView : UserControl
         }
     }
 
+    /// <summary>
+    /// async void: buradan kaçan hata uygulamanın genel hata işleyicisine düşerdi. Başlatma ya da durdurma hatası
+    /// kaydedilir ve gösterilir; uygulama açık kalır.
+    /// </summary>
     private async void OnToggle(object sender, RoutedEventArgs e)
     {
-        if (controller.IsRunning) controller.Stop(); else await controller.StartAsync();
+        var starting = !controller.IsRunning;
+        try
+        {
+            if (starting) await controller.StartAsync(); else controller.Stop();
+        }
+        catch (Exception error)
+        {
+            StartupGuard.Log(starting ? "Çeviri başlatılamadı" : "Çeviri durdurulamadı", error);
+            StartupGuard.Show(Application.Current, StartupGuard.ErrorMessage(error));
+        }
     }
 
     private void OnSettings(object sender, RoutedEventArgs e) => SettingsWindow.Open(Window.GetWindow(this), controller);
