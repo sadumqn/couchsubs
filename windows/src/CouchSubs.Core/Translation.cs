@@ -20,11 +20,16 @@ public enum TranslatorStatus
     NeedsDownload,
     /// <summary>Bu dil çifti desteklenmiyor.</summary>
     Unsupported,
+    /// <summary>
+    /// Model kurulu ama cihaz üstü çeviri motoru bu bilgisayarda açılamadı (ör. ONNX Runtime'ın yerel DLL'i
+    /// yüklenemedi). Kullanıcı çevrimiçi bir motor seçebilir; oyun paketleri çalışmayı sürdürür.
+    /// </summary>
+    EngineFailed,
 }
 
-/// <summary>Kullanıcının düzeltebileceği çeviri hatası (model eksik, dil desteklenmiyor).</summary>
-public sealed class TranslatorException(TranslatorStatus status)
-    : Exception($"Translator not available: {status}")
+/// <summary>Kullanıcının düzeltebileceği çeviri hatası (model eksik, dil desteklenmiyor, motor açılamadı).</summary>
+public sealed class TranslatorException(TranslatorStatus status, Exception? innerException = null)
+    : Exception($"Translator not available: {status}", innerException)
 {
     public TranslatorStatus Status { get; } = status;
 }

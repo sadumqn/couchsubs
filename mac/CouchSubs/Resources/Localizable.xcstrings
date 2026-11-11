@@ -4801,6 +4801,38 @@
         }
       }
     },
+    "The free translation engine could not start on this computer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The free translation engine could not start on this computer."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretsiz çeviri motoru bu bilgisayarda açılamadı."
+          }
+        }
+      }
+    },
+    "Choose Gemini (free) or DeepL in Settings › Translation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Gemini (free) or DeepL in Settings › Translation."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar › Çeviri'den Gemini (ücretsiz) ya da DeepL seçin."
+          }
+        }
+      }
+    },
     "Fast and cheap (recommended)": {
       "localizations": {
         "en": {

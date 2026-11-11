@@ -226,6 +226,12 @@ public interface ITranslationModel
     bool IsInstalled(string source, string target);
     Task DownloadAsync(string source, string target, IProgress<double> progress, CancellationToken cancellationToken);
     ITextTranslator Create(string source, string target);
+
+    /// <summary>Model kurulu ama çeviri motoru bu bilgisayarda açılamadı (ör. ONNX Runtime yüklenemedi).</summary>
+    bool EngineFailed => false;
+
+    /// <summary><see cref="EngineFailed"/> true olunca bir kez, herhangi bir iş parçacığından çağrılır.</summary>
+    event Action? EngineFailure { add { } remove { } }
 }
 
 /// <summary>Dış dünyayla (PS5, PSN, TV, OCR, çeviri) konuşan her şey; testlerde sahtesi kullanılır.</summary>

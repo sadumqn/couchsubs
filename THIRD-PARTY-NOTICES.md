@@ -49,6 +49,11 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 | SSH.NET (LG TV connection) | MIT | https://github.com/sshnet/SSH.NET |
 | BouncyCastle.Cryptography (used by SSH.NET) | MIT | https://github.com/bcgit/bc-csharp |
 | Microsoft.Extensions.Logging.Abstractions (used by SSH.NET) | MIT | https://github.com/dotnet/runtime |
+| Microsoft Visual C++ 2015–2022 runtime (`vcruntime140*.dll`, `msvcp140*.dll`, `concrt140.dll`; needed by ONNX Runtime) | Microsoft Visual Studio license terms, "Distributable Code" (redist.txt) | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
+
+The Visual C++ runtime DLLs are Microsoft's redistributable files, copied unmodified from the Visual Studio
+`VC\Redist\MSVC\…\x64\Microsoft.VC14x.CRT` folder and placed next to `CouchSubs.exe` (app-local deployment, as
+Microsoft documents). They are system libraries in the sense of the GPL and are not covered by CouchSubs' AGPL license.
 
 FFmpeg is built from the unmodified upstream release with the configuration in
 `.github/workflows/windows.yml`. You can rebuild `couchsubs_native.dll` with your own FFmpeg build using

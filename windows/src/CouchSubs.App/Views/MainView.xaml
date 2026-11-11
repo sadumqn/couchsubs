@@ -74,6 +74,17 @@
                 </StackPanel>
             </c:Card>
 
+            <!-- Ücretsiz çeviri motoru (ONNX Runtime) bu bilgisayarda açılamadı: çevrimiçi motor önerilir -->
+            <c:Card x:Name="EngineCard" Margin="0,16,0,0" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="{t:T 'The free translation engine could not start on this computer.'}" FontWeight="SemiBold"
+                               Foreground="{DynamicResource warningBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{t:T 'Choose Gemini (free) or DeepL in Settings › Translation.'}" Style="{StaticResource HintText}"
+                               Margin="0,8,0,12" TextWrapping="Wrap" />
+                    <Button Content="{t:T 'Settings'}" HorizontalAlignment="Left" Click="OnSettings" />
+                </StackPanel>
+            </c:Card>
+
             <!-- Çevrimiçi motor çeviremiyor: satırlar bu arada ücretsiz çeviriyle geliyor -->
             <c:Card x:Name="OnlineCard" Margin="0,16,0,0" Visibility="Collapsed">
                 <StackPanel>

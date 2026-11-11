@@ -314,6 +314,22 @@ public sealed class LiveServices : IAppServices
     {
         private readonly ModelStore englishTurkish = new(Path.Combine(AppPaths.Models, "en-tr"));
         private MarianTranslator? translator;
+        private int failed;
+
+        public event Action? EngineFailure;
+
+        public bool EngineFailed => Volatile.Read(ref failed) != 0;
+
+        /// <summary>
+        /// Motor açılamadı: hata.log'a bir kez yazılır, ana ekran uyarı gösterir. En sık neden: onnxruntime.dll ya da
+        /// yanındaki Visual C++ çalışma zamanı DLL'leri (antivirüs karantinası, eksik kopya) yüklenemedi.
+        /// </summary>
+        private void Fail(Exception error)
+        {
+            if (Interlocked.Exchange(ref failed, 1) != 0) return;
+            StartupGuard.Log("Ücretsiz çeviri motoru açılamadı (ONNX Runtime)", error);
+            EngineFailure?.Invoke();
+        }
 
         public bool IsSupported(string source, string target) => source == "en" && target == "tr";
 
@@ -327,10 +343,23 @@ public sealed class LiveServices : IAppServices
         public ITextTranslator Create(string source, string target)
         {
             if (translator is not null) return translator;
-            translator = new MarianTranslator(englishTurkish.InstallDirectory,
-                cache: TranslationCache.Shared(AppPaths.Translations, MarianTranslator.EngineId, "en", "tr"));
-            _ = translator.WarmUpAsync();
-            return translator;
+            MarianTranslator created;
+            try
+            {
+                created = new MarianTranslator(englishTurkish.InstallDirectory,
+                    cache: TranslationCache.Shared(AppPaths.Translations, MarianTranslator.EngineId, "en", "tr"));
+            }
+            catch (Exception error)
+            {
+                // Önbellek ya da sözlük okunamadı; denetleyici bu hat için çeviriyi kapatır, sonraki başlatmada yeniden denenir.
+                StartupGuard.Log("Ücretsiz çevirmen kurulamadı", error);
+                throw;
+            }
+            created.EngineFailed += Fail;
+            translator = created;
+            // WarmUpAsync hata fırlatmaz; motor açılamazsa EngineFailed ile bildirir.
+            _ = created.WarmUpAsync();
+            return created;
         }
     }
 }
