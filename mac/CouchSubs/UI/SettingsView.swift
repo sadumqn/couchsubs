@@ -3,142 +3,284 @@
 import CouchSubsCore
 import SwiftUI
 
+/// Ayarların bölümleri; solda kenar çubuğunda listelenir, sağda seçili olan gösterilir.
+enum SettingsSection: CaseIterable, Identifiable {
+    case appearance, dubbing, translation, packs, language, area, obs, about
+
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .appearance: "Subtitle appearance"
+        case .dubbing: "Turkish dubbing"
+        case .translation: "Translation"
+        case .packs: "Game packs"
+        case .language: "Language"
+        case .area: "Subtitle area"
+        case .obs: "OBS overlay"
+        case .about: "About CouchSubs"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .appearance: "captions.bubble"
+        case .dubbing: "waveform"
+        case .translation: "globe"
+        case .packs: "bolt"
+        case .language: "character.bubble"
+        case .area: "rectangle.dashed"
+        case .obs: "dot.radiowaves.left.and.right"
+        case .about: "info.circle"
+        }
+    }
+}
+
 struct SettingsView: View {
-    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmReset = false
+    @State private var section: SettingsSection
+
+    init(section: SettingsSection = .appearance) {
+        _section = State(initialValue: section)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.space("gap")) {
+            SettingsSidebar(section: $section)
+            VStack(alignment: .leading, spacing: Theme.space("gap")) {
+                ScrollView {
+                    SettingsPage(section: section)
+                        .padding(Theme.space("m"))
+                        .id(section)
+                }
+                .padding(-Theme.space("m"))
+                HStack {
+                    Spacer()
+                    Button("Done") { dismiss() }
+                        .buttonStyle(CSButtonStyle(kind: .primary, height: "buttonLarge"))
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+        }
+        .padding(Theme.space("screen"))
+        .frame(width: Theme.size("windowWidth") - 2 * Theme.space("screen"), height: Theme.size("windowHeight") - 2 * Theme.space("screen"))
+    }
+}
+
+/// Bölüm listesi: seçili satır yüzey-2 zeminli ve sarı simgeli.
+private struct SettingsSidebar: View {
+    @Binding var section: SettingsSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.space("xs")) {
+            Text("Settings")
+                .font(.csTitle)
+                .padding(.horizontal, Theme.space("m"))
+                .padding(.bottom, Theme.space("s"))
+            ForEach(SettingsSection.allCases) { item in
+                SidebarRow(title: item.title, symbol: item.symbol, selected: item == section) { section = item }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: Theme.size("sidebarWidth"), alignment: .leading)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .tile(padding: Theme.space("m"))
+    }
+}
+
+/// Kenar çubuğundaki bir satır (ayarlar bölümü ya da kurulum adımı).
+struct SidebarRow: View {
+    let title: LocalizedStringKey
+    let symbol: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.space("m")) {
+                Image(systemName: symbol)
+                    .frame(width: 20)
+                    .foregroundStyle(selected ? Color.csAccentText : Color.csSecondary)
+                Text(title)
+                    .font(selected ? .csBody.weight(.semibold) : .csBody)
+                    .foregroundStyle(Color.csText)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Theme.space("m"))
+            .frame(minHeight: 40)
+            .background(selected ? Color.csSurface2 : Color.clear, in: RoundedRectangle(cornerRadius: Theme.radius("inner"), style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Seçili bölümün başlığı ve karoları.
+private struct SettingsPage: View {
+    let section: SettingsSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.space("gap")) {
+            if section != .packs {
+                Text(section.title).font(.csDisplay).tracking(-0.4)
+            }
+            switch section {
+            case .appearance:
+                SubtitleOutputCard(detailed: true)
+                AppearanceCard()
+                TVAppCard()
+            case .dubbing: DubbingCard()
+            case .translation: TranslationCard()
+            case .packs: GamePacksPage()
+            case .language: LanguageCard()
+            case .area: AreaCards()
+            case .obs: OBSCard()
+            case .about: AboutCard()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Yazı boyutu, yeri, arka planı, rengi; görünüm ayarları bilgisayar ekranındaki pencereye de uygulanır.
+private struct AppearanceCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        Card(title: model.settings.output == .tv ? "On the TV" : "Subtitle appearance") {
+            // 1920 piksellik TV ekranında yazı yüksekliği; sürüklerken TV'de örnek altyazı görünür.
+            Slider(value: Binding(get: { Double(model.settings.style.fontSize) },
+                                  set: { model.settings.style.fontSize = Int($0.rounded()) }), in: 20...80) {
+                Text("Text size")
+            } minimumValueLabel: {
+                Text("Small").font(.csCallout).foregroundStyle(Color.csSecondary)
+            } maximumValueLabel: {
+                Text("Large").font(.csCallout).foregroundStyle(Color.csSecondary)
+            } onEditingChanged: { editing in
+                if editing { model.sendTestSubtitle() }
+            }
+            Picker("Placement", selection: $model.settings.style.placement) {
+                Text("Over the English subtitle").tag(SubtitlePlacement.cover)
+                Text("Above the English subtitle").tag(SubtitlePlacement.above)
+                Text("Below the English subtitle").tag(SubtitlePlacement.below)
+                Text("Fixed position").tag(SubtitlePlacement.fixed)
+            }
+            if model.settings.style.placement == .fixed {
+                // Sürüklerken TV'de örnek altyazı görünür; böylece yeri doğrudan ekranda ayarlanır.
+                Slider(value: Binding(get: { Double(model.settings.style.bottomPercent) },
+                                      set: { model.settings.style.bottomPercent = Int($0.rounded()) }), in: 0...85) {
+                    Text("Position on screen")
+                } minimumValueLabel: {
+                    Text("Bottom").font(.csCallout).foregroundStyle(Color.csSecondary)
+                } maximumValueLabel: {
+                    Text("Top").font(.csCallout).foregroundStyle(Color.csSecondary)
+                } onEditingChanged: { editing in
+                    if editing { model.sendTestSubtitle() }
+                }
+                HintText(text: "In fixed position you can also move subtitles with the ▲ and ▼ buttons on the TV remote.")
+            } else {
+                HintText(text: "The translation follows where the game shows its own subtitle.")
+            }
+            Slider(value: Binding(get: { Double(model.settings.style.background) },
+                                  set: { model.settings.style.background = Int($0.rounded()) }), in: 0...100) {
+                Text("Background")
+            } minimumValueLabel: {
+                Text("None").font(.csCallout).foregroundStyle(Color.csSecondary)
+            } maximumValueLabel: {
+                Text("Solid").font(.csCallout).foregroundStyle(Color.csSecondary)
+            } onEditingChanged: { editing in
+                if editing { model.sendTestSubtitle() }
+            }
+            Toggle("Bold text", isOn: $model.settings.style.bold)
+            Picker("Text color", selection: $model.settings.style.textColor) {
+                Text("White").tag(SubtitleTextColor.white)
+                Text("Yellow").tag(SubtitleTextColor.yellow)
+            }
+            if model.settings.output.showsOnTV, model.tv?.brand == .androidTV {
+                AndroidDisplayModePicker(mode: $model.settings.style.displayMode)
+            }
+            Button("Send test subtitle") { model.sendTestSubtitle() }.buttonStyle(.secondary)
+        }
+    }
+}
+
+private struct LanguageCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        Card {
+            Picker("Game language", selection: $model.settings.sourceLanguage) {
+                Text("English").tag("en")
+                Text("Japanese").tag("ja")
+                Text("German").tag("de")
+                Text("French").tag("fr")
+                Text("Spanish").tag("es")
+            }
+        }
+    }
+}
+
+/// Altyazı bölgesi ve ekranı çevirme kısayolu.
+private struct AreaCards: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        Card {
+            RegionPicker(region: $model.settings.region, frame: model.lastFrame)
+            HintText(text: "Adjust the frame so it covers where the game shows its subtitles.")
+        }
+        Card(title: "Translate the screen (⌥⌘T)") {
+            HintText(text: "Press ⌥⌘T while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations.")
+        }
+    }
+}
+
+private struct OBSCard: View {
+    @Environment(AppModel.self) private var model
     @State private var obsCopied = false
 
     /// OBS'de "Tarayıcı kaynağı" adresi; OBS çoğunlukla CouchSubs ile aynı bilgisayarda çalışır.
     private var obsAddress: String { "http://localhost:\(model.serverPort)/obs" }
 
     var body: some View {
-        @Bindable var model = model
-        VStack(spacing: 0) {
-            HStack {
-                Text("Settings").font(.csTitle)
-                Spacer()
-            }
-            .padding(.horizontal, Theme.space("xxl"))
-            .padding(.top, Theme.space("xl"))
-            .padding(.bottom, Theme.space("m"))
-
-            ScrollView {
-                VStack(spacing: Theme.space("l")) {
-                    SubtitleOutputCard(detailed: true)
-                    // Görünüm ayarları bilgisayar ekranındaki pencereye de uygulanır.
-                    Card(title: model.settings.output == .tv ? "On the TV" : "Subtitle appearance") {
-                        // 1920 piksellik TV ekranında yazı yüksekliği; sürüklerken TV'de örnek altyazı görünür.
-                        Slider(value: Binding(get: { Double(model.settings.style.fontSize) },
-                                              set: { model.settings.style.fontSize = Int($0.rounded()) }), in: 20...80) {
-                            Text("Text size")
-                        } minimumValueLabel: {
-                            Text("Small").font(.csCallout).foregroundStyle(Color.csSecondary)
-                        } maximumValueLabel: {
-                            Text("Large").font(.csCallout).foregroundStyle(Color.csSecondary)
-                        } onEditingChanged: { editing in
-                            if editing { model.sendTestSubtitle() }
-                        }
-                        Picker("Placement", selection: $model.settings.style.placement) {
-                            Text("Over the English subtitle").tag(SubtitlePlacement.cover)
-                            Text("Above the English subtitle").tag(SubtitlePlacement.above)
-                            Text("Below the English subtitle").tag(SubtitlePlacement.below)
-                            Text("Fixed position").tag(SubtitlePlacement.fixed)
-                        }
-                        if model.settings.style.placement == .fixed {
-                            // Sürüklerken TV'de örnek altyazı görünür; böylece yeri doğrudan ekranda ayarlanır.
-                            Slider(value: Binding(get: { Double(model.settings.style.bottomPercent) },
-                                                  set: { model.settings.style.bottomPercent = Int($0.rounded()) }), in: 0...85) {
-                                Text("Position on screen")
-                            } minimumValueLabel: {
-                                Text("Bottom").font(.csCallout).foregroundStyle(Color.csSecondary)
-                            } maximumValueLabel: {
-                                Text("Top").font(.csCallout).foregroundStyle(Color.csSecondary)
-                            } onEditingChanged: { editing in
-                                if editing { model.sendTestSubtitle() }
-                            }
-                            HintText(text: "In fixed position you can also move subtitles with the ▲ and ▼ buttons on the TV remote.")
-                        } else {
-                            HintText(text: "The translation follows where the game shows its own subtitle.")
-                        }
-                        Slider(value: Binding(get: { Double(model.settings.style.background) },
-                                              set: { model.settings.style.background = Int($0.rounded()) }), in: 0...100) {
-                            Text("Background")
-                        } minimumValueLabel: {
-                            Text("None").font(.csCallout).foregroundStyle(Color.csSecondary)
-                        } maximumValueLabel: {
-                            Text("Solid").font(.csCallout).foregroundStyle(Color.csSecondary)
-                        } onEditingChanged: { editing in
-                            if editing { model.sendTestSubtitle() }
-                        }
-                        Toggle("Bold text", isOn: $model.settings.style.bold)
-                        Picker("Text color", selection: $model.settings.style.textColor) {
-                            Text("White").tag(SubtitleTextColor.white)
-                            Text("Yellow").tag(SubtitleTextColor.yellow)
-                        }
-                        if model.settings.output.showsOnTV, model.tv?.brand == .androidTV {
-                            AndroidDisplayModePicker(mode: $model.settings.style.displayMode)
-                        }
-                        Button("Send test subtitle") { model.sendTestSubtitle() }.buttonStyle(.secondary)
-                    }
-                    DubbingCard()
-                    Card(title: "Language") {
-                        Picker("Game language", selection: $model.settings.sourceLanguage) {
-                            Text("English").tag("en")
-                            Text("Japanese").tag("ja")
-                            Text("German").tag("de")
-                            Text("French").tag("fr")
-                            Text("Spanish").tag("es")
-                        }
-                    }
-                    TranslationCard()
-                    Card(title: "Subtitle area") {
-                        RegionPicker(region: $model.settings.region, frame: model.lastFrame)
-                        HintText(text: "Adjust the frame so it covers where the game shows its subtitles.")
-                    }
-                    Card(title: "Translate the screen (⌥⌘T)") {
-                        HintText(text: "Press ⌥⌘T while playing: every text on the screen is translated once and shown on the TV in its own place. Press again to remove the translations.")
-                    }
-                    Card(title: "OBS overlay") {
-                        HintText(text: "Streaming with a capture card? In OBS add a Browser source with this address (width 1920, height 1080). The Turkish subtitles appear over the game on your screen and on the stream.")
-                        HStack(spacing: Theme.space("m")) {
-                            Text(verbatim: obsAddress)
-                                .font(.csBody.monospaced())
-                                .textSelection(.enabled)
-                            Spacer()
-                            Button(obsCopied ? "Copied" : "Copy") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(obsAddress, forType: .string)
-                                obsCopied = true
-                            }
-                            .buttonStyle(.secondary)
-                        }
-                        HintText(text: "If OBS runs on another computer, use this Mac's network address instead of localhost. The overlay only shows subtitles while the translation is running.")
-                    }
-                    TVAppCard()
-                    Card {
-                        HStack(spacing: Theme.space("m")) {
-                            Button("About CouchSubs") { model.showAbout = true }.buttonStyle(.secondary)
-                            Spacer()
-                            Button("Set up again…") { confirmReset = true }.buttonStyle(.secondary).foregroundStyle(Color.csDanger)
-                        }
-                    }
+        Card {
+            HintText(text: "Streaming with a capture card? In OBS add a Browser source with this address (width 1920, height 1080). The Turkish subtitles appear over the game on your screen and on the stream.")
+            HStack(spacing: Theme.space("m")) {
+                Text(verbatim: obsAddress)
+                    .font(.csBody.monospaced())
+                    .textSelection(.enabled)
+                    .padding(.horizontal, Theme.space("l"))
+                    .frame(maxWidth: .infinity, minHeight: Theme.size("buttonHeight"), alignment: .leading)
+                    .background(Color.csSurface2, in: RoundedRectangle(cornerRadius: Theme.radius("control"), style: .continuous))
+                Button(obsCopied ? "Copied" : "Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(obsAddress, forType: .string)
+                    obsCopied = true
                 }
-                .padding(.horizontal, Theme.space("xxl"))
-                .padding(.bottom, Theme.space("xl"))
+                .buttonStyle(.secondary)
             }
-
-            Divider().overlay(Color.csBorder)
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }.buttonStyle(.primary).keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, Theme.space("xxl"))
-            .padding(.vertical, Theme.space("l"))
-            .background(Color.csSurface)
+            HintText(text: "If OBS runs on another computer, use this Mac's network address instead of localhost. The overlay only shows subtitles while the translation is running.")
         }
-        .frame(width: 600, height: 720)
-        .background(Color.csBackground)
+    }
+}
+
+private struct AboutCard: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmReset = false
+
+    var body: some View {
+        Card {
+            HStack(spacing: Theme.space("m")) {
+                Button("About CouchSubs") { model.showAbout = true }.buttonStyle(.secondary)
+                Spacer()
+                Button("Set up again…") { confirmReset = true }.buttonStyle(.danger)
+            }
+        }
         .confirmationDialog("Set up again?", isPresented: $confirmReset) {
             Button("Set up again", role: .destructive) {
                 model.resetSetup()
@@ -146,6 +288,93 @@ struct SettingsView: View {
             }
         } message: {
             Text("The saved PS5, account and TV connection will be removed.")
+        }
+    }
+}
+
+/// Oyun paketleri: masaüstünde ücretsiz; kurulu paketler karolar hâlinde, altta paket ve ortak havuz anahtarları
+/// (Windows'taki ayarlarla aynı düzen).
+private struct GamePacksPage: View {
+    @Environment(AppModel.self) private var model
+    private let columns = [GridItem(.flexible(), spacing: Theme.space("gap"), alignment: .top),
+                           GridItem(.flexible(), spacing: Theme.space("gap"), alignment: .top)]
+
+    var body: some View {
+        @Bindable var model = model
+        HStack(alignment: .firstTextBaseline) {
+            Text("Game packs").font(.csDisplay).tracking(-0.4)
+            Spacer()
+            if !model.installedPacks.isEmpty {
+                Pill(text: String(format: String(localized: "Free · %lld games"), model.installedPacks.count), tone: .success)
+            }
+        }
+        Text("Ready-made Turkish translations for some games. A line found in a pack appears at once, without the translation engine.")
+            .font(.csBody)
+            .foregroundStyle(Color.csSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if model.installedPacks.isEmpty {
+            Card { HintText(text: "No game pack is installed.") }
+        } else {
+            LazyVGrid(columns: columns, spacing: Theme.space("gap")) {
+                ForEach(model.installedPacks) { pack in PackTile(pack: pack) }
+            }
+        }
+        VStack(alignment: .leading, spacing: Theme.space("m")) {
+            SwitchRow(title: "Use game packs", isOn: $model.settings.gamePacks)
+            Divider().overlay(Color.csBorder)
+            SwitchRow(title: "Send the English subtitles read to the shared pool", isOn: $model.settings.sharePool)
+            HintText(text: "Only the game's English text is sent, anonymously. It is used to make better Turkish translations for everyone.")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tile()
+    }
+}
+
+/// Paket karosu: oyunun kısaltması, adı ve satır sayısı.
+private struct PackTile: View {
+    let pack: GamePackLibrary.Info
+
+    /// Adın kelimelerinin baş harfleri (en çok üç): "Red Dead Redemption 2" → "RDR".
+    private var initials: String {
+        let words = pack.title.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        return String(words.prefix(3).compactMap(\.first)).uppercased()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.space("m")) {
+            Text(verbatim: initials)
+                .font(.csCaption.weight(.bold))
+                .foregroundStyle(Color.csPro)
+                .frame(width: 48, height: 48)
+                .background(Color.csProSoft, in: RoundedRectangle(cornerRadius: Theme.radius("inner"), style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Theme.space("hair")) {
+                Text(verbatim: pack.title).font(.csHeadline).fixedSize(horizontal: false, vertical: true)
+                Text(verbatim: String(format: String(localized: "%@ lines"), pack.entries.formatted()))
+                    .font(.csCaption)
+                    .foregroundStyle(Color.csSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tile()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Başlık solda, anahtar sağda.
+private struct SwitchRow: View {
+    let title: LocalizedStringKey
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: Theme.space("m")) {
+            Text(title).font(.csHeadline).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Theme.space("m"))
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .tint(Color.csAccent)
         }
     }
 }
@@ -172,14 +401,8 @@ struct TranslationCard: View {
     var body: some View {
         @Bindable var model = model
         let engine = model.settings.translationEngine
-        Card(title: "Translation") {
-            Picker("Translation engine", selection: $model.settings.translationEngine) {
-                Text("Free (on this Mac)").tag(TranslationEngine.free)
-                Text(verbatim: "DeepL").tag(TranslationEngine.deepL)
-                Text(verbatim: "Google Gemini").tag(TranslationEngine.gemini)
-                Text(verbatim: "OpenAI").tag(TranslationEngine.openAI)
-                Text(verbatim: "Anthropic Claude").tag(TranslationEngine.claude)
-            }
+        Card(title: "Translation engine") {
+            EngineTiles(engine: $model.settings.translationEngine)
             HintText(text: Self.explanation(engine))
             if engine != .free, model.settings.sourceLanguage != "en" {
                 HintText(text: "Online engines translate English games only. For other game languages the free translation is used.")
@@ -205,7 +428,6 @@ struct TranslationCard: View {
                 HintText(text: FreeGemini.privacy)
                 HintText(text: FreeGemini.limit)
             }
-            GamePacksSection()
         }
     }
 
@@ -232,27 +454,50 @@ struct TranslationCard: View {
     }
 }
 
-/// Oyun paketleri (hazır Türkçe çeviriler) ve ortak havuz (Windows'taki ayarlarla aynı düzen).
-private struct GamePacksSection: View {
-    @Environment(AppModel.self) private var model
+/// Çeviri motoru seçimi: beş karo, seçili olan sarı çerçeveli ve parlak.
+private struct EngineTiles: View {
+    @Binding var engine: TranslationEngine
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: Theme.space("m"), alignment: .top), count: 5)
 
     var body: some View {
-        @Bindable var model = model
-        Divider().overlay(Color.csBorder)
-        Text("Game packs").font(.csHeadline)
-        Toggle("Use game packs", isOn: $model.settings.gamePacks)
-        HintText(text: "Ready-made Turkish translations for some games. A line found in a pack appears at once, without the translation engine.")
-        if model.installedPacks.isEmpty {
-            HintText(text: "No game pack is installed.")
-        } else {
-            ForEach(model.installedPacks) { pack in
-                Text(verbatim: String(format: String(localized: "%1$@ · %2$@ lines"), pack.title, pack.entries.formatted()))
-                    .font(.csBody)
+        LazyVGrid(columns: columns, spacing: Theme.space("m")) {
+            ForEach(TranslationEngine.allCases, id: \.self) { option in
+                EngineTile(option: option, selected: option == engine) { engine = option }
             }
         }
-        Divider().overlay(Color.csBorder)
-        Toggle("Send the English subtitles read to the shared pool", isOn: $model.settings.sharePool)
-        HintText(text: "Only the game's English text is sent, anonymously. It is used to make better Turkish translations for everyone.")
+    }
+}
+
+private struct EngineTile: View {
+    let option: TranslationEngine
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: Theme.space("hair")) {
+                Text(verbatim: name).font(.csHeadline).foregroundStyle(Color.csText)
+                Text(caption).font(.csCaption).foregroundStyle(Color.csSecondary).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+            .tile(selected ? .active : .plain, padding: Theme.space("m"))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var name: String {
+        option == .free ? String(localized: "Free") : option.displayName
+    }
+
+    private var caption: LocalizedStringKey {
+        switch option {
+        case .free: "On this computer, offline"
+        case .deepL, .gemini: "With a free key"
+        case .openAI, .claude: "With your own key"
+        }
     }
 }
 
@@ -272,7 +517,7 @@ private struct DeepLKeySection: View {
             .buttonStyle(.secondary)
         } else {
             HStack(spacing: Theme.space("m")) {
-                SecureField("DeepL API key", text: $key).textFieldStyle(.roundedBorder)
+                SecureField("DeepL API key", text: $key).textFieldStyle(CSTextFieldStyle())
                 Button("Save and test") {
                     checking = true
                     Task {
@@ -350,7 +595,7 @@ private struct AIKeySection: View {
             }
         } else {
             HStack(spacing: Theme.space("m")) {
-                SecureField("API key", text: $key).textFieldStyle(.roundedBorder)
+                SecureField("API key", text: $key).textFieldStyle(CSTextFieldStyle())
                 Button("Save and test") {
                     let typed = key
                     run {
