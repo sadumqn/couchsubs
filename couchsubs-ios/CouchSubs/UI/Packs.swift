@@ -36,7 +36,7 @@ struct PacksScreen: View {
             case .failed(let reason): MobileNote(text: reason, tone: Mobile.Palette.secondary)
             default: EmptyView()
             }
-            LazyVGrid(columns: WelcomeFlow.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 ForEach(model.installedPacks) { pack in
                     Tile {
                         GameMonogram(code: Self.code(pack.title))

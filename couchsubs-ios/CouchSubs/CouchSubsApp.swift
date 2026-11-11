@@ -55,6 +55,8 @@ struct CouchSubsApp: App {
         let store = EphemeralStore()
         store.save(Data([1, 2, 3]), for: StoreKey.accountId)
         store.save(RegisteredConsole(host: "192.168.1.103", name: "PS5-002", registKey: Data(), morning: Data()), for: StoreKey.console)
+        store.save(LGTV(name: "Salon TV", host: "192.168.1.50", brand: .lg), for: StoreKey.tv)
+        store.save("demo", for: StoreKey.tvKey)
         store.save(true, for: StoreKey.setupComplete)
         return store
         #else

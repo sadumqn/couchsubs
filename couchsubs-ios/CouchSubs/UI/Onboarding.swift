@@ -55,7 +55,7 @@ struct WelcomeFlow: View {
     private var pageTwo: some View {
         VStack(alignment: .leading, spacing: Mobile.Space.gap) {
             Spacer(minLength: 0)
-            LazyVGrid(columns: Self.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 Tile(emphasis: .pro) {
                     HStack(spacing: Mobile.Space.gap) {
                         GameMonogram(code: "GTA")
@@ -65,7 +65,7 @@ struct WelcomeFlow: View {
                         }
                     }
                 }
-                .gridCellColumns(2)
+                .bentoWide()
                 gameTile("RDR", "Red Dead 2", lines: 195)
                 gameTile("MAF", "Mafia", lines: 18)
             }
@@ -77,7 +77,7 @@ struct WelcomeFlow: View {
     private var pageThree: some View {
         VStack(alignment: .leading, spacing: Mobile.Space.gap) {
             Spacer(minLength: 0)
-            LazyVGrid(columns: Self.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 Tile(emphasis: .active) {
                     TileIcon(symbol: "tv", tint: .accent)
                     Text("On the TV").font(Mobile.TypeScale.headline)
@@ -97,7 +97,7 @@ struct WelcomeFlow: View {
                         }
                     }
                 }
-                .gridCellColumns(2)
+                .bentoWide()
             }
             ScreenTitle(title: "On the screen you want",
                         message: "Show the subtitles on the TV over the game, or in large text on your phone. Setup takes a few minutes.")
@@ -112,8 +112,6 @@ struct WelcomeFlow: View {
             Text(PacksScreen.linesText(lines * 1000)).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
         }
     }
-
-    static let columns = [GridItem(.flexible(), spacing: Mobile.Space.gap), GridItem(.flexible(), spacing: Mobile.Space.gap)]
 }
 
 // MARK: - Kurulum adımları (4–6)
@@ -154,7 +152,7 @@ struct PSNScreen: View {
         } content: {
             ScreenTitle(caption: "Setup · Step 1/3", title: "Second PSN account",
                         message: "The phone connects to the PS5 with Remote Play. Sign in with a free second PSN account, separate from the one you play with.")
-            LazyVGrid(columns: WelcomeFlow.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 featureTile("person.badge.plus", .accent, "Free account", "No PS Plus needed")
                 featureTile("gamecontroller", .ok, "You play", "With your own account, on the TV")
                 Tile {
@@ -166,7 +164,7 @@ struct PSNScreen: View {
                         }
                     }
                 }
-                .gridCellColumns(2)
+                .bentoWide()
             }
             if model.accountId != nil { Pill(text: String(localized: "Signed in"), kind: .ok, dot: true) }
             if working { ProgressView().tint(Mobile.Palette.accent) }
@@ -398,7 +396,7 @@ struct TargetScreen: View {
                     Text("No TV found on the network.").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                 }
             }
-            LazyVGrid(columns: WelcomeFlow.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 Button { model.settings.output = .computer } label: {
                     Tile(emphasis: model.settings.output == .computer ? .active : .none) {
                         TileIcon(symbol: "iphone", tint: model.settings.output == .computer ? .accent : .neutral)

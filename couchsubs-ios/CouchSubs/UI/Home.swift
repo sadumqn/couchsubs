@@ -60,7 +60,7 @@ struct HomeScreen: View {
         } content: {
             ScreenTitle(title: model.canStart ? "Ready" : "Almost ready",
                         message: model.canStart ? "Open the game on the PS5, then start." : "Finish the setup to start translating.")
-            LazyVGrid(columns: WelcomeFlow.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 StatTile(symbol: "gamecontroller.fill", tint: .ok, label: "PS5",
                          value: model.console.map { $0.name.isEmpty ? "PS5" : $0.name } ?? String(localized: "Not set up"), live: model.console != nil)
                 Button { path.append(.target) } label: {
@@ -70,7 +70,7 @@ struct HomeScreen: View {
                 .buttonStyle(.plain)
                 .tourTarget(.target)
                 packsTile
-                    .gridCellColumns(2)
+                    .bentoWide()
                     .tourTarget(.packs)
                 StatTile(symbol: "globe", label: "Translation", value: engineName)
                 StatTile(symbol: "clock.arrow.circlepath", label: "Last session", value: lastSession)
@@ -198,7 +198,7 @@ struct RunningScreen: View {
                     }
                 }
             }
-            LazyVGrid(columns: WelcomeFlow.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 Tile {
                     Text("From ready translation").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                     Text(verbatim: "\(model.sessionPackLines) / \(model.sessionLines)").font(Mobile.TypeScale.title)

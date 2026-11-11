@@ -29,7 +29,7 @@ struct ProfileScreen: View {
                     Spacer(minLength: 0)
                 }
             }
-            LazyVGrid(columns: WelcomeFlow.columns, spacing: Mobile.Space.gap) {
+            BentoGrid {
                 Button { path.append(.target) } label: {
                     StatTile(symbol: "tv", tint: .ok, label: "Devices", value: devicesText)
                 }

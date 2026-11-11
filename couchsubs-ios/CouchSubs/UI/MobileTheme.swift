@@ -565,3 +565,66 @@ extension View {
     /// Mobil ekran zemini.
     func mobileScreen() -> some View { background(MobileBackground()) }
 }
+
+// MARK: - Bento ızgara (§6)
+
+private struct BentoWideKey: LayoutValueKey {
+    static let defaultValue = false
+}
+
+extension View {
+    /// Karo iki sütunu kaplar (geniş/kahraman karo).
+    func bentoWide() -> some View { layoutValue(key: BentoWideKey.self, value: true) }
+}
+
+/// İki sütunlu bento ızgara: aralık 12; `bentoWide()` karolar tam satır. Bir satırdaki karoların yüksekliği eşittir.
+struct BentoGrid: Layout {
+    var spacing: CGFloat = Mobile.Space.gap
+
+    private func rows(_ subviews: Subviews) -> [[Int]] {
+        var rows: [[Int]] = []
+        var current: [Int] = []
+        for index in subviews.indices {
+            if subviews[index][BentoWideKey.self] {
+                if !current.isEmpty { rows.append(current); current = [] }
+                rows.append([index])
+            } else {
+                current.append(index)
+                if current.count == 2 { rows.append(current); current = [] }
+            }
+        }
+        if !current.isEmpty { rows.append(current) }
+        return rows
+    }
+
+    private func heights(_ rows: [[Int]], width: CGFloat, subviews: Subviews) -> [CGFloat] {
+        let column = (width - spacing) / 2
+        return rows.map { row in
+            let cellWidth = row.count == 1 && subviews[row[0]][BentoWideKey.self] ? width : column
+            return row.map { subviews[$0].sizeThatFits(ProposedViewSize(width: cellWidth, height: nil)).height }.max() ?? 0
+        }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 350
+        let rowHeights = heights(rows(subviews), width: width, subviews: subviews)
+        let total = rowHeights.reduce(0, +) + spacing * CGFloat(max(0, rowHeights.count - 1))
+        return CGSize(width: width, height: total)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let allRows = rows(subviews)
+        let rowHeights = heights(allRows, width: bounds.width, subviews: subviews)
+        let column = (bounds.width - spacing) / 2
+        var y = bounds.minY
+        for (row, height) in zip(allRows, rowHeights) {
+            for (position, index) in row.enumerated() {
+                let wide = subviews[index][BentoWideKey.self]
+                let width = wide ? bounds.width : column
+                let x = bounds.minX + (wide ? 0 : CGFloat(position) * (column + spacing))
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: width, height: height))
+            }
+            y += height + spacing
+        }
+    }
+}
