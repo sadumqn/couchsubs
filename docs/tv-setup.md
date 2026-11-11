@@ -31,7 +31,8 @@ Samsung requires apps to be signed for each TV. CouchSubs does this for you; you
 account. Tested on a 75" Neo QLED.
 
 1. In the TV's **Apps** screen press `1 2 3 4 5`, turn **Developer mode** on, enter your computer's address as
-   **Host PC IP** (CouchSubs shows it) and restart the TV.
+   **Host PC IP** (CouchSubs shows it) and restart the TV: hold the remote's power button for about 2 seconds until
+   the TV turns off, then turn it on. A short press only puts a Samsung TV on standby.
 2. In the TV step of CouchSubs, pick your Samsung TV and press **Connect**.
 3. CouchSubs opens Samsung's sign-in page in your browser. Sign in (or create a free account there). If the browser asks to
    allow access to devices on your network, allow it.
@@ -39,6 +40,13 @@ account. Tested on a 75" Neo QLED.
 
 If CouchSubs says the TV did not accept this computer, check that **Host PC IP** is your computer's current address and
 restart the TV. Manual install with Tizen Studio: see the [Turkish guide](tv-kurulum.md#elle-kurulum).
+
+If the TV keeps switching to HDMI 1 or another source while the CouchSubs TV app is open (also during the install),
+turn off **Anynet+ (HDMI-CEC)** and **Auto Source Switching** in **Settings › All Settings › Connection › External
+Device Manager**.
+
+If you close CouchSubs while it is installing the TV app, the setup is not marked as finished: next time it opens on
+the TV step and continues the install.
 
 ## Android TV / Google TV
 
