@@ -27,14 +27,6 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>google-sign-in</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
 			<string>facebook</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
@@ -46,8 +38,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CSPacksBaseURL</key>
 	<string>$(PACKS_API_BASE_URL)</string>
-	<key>CSRevenueCatAPIKey</key>
-	<string>$(REVENUECAT_API_KEY)</string>
 	<key>FacebookAdvertiserIDCollectionEnabled</key>
 	<false/>
 	<key>FacebookAppID</key>

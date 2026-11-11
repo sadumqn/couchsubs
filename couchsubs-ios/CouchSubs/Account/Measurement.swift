@@ -25,15 +25,7 @@ final class AppAnalytics: AnalyticsLogging {
 
     func log(_ event: AnalyticsEvent) {
         if firebase { Analytics.logEvent(event.name, parameters: event.parameters) }
-        guard meta else { return }
-        switch event {
-        case .signUp(let method):
-            AppEvents.shared.logEvent(.completedRegistration, parameters: [.registrationMethod: method])
-        case .purchase(_, let price, let currency):
-            if let price, let currency { AppEvents.shared.logPurchase(amount: price, currency: currency) }
-        default:
-            AppEvents.shared.logEvent(AppEvents.Name(event.name))
-        }
+        if meta { AppEvents.shared.logEvent(AppEvents.Name(event.name)) }
     }
 
     func screen(_ name: String) {
@@ -46,18 +38,12 @@ final class AppAnalytics: AnalyticsLogging {
         Analytics.setAnalyticsCollectionEnabled(enabled)
         Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(enabled)
     }
-
-    func identify(_ uid: String?) {
-        guard firebase else { return }
-        Analytics.setUserID(uid)
-        Crashlytics.crashlytics().setUserID(uid ?? "")
-    }
 }
 
 /// Uygulama açılışındaki SDK kurulumu; her parça yalnız anahtarı/dosyası varsa kurulur.
 @MainActor
 enum Integrations {
-    /// Firebase (Analytics, Crashlytics, Auth, Remote Config): GoogleService-Info.plist varsa.
+    /// Firebase (Analytics, Crashlytics, Remote Config): GoogleService-Info.plist varsa.
     static func configureFirebase() -> Bool {
         guard AppConfig.hasFirebase else { return false }
         if FirebaseApp.app() == nil { FirebaseApp.configure() }
@@ -79,7 +65,7 @@ enum Integrations {
     static func requestConsent(meta: Bool, firebase: Bool) async {
         let parameters = RequestParameters()
         try? await ConsentInformation.shared.requestConsentInfoUpdate(with: parameters)
-        if let presenter = FirebaseAccounts.topViewController() {
+        if let presenter = topViewController() {
             try? await ConsentForm.loadAndPresentIfRequired(from: presenter)
         }
         let status = await ATTrackingManager.requestTrackingAuthorization()
@@ -94,5 +80,12 @@ enum Integrations {
         if config.configValue(forKey: "ads_enabled").boolValue, ConsentInformation.shared.canRequestAds {
             await MobileAds.shared.start()
         }
+    }
+
+    static func topViewController() -> UIViewController? {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        var top = scene?.keyWindow?.rootViewController
+        while let presented = top?.presentedViewController { top = presented }
+        return top
     }
 }

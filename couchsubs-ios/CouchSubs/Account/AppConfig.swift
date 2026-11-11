@@ -14,25 +14,12 @@ enum AppConfig {
     /// Firebase: GoogleService-Info.plist uygulamaya kopyalandıysa (derleme adımı, dosya varsa).
     static var hasFirebase: Bool { Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") != nil }
 
-    /// RevenueCat'in Apple için genel SDK anahtarı ("appl_...").
-    static var revenueCatAPIKey: String? { value("CSRevenueCatAPIKey") }
-
     static var facebookAppID: String? { value("FacebookAppID") }
     static var facebookClientToken: String? { value("FacebookClientToken") }
 
-    /// Paket sunucusu (Cloudflare Worker, server/packs).
+    /// Paket sunucusu (Cloudflare Worker, server/packs). Yoksa yalnız uygulamayla gelen paketler kullanılır.
     static var packsBaseURL: URL? { value("CSPacksBaseURL").flatMap(URL.init(string:)) }
 
-    /// Hata ayıklama: paketler sunucu yerine uygulamayla gelen örneklerden (CouchSubsCore'un packs klasörü) okunur ve
-    /// abonelik denetimi atlanır. Yalnız Debug derlemesinde, ortam değişkeniyle: COUCHSUBS_BUNDLED_PACKS=1.
-    static var useBundledPacks: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.environment["COUCHSUBS_BUNDLED_PACKS"] == "1"
-        #else
-        false
-        #endif
-    }
-
-    static let termsURL = URL(string: "https://github.com/yorulmazsinan/couchsubs/blob/main/docs/kosullar.md")!
     static let privacyURL = URL(string: "https://github.com/yorulmazsinan/couchsubs/blob/main/PRIVACY.md")!
+    static let helpURL = URL(string: "https://github.com/yorulmazsinan/couchsubs/issues")!
 }

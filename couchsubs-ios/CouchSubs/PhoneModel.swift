@@ -85,16 +85,8 @@ final class PhoneModel {
 
     /// Çeviri sürerken ekran kararmasın (iOS uygulamayı askıya alınca bağlantı da durur). Uygulama UIKit'e bağlar.
     @ObservationIgnored var keepScreenAwake: (Bool) -> Void = { _ in }
-    /// Ölçüm olayları (Firebase Analytics, Meta); uygulama `AccountModel.analytics`'e bağlar.
+    /// Ölçüm olayları (Firebase Analytics, Meta); uygulama `AppModel.analytics`'e bağlar.
     @ObservationIgnored var onAnalytics: (AnalyticsEvent) -> Void = { _ in }
-    /// Oyun paketleri yalnız `packs` aboneliğiyle (ya da hata ayıklamada örnek paketlerle) kullanılır.
-    var packsUnlocked = false {
-        didSet {
-            guard packsUnlocked != oldValue else { return }
-            if let pipeline { connectPacks(to: pipeline) }
-            reloadPackList()
-        }
-    }
     @ObservationIgnored private var startedAt: Date?
 
     private let services: PhoneServices
@@ -113,7 +105,7 @@ final class PhoneModel {
     /// Yığının saati (saniye); testlerde ileri sarılır.
     @ObservationIgnored var clock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
-    /// Abonelerin indirdiği paketler (PackStore'un klasörü); hata ayıklamada uygulamayla gelen örnekler.
+    /// Oyun paketleri: uygulamayla gelenler ve sunucudan indirilen güncel sürümleri (ücretsiz, herkese).
     let packs: GamePackLibrary
     private let pool: LinePool
 
@@ -151,11 +143,11 @@ final class PhoneModel {
         reloadPackList()
     }
 
-    /// Ayarlardaki paket listesi (yalnız abonelikte dolu).
+    /// Ayarlardaki paket listesi; paketler güncellenince yeniden okunur.
     func reloadPackList() {
-        let (packs, unlocked) = (self.packs, packsUnlocked)
+        let packs = self.packs
         Task { [weak self] in
-            let list = await Task.detached(priority: .utility) { unlocked ? packs.packs : [] }.value
+            let list = await Task.detached(priority: .utility) { packs.packs }.value
             self?.installedPacks = list
         }
     }
@@ -258,23 +250,6 @@ final class PhoneModel {
         tvKeySaved = false
         tvAppMissing = false
         step = .welcome
-    }
-
-    /// Hesap silinince: cihazdaki her şey (Anahtarlık kayıtları, çeviri anahtarları, ayarlar, çeviri önbelleği, havuz
-    /// kuyruğu) silinir; uygulama ilk açılıştaki gibi olur.
-    func wipeLocalData() {
-        resetSetup()
-        for engine in TranslationEngine.allCases { removeKey(engine) }
-        [StoreKey.tvDevKey, StoreKey.tvAppVersion].forEach(store.remove)
-        defaults.removeObject(forKey: StoreKey.settings)
-        defaults.removeObject(forKey: AccountModel.tourKey)
-        settings = UserSettings()
-        history.clear()
-        lastSource = ""
-        lastTranslation = ""
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(AppIdentity.name, isDirectory: true)
-        try? FileManager.default.removeItem(at: support)
     }
 
     // MARK: - Çeviri
@@ -420,9 +395,15 @@ final class PhoneModel {
         if recentLines.count > 30 { recentLines.removeLast() }
     }
 
-    /// Okuma hattı oyun paketlerine bakıyor mu: abonelik açık, ayar açık ve İngilizce→Türkçe.
+    /// Okuma hattı oyun paketlerine bakıyor mu: ayar açık ve İngilizce→Türkçe (paketler herkese ücretsiz).
     var packsActive: Bool {
-        packsUnlocked && settings.gamePacks && settings.sourceLanguage == "en" && settings.targetLanguage == "tr"
+        settings.gamePacks && settings.sourceLanguage == "en" && settings.targetLanguage == "tr"
+    }
+
+    /// Paketler güncellendi: okuma hattı yeni listeyle eşleşir.
+    func packsChanged() {
+        if let pipeline { connectPacks(to: pipeline) }
+        reloadPackList()
     }
 
     /// Paketler yalnız İngilizce→Türkçede ve ayar açıkken kullanılır; pakette olmayan satır ortak havuza önerilir.

@@ -44,11 +44,11 @@ final class PackStoreTests: XCTestCase {
         Data(#"{"packs":[{"id":"demo","title":"Demo","version":1,"sha256":"\#(sha)","size":10,"entries":1}]}"#.utf8)
     }
 
-    private func store(token: String? = "token", now: Date = Date()) -> PackStore {
-        PackStore(baseURL: base, directory: directory, session: session, token: { token }, now: { now })
+    private func store(now: Date = Date()) -> PackStore {
+        PackStore(baseURL: base, directory: directory, session: session, now: { now })
     }
 
-    func testDownloadsVerifiedPackAndSendsToken() async throws {
+    func testDownloadsVerifiedPackWithoutAnAccount() async throws {
         StubProtocol.responses["/v1/packs"] = (200, manifest(sha: PackStore.sha256(pack)))
         StubProtocol.responses["/v1/packs/demo"] = (200, pack)
         let store = store()
@@ -56,7 +56,8 @@ final class PackStoreTests: XCTestCase {
         XCTAssertEqual(downloaded, 1)
         let file = store.filesDirectory.appendingPathComponent("demo.json.gz")
         XCTAssertEqual(try Data(contentsOf: file), pack)
-        XCTAssertEqual(StubProtocol.requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        // Paketler ücretsiz: istekler kimlik taşımaz.
+        XCTAssertTrue(StubProtocol.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
         // Kütüphane indirilen paketi okur.
         let library = GamePackLibrary(bundled: nil, user: store.filesDirectory)
         XCTAssertEqual(library.packs.map(\.id), ["demo"])
@@ -86,25 +87,32 @@ final class PackStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.filesDirectory.appendingPathComponent("demo.json.gz").path))
     }
 
-    func testServerRefusalsAreExplained() async {
+    func testServerErrorsAreReported() async {
         StubProtocol.responses["/v1/packs"] = (200, manifest(sha: PackStore.sha256(pack)))
-        StubProtocol.responses["/v1/packs/demo"] = (403, Data(#"{"error":"subscription_required"}"#.utf8))
+        StubProtocol.responses["/v1/packs/demo"] = (404, Data())
         do {
             try await store().refresh(force: true)
-            XCTFail("abonelik yok")
+            XCTFail("paket yok")
         } catch {
-            XCTAssertEqual(error as? PackStore.Failure, .notSubscribed)
+            XCTAssertEqual(error as? PackStore.Failure, .server(404))
         }
-        // Liste herkese açık; paket jeton ister ve jetonsuz paket isteği gönderilmez.
-        StubProtocol.requests = []
-        do {
-            try await store(token: nil).refresh(force: true)
-            XCTFail("giriş yok")
-        } catch {
-            XCTAssertEqual(error as? PackStore.Failure, .notSignedIn)
-        }
-        XCTAssertEqual(StubProtocol.requests.map { $0.url!.path }, ["/v1/packs"])
-        XCTAssertNil(StubProtocol.requests[0].value(forHTTPHeaderField: "Authorization"))
+    }
+
+    /// İndirilen paket, uygulamayla gelen aynı kimlikli paketin yerine geçer; sunucu yoksa uygulamayla gelen kalır.
+    func testDownloadedPackReplacesBundledOne() async throws {
+        let bundled = directory.appendingPathComponent("bundled", isDirectory: true)
+        try FileManager.default.createDirectory(at: bundled, withIntermediateDirectories: true)
+        let old = Data(#"{"format":1,"id":"demo","title":"Demo (eski)","entries":{"\#(PackKey.key("Hello there, my friend.")!)":"Eski."}}"#.utf8)
+        try old.write(to: bundled.appendingPathComponent("demo.json"))
+        let store = store()
+        let library = GamePackLibrary(bundled: bundled, user: store.filesDirectory)
+        XCTAssertEqual(library.packs.map(\.title), ["Demo (eski)"])
+        StubProtocol.responses["/v1/packs"] = (200, manifest(sha: PackStore.sha256(pack)))
+        StubProtocol.responses["/v1/packs/demo"] = (200, pack)
+        try await store.refresh(force: true)
+        library.reload()
+        XCTAssertEqual(library.packs.map(\.title), ["Demo"])
+        XCTAssertEqual(library.match("Hello there, my friend.")?.text, "Merhaba dostum.")
     }
 
     func testRefreshIsWeekly() async throws {

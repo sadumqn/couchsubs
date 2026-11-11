@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Karşılama, kayıt/giriş ve kurulum (PSN girişi, PS5 eşleme, altyazının yeri). Onaylı tuvaldeki
-// Telefon · 1–6 ekranları.
+// Karşılama ve kurulum (PSN girişi, PS5 eşleme, altyazının yeri). Onaylı tuvaldeki Telefon · 1–6 ekranları;
+// uygulama hesap istemediği için kayıt/giriş ekranı yok.
 
-import AuthenticationServices
 import CouchSubsCore
-import CryptoKit
 import RemotePlay
 import SwiftUI
 
 // MARK: - 1–2 Karşılama (3 sayfa)
 
 struct WelcomeFlow: View {
-    let onSignIn: () -> Void
     let onFinish: () -> Void
     @State private var page = 0
 
@@ -19,11 +16,7 @@ struct WelcomeFlow: View {
         MobileScreen {
             HStack {
                 Spacer()
-                if page == 0 {
-                    Button("Sign in", action: onSignIn).buttonStyle(.mobileGhost)
-                } else {
-                    Button("Skip", action: onFinish).buttonStyle(.mobileGhost)
-                }
+                Button("Skip", action: onFinish).buttonStyle(.mobileGhost)
             }
             .frame(height: Mobile.Control.icon)
         } content: {
@@ -121,172 +114,6 @@ struct WelcomeFlow: View {
     }
 
     static let columns = [GridItem(.flexible(), spacing: Mobile.Space.gap), GridItem(.flexible(), spacing: Mobile.Space.gap)]
-}
-
-// MARK: - 3 Kayıt / giriş
-
-struct SignUpScreen: View {
-    @Environment(AccountModel.self) private var account
-    var startInSignIn = false
-    /// Hesapsız devam (ücretsiz çeviri hesap istemez; App Store kuralı 5.1.1).
-    let onSkip: (() -> Void)?
-    var onBack: (() -> Void)?
-    @State private var signIn = false
-    @State private var email = ""
-    @State private var password = ""
-    @State private var working = false
-    @State private var error: String?
-    @State private var notice: String?
-    @State private var nonce = ""
-
-    var body: some View {
-        MobileScreen {
-            HStack {
-                if let onBack { IconButton(symbol: "chevron.left", label: "Back", action: onBack) }
-                Spacer()
-                if let onSkip { Button("Continue without an account", action: onSkip).buttonStyle(.mobileGhost) }
-            }
-            .frame(height: Mobile.Control.icon)
-        } content: {
-            ScreenTitle(title: signIn ? "Sign in" : "Create an account",
-                        message: "Your settings, devices and subscription stay with you on every phone.")
-            SegmentedTabs(options: [false: "Sign up", true: "Sign in"], selection: $signIn)
-            if !account.accounts.isAvailable {
-                MobileNote(text: String(localized: "Accounts are not available yet in this version."))
-            }
-            SignInWithAppleButton(signIn ? .signIn : .continue) { request in
-                nonce = Self.randomNonce()
-                request.requestedScopes = [.fullName, .email]
-                request.nonce = Self.sha256(nonce)
-            } onCompletion: { result in
-                Task { await apple(result) }
-            }
-            .signInWithAppleButtonStyle(.white)
-            .frame(height: Mobile.Control.button)
-            .clipShape(RoundedRectangle(cornerRadius: Mobile.Radius.control))
-            .disabled(!account.accounts.isAvailable || working)
-            Button { Task { await run(method: "google") { try await account.accounts.signInWithGoogle() } } } label: {
-                Label("Continue with Google", systemImage: "g.circle.fill")
-            }
-            .buttonStyle(.mobileSecondary)
-            .disabled(!account.accounts.canUseGoogle || working)
-            HStack(spacing: Mobile.Space.gap) {
-                RowDivider()
-                Text("or with e-mail").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary).fixedSize()
-                RowDivider()
-            }
-            TextField("E-mail", text: $email)
-                .textFieldStyle(MobileFieldStyle())
-                .textContentType(.emailAddress)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField("Password", text: $password)
-                .textFieldStyle(MobileFieldStyle())
-                .textContentType(signIn ? .password : .newPassword)
-            HStack {
-                if !signIn { Text("At least 8 characters").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary) }
-                Spacer()
-                Button("Forgot password") { Task { await reset() } }
-                    .font(Mobile.TypeScale.caption)
-                    .foregroundStyle(Mobile.Palette.accent)
-                    .disabled(email.isEmpty || working)
-            }
-            if working { ProgressView().tint(Mobile.Palette.accent) }
-            if let error { MobileNote(text: error) }
-            if let notice { Text(verbatim: notice).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.success) }
-        } bottom: {
-            Button(signIn ? "Sign in" : "Sign up") { Task { await emailSubmit() } }
-                .buttonStyle(.mobilePrimary)
-                .disabled(working || email.isEmpty || password.count < (signIn ? 1 : 8) || !account.accounts.isAvailable)
-            LegalLine()
-        }
-        .onAppear {
-            signIn = startInSignIn
-            account.analytics.screen("sign_up")
-        }
-    }
-
-    private func emailSubmit() async {
-        if signIn {
-            await run(method: "password") { try await account.accounts.signIn(email: email, password: password); return false }
-        } else {
-            await run(method: "password") { try await account.accounts.signUp(name: "", email: email, password: password); return true }
-        }
-    }
-
-    private func apple(_ result: Result<ASAuthorization, Error>) async {
-        switch result {
-        case .success(let authorization):
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                  let data = credential.identityToken, let token = String(data: data, encoding: .utf8) else {
-                error = String(localized: "Sign-in did not complete. Please try again.")
-                return
-            }
-            let rawNonce = nonce
-            await run(method: "apple") {
-                try await account.accounts.signInWithApple(idToken: token, rawNonce: rawNonce, fullName: credential.fullName)
-            }
-        case .failure(let failure):
-            if (failure as? ASAuthorizationError)?.code == .canceled { return }
-            error = failure.localizedDescription
-        }
-    }
-
-    private func reset() async {
-        working = true
-        error = nil
-        do {
-            try await account.accounts.sendPasswordReset(email: email)
-            notice = String(localized: "We sent a password reset link to your e-mail.")
-        } catch {
-            self.error = error.localizedDescription
-        }
-        working = false
-    }
-
-    /// `body` yeni hesapsa true döner (sign_up / login olayı).
-    private func run(method: String, _ body: () async throws -> Bool) async {
-        working = true
-        error = nil
-        do {
-            let isNew = try await body()
-            account.analytics.log(isNew ? .signUp(method: method) : .login(method: method))
-        } catch let failure as AccountError where failure == .canceled {
-        } catch {
-            self.error = error.localizedDescription
-        }
-        working = false
-    }
-
-    static func randomNonce(length: Int = 32) -> String {
-        let characters = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-        var generator = SystemRandomNumberGenerator()
-        return String((0..<length).map { _ in characters.randomElement(using: &generator)! })
-    }
-
-    static func sha256(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-/// "Devam ederek Kullanım koşulları ve Gizlilik metnini kabul edersin."
-struct LegalLine: View {
-    var body: some View {
-        Text("By continuing you accept the \(link("Terms of use", AppConfig.termsURL)) and the \(link("Privacy policy", AppConfig.privacyURL)).")
-            .font(Mobile.TypeScale.caption)
-            .foregroundStyle(Mobile.Palette.secondary)
-            .tint(Mobile.Palette.accent)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-    }
-
-    private func link(_ title: String.LocalizationValue, _ url: URL) -> Text {
-        var text = AttributedString(localized: title)
-        text.link = url
-        text.foregroundColor = Mobile.Palette.accent
-        return Text(text)
-    }
 }
 
 // MARK: - Kurulum adımları (4–6)

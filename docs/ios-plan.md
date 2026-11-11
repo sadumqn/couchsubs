@@ -138,75 +138,60 @@ xcodebuild -project CouchSubs.xcodeproj -scheme CouchSubs -destination 'generic/
 xcodebuild -project CouchSubs.xcodeproj -scheme CouchSubs -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-## 8. Hesap, abonelik, ölçüm (aşama 2)
+## 8. Ücretsiz uygulama, ölçüm, reklam altyapısı ve paket indirme
 
-İş modeli: masaüstü tamamen ücretsiz. Telefonda ücretsiz motor, DeepL ve kendi yapay zekâ anahtarıyla çeviri ücretsiz;
-**hazır oyun paketleri abonelikle**: aylık 399 TL (`couchsubs_packs_monthly`), yıllık 3.588 TL = aylık 299 TL
-(`couchsubs_packs_annual`). Satıcı: Enmera (kuruluş hesabı, takım `79N3CT6T46`, Mac uygulamasını imzalayan takım).
+İş modeli: CouchSubs **tamamen ücretsiz** ve **hesap istemez**; masaüstü gibi telefon da ücretsiz çeviri, DeepL, kendi
+yapay zekâ anahtarı ve oyun paketlerini herkese verir. Abonelik, ödeme ekranı, giriş/kayıt yoktur. Satıcı: Enmera
+(kuruluş hesabı, takım `79N3CT6T46`, Mac uygulamasını imzalayan takım).
 
 | Parça | Nerede | Anahtar yokken |
 |---|---|---|
-| Firebase Analytics, Auth, Crashlytics, Remote Config | `Account/Measurement.swift`, `FirebaseAccounts.swift` | `GoogleService-Info.plist` yoksa Firebase hiç kurulmaz; giriş ekranı "hesaplar henüz açık değil" der, uygulama hesapsız çalışır |
-| Giriş: Apple, Google, e-posta/şifre, şifre sıfırlama | `UI/AccountScreens.swift` | Google düğmesi yalnız Firebase'in istemci kimliği varsa görünür |
-| RevenueCat (appUserID = Firebase UID, yetki `packs`, teklif `default`: `$rc_monthly`, `$rc_annual`) | `RevenueCatSubscriptions.swift` | Ödeme ekranı "Abonelik yakında" der |
-| Meta App Events | `Measurement.swift` | `FACEBOOK_APP_ID` boşsa Meta SDK kurulmaz |
-| İzin akışı: Google UMP formu, sonra Apple ATT | `Integrations.requestConsent` (tanıtımdan sonra) | — |
+| Firebase Analytics, Crashlytics, Remote Config | `Account/Measurement.swift` | `GoogleService-Info.plist` yoksa Firebase hiç kurulmaz |
+| Meta App Events | `Measurement.swift` | `FACEBOOK_APP_ID` boşsa Meta SDK kurulmaz; reklam kimliği ve otomatik olaylar izin gelene kadar kapalı |
+| İzin akışı: Google UMP formu, sonra Apple ATT | `Integrations.requestConsent` (karşılamadan sonra) | — |
 | AdMob | `Measurement.swift` | Reklam yok: Remote Config `ads_enabled` (varsayılan false) true olmadan SDK başlatılmaz; reklam birimi de yok |
-| Paket indirme | `Packs/PackStore.swift` | `PACKS_API_BASE_URL` boşsa indirme yok |
+| Paket güncelleme | `Packs/PackStore.swift`, `Account/AppModel.swift` | `PACKS_API_BASE_URL` boşsa yalnız uygulamayla gelen paketler |
 
-Kapı: okuma hattı paketlere yalnız `packs` yetkisi açıkken bakar (`PhoneModel.packsUnlocked`/`packsActive`); yetki
-RevenueCat'in müşteri bilgisi akışıyla anında açılır/kapanır. Uygulamayla gelen paketler (CouchSubsCore kaynakları)
-telefonda okunmaz; hata ayıklamada `COUCHSUBS_BUNDLED_PACKS=1` ortam değişkeniyle onlar kullanılır ve abonelik
-denetimi atlanır (yalnız Debug). Not: paketler SPM kaynağı olduğu için uygulama paketinde yine de duruyor; sonra
-CouchSubsCore'dan ayrı bir kaynak hedefine alınmalı.
+Ölçülen olaylar: `session_start`, `session_stop`, `pack_hit`, `tv_connected`, `packs_updated` ve ekran görüntülemeleri.
+Profil › Kullanım verisi kapatılınca Analytics ve Crashlytics toplaması durur.
+
+Paketler: uygulamayla gelenler (CouchSubsCore kaynakları) her zaman okunur; sunucudan indirilen güncel sürüm aynı
+kimlikli paketin yerine geçer. Sunucuya ulaşılamazsa telefondaki paketlerle devam edilir.
 
 ### Paket sunucusu sözleşmesi (istemci tarafı)
 
-Sunucu `server/packs` (Cloudflare Worker, `feat/android-app` dalında; README'si orada). iOS istemcisi ona uyar:
+Sunucu `server/packs` (Cloudflare Worker, `feat/android-app` dalında; Android tarafı onu da kimliksiz hale getiriyor).
+İkisi de herkese açık, kimlik ve abonelik istemez:
 
-- `GET /v1/packs` herkese açık → `{"packs":[{"id","title","version","sha256","size","entries"}]}` (`version` artan
-  bir sayı).
-- `GET /v1/packs/:id`, `Authorization: Bearer <Firebase ID jetonu>` → `packs/<id>.json.gz`; gövdenin SHA-256'sı
-  listedekiyle aynı olmalı, değilse dosya yazılmaz.
-- 401 jeton yok/geçersiz, 403 `subscription_required`, 503 `entitlement_unavailable` (RevenueCat'e ulaşılamadı),
-  404 paket yok. Jetonsuz paket isteği hiç gönderilmez.
+- `GET /v1/packs` → `{"packs":[{"id","title","version","sha256","size","entries"}]}` (`version` artan bir sayı).
+- `GET /v1/packs/:id` → `packs/<id>.json.gz`; gövdenin SHA-256'sı listedekiyle aynı olmalı, değilse dosya yazılmaz.
+- 404 paket yok; diğer hatalar bildirilir, telefondaki paketler kullanılmaya devam eder.
 
-İstemci: liste değişmemiş paketi yeniden indirmez, listeden kalkanı siler, haftada bir yeniler (abonelik açılınca ve
-profildeki "Paketleri şimdi güncelle" ile hemen). Önbellek: `Application Support/CouchSubs/Packs/{manifest.json,files/}`.
+İstemci: liste değişmemiş paketi yeniden indirmez, listeden kalkanı siler, haftada bir yeniler (Paketler ekranındaki
+"Paketleri şimdi güncelle" ile hemen). Önbellek: `Application Support/CouchSubs/Packs/{manifest.json,files/}`.
 
-### Hesap yönetimi
+### Profil
 
-Profil: ad, e-posta (yeni adrese doğrulama bağlantısı), şifre, abonelik durumu ve yönetimi
-(`Purchases.showManageSubscriptions`), cihazlar (PS5, TV, PSN hesabı), bildirim tercihi, havuz paylaşımı, çıkış ve
-**hesabı silme**: Firebase kullanıcısı gerçekten silinir (yakın zamanda giriş isterse kullanıcıdan yeniden giriş
-istenir), ardından cihazdaki her şey (Anahtarlık, ayarlar, paketler, çeviri önbelleği, havuz kuyruğu) silinir.
+Hesap olmadığı için Profil bir cihaz ve tercih sayfasıdır: PS5 ve bağlantı, altyazı hedefi (TV'ler), ikinci PSN hesabı,
+bildirim tercihi, ortak havuza katkı, kullanım verisi, gizlilik, yardım ve Hakkında.
 
 ### Sahibinin vermesi gerekenler
 
 1. **Firebase**: iOS uygulaması (`com.couchsubs.ios`) ekleyip `GoogleService-Info.plist`'i
    `couchsubs-ios/Config/GoogleService-Info.plist` olarak koymak (gitignore'da; derleme adımı varsa kopyalar).
-   Auth'ta Apple, Google ve E-posta/Şifre sağlayıcılarını açmak; Apple için Services ID ve anahtar (Sign in with Apple
-   için Apple Developer'da `.p8` anahtarı, takım `79N3CT6T46`). Remote Config'te `ads_enabled = false`.
-2. **Google ile giriş**: plist'teki `REVERSED_CLIENT_ID` → `Config/Secrets.xcconfig` içinde `GOOGLE_REVERSED_CLIENT_ID`.
-3. **RevenueCat**: proje, App Store uygulaması, Apple SDK anahtarı (`appl_...`) → `REVENUECAT_API_KEY`; yetki `packs`,
-   teklif `default` ve paketleri `$rc_monthly` → `couchsubs_packs_monthly`, `$rc_annual` → `couchsubs_packs_annual`;
-   App Store Connect'in uygulama içi satın alma anahtarı (In-App Purchase Key) ve App Store Server Notifications.
-4. **App Store Connect**: uygulama kaydı (satıcı Enmera), abonelik grubu `packs`, iki otomatik yenilenen abonelik
-   (399 TL/ay, 3.588 TL/yıl; Türkiye fiyatı, diğer ülkeler eşdeğer), vergi/banka sözleşmeleri (Paid Apps Agreement),
-   kullanım koşulları ve gizlilik politikası adresleri (şimdilik `docs/kosullar.md` ve `PRIVACY.md`; koşullar belgesi
-   yazılmalı).
-5. **Apple Developer yetkileri** (`com.couchsubs.ios`): Sign in with Apple, In-App Purchase, (isteğe bağlı) Push
-   Notifications, multicast başvurusu (bkz. §3).
-6. **Meta**: uygulama kimliği ve istemci jetonu → `FACEBOOK_APP_ID`, `FACEBOOK_CLIENT_TOKEN`; Meta'da iOS platformu ve
-   paket kimliği.
-7. **AdMob**: uygulama kimliği → `GAD_APPLICATION_ID` (şimdilik Google'ın deneme kimliği); UMP izin mesajı (AB/İngiltere)
+   Remote Config'te `ads_enabled = false`. Crashlytics için ek bir şey gerekmez (Release derlemesi sembolleri yükler).
+2. **Meta**: uygulama kimliği ve istemci jetonu → `Config/Secrets.xcconfig` içinde `FACEBOOK_APP_ID`,
+   `FACEBOOK_CLIENT_TOKEN`; Meta'da iOS platformu ve paket kimliği.
+3. **AdMob**: uygulama kimliği → `GAD_APPLICATION_ID` (şimdilik Google'ın deneme kimliği); UMP izin mesajı (AB/İngiltere)
    AdMob panelinden; yayın öncesi SKAdNetwork listesi Google'ın ve Meta'nın güncel listesiyle karşılaştırılmalı.
-8. **Paket sunucusu adresi** → `PACKS_API_BASE_URL` (sunucu RevenueCat'in gizli anahtarıyla aboneliğe bakar).
-9. **Gizlilik**: App Store gizlilik etiketi (Firebase Analytics/Crashlytics, Meta, kimlik: e-posta, ad, kullanıcı
-   kimliği, satın alımlar), ATT metni Info.plist'te.
+4. **Paket sunucusu adresi** → `PACKS_API_BASE_URL` (Cloudflare Worker yayına alınınca).
+5. **App Store Connect**: uygulama kaydı (satıcı Enmera, ücretsiz), gizlilik politikası adresi (`PRIVACY.md`), gizlilik
+   etiketi (Firebase Analytics/Crashlytics, Meta: kullanım ve tanılama verisi, reklam kimliği yalnız izinle), ATT metni
+   Info.plist'te.
+6. **Apple Developer** (`com.couchsubs.ios`, takım `79N3CT6T46`): multicast başvurusu (bkz. §3); (isteğe bağlı) Push.
+   Sign in with Apple ve uygulama içi satın alma gerekmez.
 
 Değerler `couchsubs-ios/Config/Secrets.xcconfig`'e yazılır (örnek: `Secrets.xcconfig.example`), ardından `xcodegen`.
-Yerelde satın alma `CouchSubs.storekit` ile denenir (iki ürün, TRY; şema Run eyleminde seçili).
 
 ## 9. TestFlight'a kalan işler
 
@@ -215,4 +200,4 @@ Yerelde satın alma `CouchSubs.storekit` ile denenir (iki ürün, TRY; şema Run
 3. Gerçek iPhone'da PS5 eşleştirme, akış ve okuma; pil/ısı ölçümü; Vision'ın telefondaki hızı.
 4. Ekranlar onaylı mobil tasarıma (TASARIM-MOBIL.md, bento) göre kuruldu; gerçek cihazda gözden geçirilmeli. Ana ekrandaki "GTA V paketi" gibi paket adı henüz yok (CouchSubsCore eşleşmenin hangi paketten geldiğini vermiyor), yerine "Hazır çeviri" yazıyor.
 5. Hukuki: AGPL ve App Store, PSN girişi; ihracat uyumu.
-6. App Store Connect kaydı, gizlilik etiketi (havuz anonim satır gönderir; çeviri anahtarları cihazda kalır).
+6. App Store Connect kaydı (ücretsiz uygulama), gizlilik etiketi (havuz anonim satır gönderir; çeviri anahtarları cihazda kalır).

@@ -27,17 +27,10 @@ packages:
     path: ../core
   RemotePlay:
     path: ../remoteplay
-  # Analytics, Auth (Apple, Google, e-posta), Crashlytics, Remote Config.
+  # Analytics, Crashlytics, Remote Config (uygulama ücretsiz ve hesapsız; Auth yok).
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
     from: 12.0.0
-  GoogleSignIn:
-    url: https://github.com/google/GoogleSignIn-iOS
-    from: 9.0.0
-  # Abonelik (oyun paketleri): appUserID = Firebase UID, yetki "packs".
-  RevenueCat:
-    url: https://github.com/RevenueCat/purchases-ios-spm
-    from: 5.0.0
   # Meta App Events (izinle).
   Facebook:
     url: https://github.com/facebook/facebook-ios-sdk
@@ -66,23 +59,15 @@ targets:
         buildPhase: resources
       - path: Config
         buildPhase: none
-      - path: CouchSubs.storekit
-        buildPhase: none
     dependencies:
       - package: CouchSubsCore
       - package: RemotePlay
       - package: Firebase
         product: FirebaseAnalytics
       - package: Firebase
-        product: FirebaseAuth
-      - package: Firebase
         product: FirebaseCrashlytics
       - package: Firebase
         product: FirebaseRemoteConfig
-      - package: GoogleSignIn
-        product: GoogleSignIn
-      - package: RevenueCat
-        product: RevenueCat
       - package: Facebook
         product: FacebookCore
       - package: GoogleMobileAds
@@ -129,7 +114,6 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIUserInterfaceStyle: Dark
         # Config/App.xcconfig + Secrets.xcconfig'ten (bkz. AppConfig.swift).
-        CSRevenueCatAPIKey: $(REVENUECAT_API_KEY)
         CSPacksBaseURL: $(PACKS_API_BASE_URL)
         FacebookAppID: $(FACEBOOK_APP_ID)
         FacebookClientToken: $(FACEBOOK_CLIENT_TOKEN)
@@ -140,8 +124,6 @@ targets:
         GADApplicationIdentifier: $(GAD_APPLICATION_ID)
         GADDelayAppMeasurementInit: true
         CFBundleURLTypes:
-          - CFBundleURLName: google-sign-in
-            CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
           - CFBundleURLName: facebook
             CFBundleURLSchemes: [fb$(FACEBOOK_APP_ID)]
         LSApplicationQueriesSchemes: [fbapi, fb-messenger-share-api]
@@ -199,8 +181,6 @@ targets:
         # (developer.apple.com/contact/request/networking-multicast). Onay gelene kadar cihaz imzası için
         # bu satır kaldırılır ve PS5/TV adresi elle yazılır (docs/ios-plan.md).
         com.apple.developer.networking.multicast: true
-        # Apple ile giriş (Google girişi sunulduğu için App Store şartı).
-        com.apple.developer.applesignin: [Default]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.couchsubs.ios
@@ -229,9 +209,6 @@ schemes:
       targets:
         CouchSubs: all
         CouchSubsTests: [test]
-    run:
-      # Uygulama içi satın alma yerelde StoreKit yapılandırmasıyla denenir (iki ürün, TRY fiyatları).
-      storeKitConfiguration: CouchSubs.storekit
     test:
       targets:
         - CouchSubsTests

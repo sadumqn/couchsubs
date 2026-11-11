@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Profil, hesap bilgileri, abonelik ve ayarlar (tuvaldeki Telefon · Profil, Hesap, Abonelik, Ayarlar).
+// Profil (hesapsız: cihazlar, PSN hesabı, bildirim, havuz, kullanım verisi) ve ayarlar (tuvaldeki Telefon · Profil,
+// Ayarlar). Uygulama tamamen ücretsizdir ve hesap istemez.
 
 import CouchSubsCore
 import SwiftUI
@@ -8,35 +9,24 @@ import SwiftUI
 
 struct ProfileScreen: View {
     @Environment(PhoneModel.self) private var model
-    @Environment(AccountModel.self) private var account
+    @Environment(AppModel.self) private var app
     @Binding var path: [Route]
-    @State private var showSignIn = false
-    @State private var error: String?
+    @AppStorage("notifyPackUpdates") private var notifyPackUpdates = true
+    @AppStorage("usageData") private var usageData = true
 
     var body: some View {
+        @Bindable var model = model
         MobileScreen {
             BackHeader(title: "Profile")
         } content: {
-            Tile(emphasis: account.isSubscribed ? .pro : .none) {
+            Tile {
                 HStack(spacing: Mobile.Space.gap) {
-                    AvatarButton(initials: account.initials, pro: account.isSubscribed) {}
-                        .scaleEffect(56 / Mobile.Control.icon)
-                        .frame(width: 56, height: 56)
+                    LogoView(size: 56)
                     VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                        if let user = account.user {
-                            Text(verbatim: user.name?.isEmpty == false ? user.name! : user.email ?? "CouchSubs").font(Mobile.TypeScale.title).lineLimit(1)
-                            if let email = user.email { Text(verbatim: email).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary) }
-                        } else {
-                            Text("Not signed in").font(Mobile.TypeScale.title)
-                            Text("The free translation works without an account.").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                        }
+                        Text(verbatim: "CouchSubs").font(Mobile.TypeScale.title)
+                        Text("Free, no account needed").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                     }
                     Spacer(minLength: 0)
-                }
-                if account.isSubscribed {
-                    Pill(text: account.status?.period == .monthly ? String(localized: "Pro · Monthly") : String(localized: "Pro · Yearly"), kind: .pro)
-                } else if account.user == nil {
-                    Button("Sign in") { showSignIn = true }.buttonStyle(.mobilePrimary)
                 }
             }
             LazyVGrid(columns: WelcomeFlow.columns, spacing: Mobile.Space.gap) {
@@ -51,104 +41,13 @@ struct ProfileScreen: View {
                 .buttonStyle(.plain)
             }
             Tile(spacing: 0) {
-                if account.user != nil {
-                    NavigationLink(value: Route.account) { ListRow(symbol: "person.text.rectangle", title: "Account details") }
-                    RowDivider()
-                }
-                NavigationLink(value: Route.subscription) {
-                    ListRow(symbol: "bolt.fill", tint: .pro, title: "Subscription", detail: renewalText)
+                NavigationLink(value: Route.ps5) {
+                    ListRow(symbol: "gamecontroller", title: "PS5 and connection", detail: model.console?.name)
                 }
                 RowDivider()
-                if account.user != nil {
-                    NavigationLink(value: Route.account) { ListRow(symbol: "bell", title: "Notifications") }
-                    RowDivider()
-                }
-                Link(destination: AppConfig.privacyURL) { ListRow(symbol: "hand.raised", title: "Data and privacy") }
-                RowDivider()
-                Link(destination: URL(string: "https://github.com/yorulmazsinan/couchsubs/issues")!) { ListRow(symbol: "questionmark.circle", title: "Help") }
+                NavigationLink(value: Route.target) { ListRow(symbol: "tv", title: "Subtitle target", detail: targetName) }
             }
             .buttonStyle(.plain)
-            if let error { MobileNote(text: error) }
-            Text(verbatim: "CouchSubs \(AppIdentity.version) · Copyright © 2026 Sinan Yorulmaz · AGPL-3.0")
-                .font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary).frame(maxWidth: .infinity)
-        } bottom: {
-            if account.user != nil {
-                Button("Sign out") {
-                    Task {
-                        do { try await account.signOut() } catch { self.error = error.localizedDescription }
-                    }
-                }
-                .buttonStyle(.mobileDestructive)
-            }
-        }
-        .sheet(isPresented: $showSignIn) { SignUpScreen(startInSignIn: true, onSkip: nil) }
-        .onChange(of: account.user) { _, user in if user != nil { showSignIn = false } }
-        .task {
-            account.analytics.screen("profile")
-            await account.refreshStatus()
-        }
-    }
-
-    private var devicesText: String {
-        let ps5 = model.console == nil ? 0 : 1
-        let tv = model.hasTV ? 1 : 0
-        return String(format: String(localized: "%lld PS5 · %lld TV"), ps5, tv)
-    }
-
-    private var renewalText: String? {
-        account.status?.renewsAt.map { $0.formatted(.dateTime.day().month(.abbreviated).year()) }
-    }
-}
-
-// MARK: - Hesap bilgileri
-
-struct AccountDetailsScreen: View {
-    @Environment(PhoneModel.self) private var model
-    @Environment(AccountModel.self) private var account
-    @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var email = ""
-    @State private var newPassword = ""
-    @State private var changingPassword = false
-    @State private var message: String?
-    @State private var working = false
-    @State private var confirmDelete = false
-    @AppStorage("notifyPackUpdates") private var notifyPackUpdates = true
-    @AppStorage("usageData") private var usageData = true
-
-    var body: some View {
-        @Bindable var model = model
-        MobileScreen {
-            BackHeader(title: "Account details")
-        } content: {
-            Tile {
-                Text("Name").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                TextField("Name", text: $name).textFieldStyle(MobileFieldStyle()).textContentType(.name)
-                Text("E-mail").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary).padding(.top, Mobile.Space.hair)
-                HStack(spacing: Mobile.Space.inline) {
-                    TextField("E-mail", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                        .disabled(account.user?.usesPassword != true)
-                    if account.user?.emailVerified == true { Pill(text: String(localized: "verified"), kind: .ok, compact: true) }
-                }
-                .font(Mobile.TypeScale.headline.weight(.regular))
-                .padding(.horizontal, Mobile.Space.tile)
-                .frame(minHeight: Mobile.Control.field)
-                .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: Mobile.Radius.control))
-                .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.borderStrong))
-                if account.user?.usesPassword == true {
-                    HStack {
-                        Text("Password").font(Mobile.TypeScale.headline)
-                        Spacer()
-                        Button("Change") { changingPassword.toggle() }.font(Mobile.TypeScale.headline).foregroundStyle(Mobile.Palette.accent)
-                    }
-                    .frame(minHeight: Mobile.Control.row)
-                    if changingPassword {
-                        SecureField("New password", text: $newPassword).textFieldStyle(MobileFieldStyle()).textContentType(.newPassword)
-                    }
-                }
-            }
             Tile(spacing: 0) {
                 toggleRow("Notifications", "New packs and updates", isOn: $notifyPackUpdates)
                 RowDivider()
@@ -156,45 +55,30 @@ struct AccountDetailsScreen: View {
                 RowDivider()
                 toggleRow("Usage data", "Error and usage statistics", isOn: $usageData)
             }
-            Button { confirmDelete = true } label: {
-                Tile {
-                    HStack(spacing: Mobile.Space.gap) {
-                        TileIcon(symbol: "trash", tint: .danger)
-                        VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                            Text("Delete account").font(Mobile.TypeScale.headline).foregroundStyle(Mobile.Palette.danger)
-                            Text("The subscription is cancelled separately in the store").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                        }
-                    }
-                }
+            Tile(spacing: 0) {
+                Link(destination: AppConfig.privacyURL) { ListRow(symbol: "hand.raised", title: "Data and privacy") }
+                RowDivider()
+                Link(destination: AppConfig.helpURL) { ListRow(symbol: "questionmark.circle", title: "Help") }
+                RowDivider()
+                NavigationLink(value: Route.about) { ListRow(symbol: "info.circle", title: "About", detail: AppIdentity.version) }
             }
             .buttonStyle(.plain)
-            if let message { Text(verbatim: message).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary) }
+            Text(verbatim: "CouchSubs \(AppIdentity.version) · Copyright © 2026 Sinan Yorulmaz · AGPL-3.0")
+                .font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary).frame(maxWidth: .infinity)
         } bottom: {
-            Button { Task { await save() } } label: {
-                if working { ProgressView().tint(Mobile.Palette.onAccent) } else { Text("Save") }
-            }
-            .buttonStyle(.mobilePrimary)
-            .disabled(working)
+            EmptyView()
         }
-        .onAppear {
-            name = account.user?.name ?? ""
-            email = account.user?.email ?? ""
-        }
-        .onChange(of: usageData) { _, value in account.analytics.setCollection(value) }
-        .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete account", role: .destructive) {
-                Task {
-                    do {
-                        try await account.deleteAccount { model.wipeLocalData() }
-                        dismiss()
-                    } catch {
-                        message = error.localizedDescription
-                    }
-                }
-            }
-        } message: {
-            Text("Your account and everything CouchSubs keeps on this phone are deleted. An App Store subscription is cancelled separately in your Apple ID settings.")
-        }
+        .onChange(of: usageData) { _, value in app.analytics.setCollection(value) }
+        .onAppear { app.analytics.screen("profile") }
+    }
+
+    private var devicesText: String {
+        String(format: String(localized: "%lld PS5 · %lld TV"), model.console == nil ? 0 : 1, model.hasTV ? 1 : 0)
+    }
+
+    private var targetName: String {
+        if model.settings.output == .computer { return String(localized: "This phone") }
+        return model.hasTV ? model.tv?.name ?? "TV" : String(localized: "Not set up")
     }
 
     private func toggleRow(_ title: LocalizedStringKey, _ caption: LocalizedStringKey, isOn: Binding<Bool>) -> some View {
@@ -207,160 +91,17 @@ struct AccountDetailsScreen: View {
         .tint(Mobile.Palette.accent)
         .padding(.vertical, Mobile.Space.gap)
     }
-
-    private func save() async {
-        working = true
-        message = nil
-        do {
-            if name != (account.user?.name ?? "") { try await account.accounts.updateName(name) }
-            if email != (account.user?.email ?? ""), !email.isEmpty {
-                try await account.accounts.updateEmail(email)
-                message = String(localized: "We sent a confirmation link to the new e-mail.")
-            }
-            if changingPassword, !newPassword.isEmpty {
-                try await account.accounts.updatePassword(newPassword)
-                newPassword = ""
-                changingPassword = false
-            }
-            if message == nil { dismiss() }
-        } catch {
-            message = error.localizedDescription
-        }
-        working = false
-    }
-}
-
-// MARK: - Abonelik
-
-struct SubscriptionScreen: View {
-    @Environment(AccountModel.self) private var account
-    @State private var showPaywall = false
-    @State private var message: String?
-
-    var body: some View {
-        MobileScreen {
-            BackHeader(title: "Subscription")
-        } content: {
-            if account.isSubscribed {
-                Tile(emphasis: .pro) {
-                    HStack {
-                        Pill(text: String(localized: "Pro active"), kind: .pro)
-                        Spacer()
-                        Text(verbatim: account.status?.store ?? "App Store").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                    }
-                    Text(account.status?.period == .monthly ? "Monthly plan" : "Yearly plan").font(Mobile.TypeScale.title)
-                    if let price = planPrice { Text(verbatim: price).font(Mobile.TypeScale.body).foregroundStyle(Mobile.Palette.secondary) }
-                    if let date = account.status?.renewsAt {
-                        HStack {
-                            Text(account.status?.willRenew == false ? "Ends" : "Renewal").font(Mobile.TypeScale.body).foregroundStyle(Mobile.Palette.secondary)
-                            Spacer()
-                            Text(verbatim: date.formatted(.dateTime.day().month(.wide).year())).font(Mobile.TypeScale.headline)
-                        }
-                    }
-                }
-            } else {
-                Tile(emphasis: .pro) {
-                    Pill(text: String(localized: "Free"), kind: .neutral)
-                    Text("Ready translation is in Pro").font(Mobile.TypeScale.title)
-                    Text("The free translation, DeepL and translation with your own key are always free.")
-                        .font(Mobile.TypeScale.body).foregroundStyle(Mobile.Palette.secondary)
-                }
-            }
-            Tile(spacing: 0) {
-                check("Ready translation in 6 games")
-                RowDivider()
-                check("New packs at no extra cost")
-                RowDivider()
-                check("The same account on all your devices")
-            }
-            if account.isSubscribed, let other = otherPlan {
-                Button { Task { await switchPlan(other) } } label: {
-                    Tile {
-                        HStack(spacing: Mobile.Space.gap) {
-                            TileIcon(symbol: "arrow.left.arrow.right")
-                            VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                                Text(other.period == .monthly ? "Switch to the monthly plan" : "Switch to the yearly plan").font(Mobile.TypeScale.headline)
-                                Text(verbatim: other.period == .monthly
-                                     ? String(format: String(localized: "%@ per month"), other.price) + " · " + String(localized: "starts at the end of the year")
-                                     : String(format: String(localized: "%@ per year"), other.price))
-                                    .font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                            }
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            if let message { MobileNote(text: message) }
-        } bottom: {
-            Button("Restore purchases") {
-                Task {
-                    do {
-                        if try await !account.restore() { message = String(localized: "No active subscription was found for this Apple ID.") }
-                        await account.refreshStatus()
-                    } catch {
-                        message = error.localizedDescription
-                    }
-                }
-            }
-            .buttonStyle(.mobileGhost)
-            if account.isSubscribed {
-                Button("Manage in the App Store") { Task { await account.subscriptions.showManageSubscriptions() } }
-                    .buttonStyle(.mobileSecondary)
-                Text("Cancellation and refunds are done in App Store › Subscriptions.")
-                    .font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary).frame(maxWidth: .infinity)
-            } else {
-                Button("Go Pro") { showPaywall = true }.buttonStyle(.mobilePro)
-            }
-        }
-        .fullScreenCover(isPresented: $showPaywall) { PaywallScreen(source: "subscription") }
-        .task {
-            account.analytics.screen("subscription")
-            await account.refreshStatus()
-            await account.loadOffers()
-        }
-    }
-
-    private var planPrice: String? {
-        guard let status = account.status, let plan = account.offers.first(where: { $0.id == status.productId }) else { return nil }
-        return plan.period == .annual
-            ? String(format: String(localized: "%@ per year"), plan.price) + (plan.pricePerMonth.map { " · " + String(format: String(localized: "%@ per month"), $0) } ?? "")
-            : String(format: String(localized: "%@ per month"), plan.price)
-    }
-
-    private var otherPlan: PlanOffer? {
-        guard let status = account.status else { return nil }
-        return account.offers.first { $0.period != status.period }
-    }
-
-    private func check(_ text: LocalizedStringKey) -> some View {
-        HStack(spacing: Mobile.Space.gap) {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(Mobile.Palette.pro)
-            Text(text).font(Mobile.TypeScale.body)
-            Spacer()
-        }
-        .frame(minHeight: Mobile.Control.row)
-    }
-
-    private func switchPlan(_ plan: PlanOffer) async {
-        do {
-            try await account.purchase(plan)
-            await account.refreshStatus()
-        } catch {
-            message = error.localizedDescription
-        }
-    }
 }
 
 // MARK: - Ayarlar
 
 struct SettingsScreen: View {
     @Environment(PhoneModel.self) private var model
-    @Environment(AccountModel.self) private var account
+    @Environment(AppModel.self) private var app
     @Binding var path: [Route]
     @State private var key = ""
     @State private var checking = false
     @State private var keyResult: String?
-    @State private var showPaywall = false
 
     /// Segmentteki seçim: Ücretsiz, DeepL, Gemini, Diğer (OpenAI, Claude).
     private enum Choice: Hashable { case free, deepL, gemini, other }
@@ -439,19 +180,9 @@ struct SettingsScreen: View {
                 }
             }
             Tile(spacing: 0) {
-                Button {
-                    if account.packsUnlocked { path.append(.packs) } else { showPaywall = true }
-                } label: {
-                    ListRow(symbol: "bolt.fill", tint: .pro, title: "Game packs") {
-                        Pill(text: "Pro", kind: .pro, compact: true)
-                    }
-                }
-                if account.packsUnlocked {
-                    Toggle(isOn: $model.settings.gamePacks) {
-                        Text("Use the ready Turkish translations of game packs").font(Mobile.TypeScale.body)
-                    }
-                    .tint(Mobile.Palette.accent)
-                    .padding(.vertical, Mobile.Space.inline)
+                NavigationLink(value: Route.packs) {
+                    ListRow(symbol: "bolt.fill", tint: .pro, title: "Game packs",
+                            detail: model.settings.gamePacks ? String(localized: "On") : String(localized: "Off"))
                 }
                 RowDivider()
                 NavigationLink(value: Route.target) { ListRow(symbol: "tv", title: "Subtitle target", detail: targetName) }
@@ -466,8 +197,7 @@ struct SettingsScreen: View {
         } bottom: {
             Button("Send test subtitle") { model.sendTestSubtitle() }.buttonStyle(.mobileSecondary)
         }
-        .fullScreenCover(isPresented: $showPaywall) { PaywallScreen(source: "settings") }
-        .onAppear { account.analytics.screen("settings") }
+        .onAppear { app.analytics.screen("settings") }
     }
 
     private var choice: Choice {

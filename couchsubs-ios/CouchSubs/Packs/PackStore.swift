@@ -3,9 +3,8 @@
 import CryptoKit
 import Foundation
 
-/// Sunucudaki paket listesi (`GET /v1/packs`, herkese açık). Sözleşme: server/packs/README.md (Cloudflare Worker):
-/// paket `GET /v1/packs/:id` (Firebase ID jetonu + RevenueCat `packs` hakkı), 401 jeton yok/geçersiz,
-/// 403 `subscription_required`, 503 `entitlement_unavailable`, 404 paket yok.
+/// Sunucudaki paket listesi. Sözleşme: server/packs/README.md (Cloudflare Worker). İkisi de herkese açık, kimlik istemez:
+/// `GET /v1/packs` liste, `GET /v1/packs/:id` paket (`packs/<id>.json.gz`); 404 paket yok.
 struct PackManifest: Codable, Equatable, Sendable {
     struct Entry: Codable, Equatable, Sendable, Identifiable {
         let id: String
@@ -40,15 +39,11 @@ struct PackManifest: Codable, Equatable, Sendable {
     let packs: [Entry]
 }
 
-/// Abonelere oyun paketlerini sunucudan indirir: liste, eksik ya da değişmiş paketi indirme, SHA-256 denetimi, haftada bir
-/// yenileme. Paketler `files` klasörüne yazılır; `GamePackLibrary` oradan okur. İstekler Firebase kimlik jetonuyla gider,
-/// sunucu RevenueCat'te `packs` aboneliğine bakar.
+/// Oyun paketlerini sunucudan indirir (ücretsiz, herkese): liste, eksik ya da değişmiş paketi indirme, SHA-256 denetimi,
+/// haftada bir yenileme. Paketler `files` klasörüne yazılır; `GamePackLibrary` uygulamayla gelenlerden sonra oradan okur,
+/// aynı kimlikli indirilen paket uygulamayla gelenin yerine geçer.
 actor PackStore {
     enum Failure: Error, Equatable {
-        /// Giriş yapılmamış (jeton yok) ya da sunucu jetonu kabul etmedi (401).
-        case notSignedIn
-        /// Abonelik yok ya da bitmiş (403).
-        case notSubscribed
         case server(Int)
         /// İndirilen dosyanın SHA-256'sı listedekiyle tutmuyor (dosya yazılmaz).
         case badChecksum(String)
@@ -61,17 +56,14 @@ actor PackStore {
     private let baseURL: URL
     private let directory: URL
     private let session: URLSession
-    private let token: @Sendable () async throws -> String?
     private let now: @Sendable () -> Date
 
     /// `directory`: paket önbelleği (Application Support/CouchSubs/Packs); `files` alt klasörü paketleri, `manifest.json`
     /// son listeyi tutar.
-    init(baseURL: URL, directory: URL, session: URLSession = .shared,
-         token: @escaping @Sendable () async throws -> String?, now: @escaping @Sendable () -> Date = { Date() }) {
+    init(baseURL: URL, directory: URL, session: URLSession = .shared, now: @escaping @Sendable () -> Date = { Date() }) {
         self.baseURL = baseURL
         self.directory = directory
         self.session = session
-        self.token = token
         self.now = now
     }
 
@@ -107,7 +99,7 @@ actor PackStore {
     @discardableResult
     func refresh(force: Bool = false) async throws -> Int {
         guard force || needsRefresh() else { return 0 }
-        let manifest: PackManifest = try await fetch(path: "v1/packs", needsToken: false).decoded()
+        let manifest: PackManifest = try await fetch(path: "v1/packs").decoded()
         let manager = FileManager.default
         try manager.createDirectory(at: filesDirectory, withIntermediateDirectories: true)
         let previous = cachedManifest()
@@ -133,11 +125,6 @@ actor PackStore {
         return downloaded
     }
 
-    /// Hesap silinince ya da çıkış yapılınca indirilen paketler silinir.
-    func removeAll() {
-        try? FileManager.default.removeItem(at: directory)
-    }
-
     static func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
@@ -148,12 +135,8 @@ actor PackStore {
         return filesDirectory.appendingPathComponent("\(safe).json.gz")
     }
 
-    /// Liste herkese açık; paketin kendisi jeton ister (jetonsuz paket isteği gönderilmez).
-    private func fetch(path: String, needsToken: Bool = true) async throws -> Data {
-        let token = try await token()
-        if needsToken, token?.isEmpty != false { throw Failure.notSignedIn }
+    private func fetch(path: String) async throws -> Data {
         var request = URLRequest(url: baseURL.appending(path: path))
-        if let token, !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.timeoutInterval = 30
         let data: Data
         let response: URLResponse
@@ -165,8 +148,6 @@ actor PackStore {
         guard let http = response as? HTTPURLResponse else { throw Failure.badResponse }
         switch http.statusCode {
         case 200..<300: return data
-        case 401: throw Failure.notSignedIn
-        case 402, 403: throw Failure.notSubscribed
         default: throw Failure.server(http.statusCode)
         }
     }

@@ -9,7 +9,7 @@ import UIKit
 
 /// Ana ekrandan açılan sayfalar.
 enum Route: Hashable {
-    case settings, profile, account, subscription, packs, target, ps5, psn, about
+    case settings, profile, packs, target, ps5, psn, about
 }
 
 /// Turun vurguladığı öğeler.
@@ -32,7 +32,6 @@ extension View {
 
 /// Ana ekranın ortak üst satırı: logo, ayarlar, profil.
 struct HomeHeader: View {
-    @Environment(AccountModel.self) private var account
     @Binding var path: [Route]
 
     var body: some View {
@@ -40,7 +39,7 @@ struct HomeHeader: View {
             LogoView(size: 36)
             Spacer()
             IconButton(symbol: "gearshape", label: "Settings") { path.append(.settings) }
-            AvatarButton(initials: account.initials, pro: account.isSubscribed) { path.append(.profile) }
+            AvatarButton(initials: "") { path.append(.profile) }
                 .tourTarget(.profile)
         }
         .frame(height: Mobile.Control.icon)
@@ -51,9 +50,8 @@ struct HomeHeader: View {
 
 struct HomeScreen: View {
     @Environment(PhoneModel.self) private var model
-    @Environment(AccountModel.self) private var account
+    @Environment(AppModel.self) private var app
     @Binding var path: [Route]
-    @State private var showPaywall = false
     @State private var download: TranslationSession.Configuration?
 
     var body: some View {
@@ -99,49 +97,34 @@ struct HomeScreen: View {
             .disabled(model.isStarting || !model.canStart)
             .tourTarget(.start)
         }
-        .fullScreenCover(isPresented: $showPaywall) { PaywallScreen(source: "home") }
         .translationTask(download) { session in
             try? await session.prepareTranslation()
             await model.refreshTranslatorStatus()
         }
         .task {
-            account.analytics.screen("home")
+            app.analytics.screen("home")
             await model.refreshTranslatorStatus()
         }
     }
 
-    @ViewBuilder private var packsTile: some View {
-        if account.packsUnlocked {
-            Button { path.append(.packs) } label: {
-                Tile(emphasis: .pro) {
-                    HStack(spacing: Mobile.Space.gap) {
-                        TileIcon(symbol: "bolt.fill", tint: .pro)
-                        VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                            Text("Game packs").font(Mobile.TypeScale.headline)
-                            Text(PacksScreen.summary(model.installedPacks)).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                        }
-                        Spacer()
-                        Pill(text: "Pro", kind: .pro)
+    /// Oyun paketleri karosu (mor: paketlerin rengi); herkese ücretsiz.
+    private var packsTile: some View {
+        Button { path.append(.packs) } label: {
+            Tile(emphasis: .pro) {
+                HStack(spacing: Mobile.Space.gap) {
+                    TileIcon(symbol: "bolt.fill", tint: .pro)
+                    VStack(alignment: .leading, spacing: Mobile.Space.hair) {
+                        Text("Instant subtitles with ready packs").font(Mobile.TypeScale.headline)
+                        Text(model.installedPacks.isEmpty ? String(localized: "GTA V, RDR2, Mafia and 3 more games")
+                             : PacksScreen.summary(model.installedPacks))
+                            .font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                     }
+                    Spacer()
+                    Pill(text: String(localized: "Free"), kind: .pro)
                 }
             }
-            .buttonStyle(.plain)
-        } else {
-            Button { showPaywall = true } label: {
-                Tile(emphasis: .pro) {
-                    HStack(spacing: Mobile.Space.gap) {
-                        TileIcon(symbol: "bolt.fill", tint: .pro)
-                        VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                            Text("Instant subtitles with ready packs").font(Mobile.TypeScale.headline)
-                            Text("GTA V, RDR2, Mafia and 3 more games").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                        }
-                        Spacer()
-                        Pill(text: "Pro", kind: .pro)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
         }
+        .buttonStyle(.plain)
     }
 
     private var targetName: String {
@@ -368,7 +351,7 @@ struct CoachTour: View {
         ("Start translating here", "Tap after you open the game on the PS5. The phone takes the picture, reads the subtitles and translates them."),
         ("Where the subtitles appear", "On the TV over the game, or on this phone. Tap to change it."),
         ("Ready packs", "In popular games the subtitles come from ready translations, without waiting."),
-        ("Profile and settings", "Your account, subscription, devices and translation settings are here."),
+        ("Profile and settings", "Your devices, PSN account and translation settings are here."),
     ]
 
     var body: some View {
