@@ -113,7 +113,7 @@ final class GamePackTests: XCTestCase {
         let ids = all.packs.map(\.id)
         let elapsed = Date().timeIntervalSince(start)
         print("paket yükleme: \(Int(elapsed * 1000)) ms, \(all.packs.reduce(0) { $0 + $1.entries }) satır")
-        XCTAssertEqual(ids, ["gta-v", "mafia-the-old-country", "red-dead-redemption-2"])
+        XCTAssertEqual(ids, ["assassins-creed-shadows", "call-of-duty-modern-warfare-2019", "death-stranding-2", "gta-v", "mafia-the-old-country", "red-dead-redemption-2"])
         XCTAssertTrue(all.packs.allSatisfy(\.builtIn))
         XCTAssertLessThan(elapsed, 10)
 

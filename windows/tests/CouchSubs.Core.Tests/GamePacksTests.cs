@@ -144,7 +144,7 @@ public class GamePackTests
         watch.Stop();
         var memory = GC.GetTotalMemory(true) - before;
         Console.WriteLine($"paket yükleme: {watch.ElapsedMilliseconds} ms, bellek: {memory / 1024} KB, {all.Packs.Sum(p => p.Entries)} satır");
-        Assert.Equal(["gta-v", "mafia-the-old-country", "red-dead-redemption-2"], ids);
+        Assert.Equal(["assassins-creed-shadows", "call-of-duty-modern-warfare-2019", "death-stranding-2", "gta-v", "mafia-the-old-country", "red-dead-redemption-2"], ids);
         Assert.All(all.Packs, pack => Assert.True(pack.BuiltIn));
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10));
         GC.KeepAlive(all);
