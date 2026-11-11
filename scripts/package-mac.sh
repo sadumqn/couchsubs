@@ -19,7 +19,8 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 ./scripts/package-tizen.sh
 # Android TV APK'sı verilirse (CI: tv-android iş akışının çıktısı) uygulamaya gömülür.
 [[ -n "$ANDROID_APK" ]] && ./scripts/bundle-android-apk.sh "$ANDROID_APK"
-[[ -x dist/tv-helper/couchsubs-tv-helper ]] || ./scripts/build-tv-helper.sh
+# Kaynağı değiştiyse (ya da damgasız eski bir derlemeyse) yeniden derlenir: dist'te kalan eski yardımcı pakete girmesin.
+./scripts/build-tv-helper.sh --if-changed
 [[ -x dist/tts/pocket-tts ]] || ./scripts/fetch-pocket-tts.sh mac
 
 BUILD="$PWD/build/mac"
