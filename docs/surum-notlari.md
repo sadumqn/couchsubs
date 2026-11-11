@@ -5,6 +5,8 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 **Bu sürümde yeni**
 
 - **Mac'te Samsung TV uygulaması kurulumu düzeltildi:** 'EphemeralKeySet' hatasıyla kurulum yarıda kalıyordu. Düzeltme beta.27'de yapılmıştı ama beta.27, beta.29 ve beta.30'un Mac paketlerine kurulum yardımcısının eski hâli girmişti; Samsung TV'ye bir kez kurduktan sonraki her kurulum ve güncelleme bu hatayla duruyordu. Mac paketi artık yardımcının güncel olduğunu denetlemeden çıkmıyor. Hatayı bulup bildiren: [Kadir Eker](https://github.com/kadireker).
+- **Mac'te "Çeviriyi durdur"a basınca ya da PS5 bağlantısı kapanırken çökme düzeltildi:** Remote Play oturumu kapanırken günlüğe yazıyordu ama günlük nesnesi daha önce bırakılmış oluyordu. Raporlayanlara teşekkürler (GitHub #21).
+- **TV uygulaması 0.9.14: Türkçe seslendirme açıkken oyun ekranı kararmıyor.** Dublajın çıkışı "TV" seçiliyken seslendirme başlayınca Samsung ve LG TV'de HDMI'deki oyun görüntüsü kararıyordu (altyazı ve çeviri çalışmaya devam ediyordu). TV'nin ses oynatıcısı HDMI görüntüsüyle aynı donanım yolunu kullanıyordu; seslendirme artık yalnız ses çıkışını kullanan Web Audio ile çalınıyor. Bunu desteklemeyen eski TV'lerde eski yola dönülüyor. Android TV'de değişiklik yok. Katkı: [Kadir Eker](https://github.com/kadireker). TV'deki uygulama kendiliğinden güncellenir.
 
 **beta.30'da gelenler:** Elden Ring + Shadow of the Erdtree paketi, Windows'ta sayı tuş takımı olmayan klavyeler için Ctrl+Shift+rakam kısayolları, Samsung TV ipuçları (Anynet+ ve güç tuşu), TV uygulaması 0.9.13 (dublaj kapatılınca oyunun sesi geri geliyor), yarım kalan TV kurulumunun bitmiş sayılmaması.
 
