@@ -19,8 +19,12 @@ public sealed class DesignTokens
 
     public sealed record FontToken(double Size, string Weight);
 
+    /// <summary>Parıltı: renk, saydamlık, bulanıklık yarıçapı ve dikey kayma (docs/TASARIM.md › Parıltı).</summary>
+    public sealed record GlowToken(string Color, double Opacity, double Radius, double Y);
+
     public required string Name { get; init; }
     public required Dictionary<string, ColorPair> Color { get; init; }
+    public required Dictionary<string, GlowToken> Glow { get; init; }
     public required Dictionary<string, FontToken> Font { get; init; }
     public required Dictionary<string, double> Space { get; init; }
     public required Dictionary<string, double> Radius { get; init; }
