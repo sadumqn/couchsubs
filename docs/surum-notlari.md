@@ -4,8 +4,12 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 
 **Bu sürümde yeni**
 
-- **Oyun paketleri artık çok daha fazla satırı yakalıyor:** Ekrandan okunurken harfleri bozulan satırlar ("båétards", "Uötil" gibi), oyunun parça parça gösterdiği uzun cümleler, bozuk okunan konuşmacı adları ("-GAETANO:") ve Türkçesi İngilizcesiyle aynı olan satırlar (isimler, İtalyanca sözler) de artık hazır çeviriden anında geliyor. Mafia'da oyuncuların paketten kaçan 965 gerçek satırının yarısından fazlası (%10 → %54) artık paketten bulunuyor; yanlış eşleşme 3.000 denemede 1.
-- **Paket çevirileri gözden geçirildi:** Altı paketin hepsi denetlendi, yaklaşık 2.600 satır düzeltildi. GTA V'te bazı görevlerde Türkçe satırların bir satır kayması ve eski çeviriden gelen yanlış eşleşmeler giderildi; yumuşatılmış küfürler aslına uygun hâle getirildi. RDR2'de anlamsız parçalar çıkarıldı, Death Stranding 2'de terimler (BT, Yönetici) ve AC Shadows'ta nadirlik adları tek düzene oturdu.
+- **Yeni görünüm:** Mac ve Windows uygulaması yeni, daha düzenli bir tasarıma geçti: ana ekran iki sütun (solda kontroller ve durum, sağda canlı altyazı), Ayarlar tek pencerede soldan bölümlü, kurulum adımları solda listeli. Özellikler aynı, yalnız görünüm değişti.
+- **Windows'ta ücretsiz çeviri bazı bilgisayarlarda hiç çalışmıyordu, düzeltildi:** Ücretsiz çeviri motorunun ihtiyaç duyduğu Microsoft Visual C++ dosyaları artık uygulamayla birlikte geliyor. Motor yine açılamazsa uygulama kapanmıyor; ana ekranda "Ayarlar › Çeviri'den Gemini (ücretsiz) ya da DeepL seçin" uyarısı çıkıyor. Hazır paketlerdeki ve önceden çevrilmiş satırlar her durumda çalışıyor.
+- **GTA V ve RDR2 paketleri baştan sona gözden geçirildi:** GTA V'te yaklaşık 21 bin, RDR2'de 5 bin satır düzeltildi (anlam hataları, başka cümleye kaymış çeviriler, yumuşatılmış küfürler, yazım). Hitap olarak kullanılan "nigga" artık bağlama göre "kanka", "lan" gibi çevriliyor.
+- **TV uygulaması 0.9.12:** TV başlatıcısında uygulama adı görünüyor, ekran yalnız görüntü oynarken açık kalıyor, uygulamadan çıkınca seslendirme duruyor ve panel TV'nin güvenli alanının içinde kalıyor. TV'deki uygulama kendiliğinden güncellenir.
+
+**beta.28'de gelenler:** oyun paketlerinin ekrandan bozuk okunan ve parça parça gösterilen satırları da yakalaması (Mafia'da kaçan satırların yarısından fazlası artık paketten), altı paketin kalite denetimi (yaklaşık 2.600 satır düzeltildi).
 
 **beta.27'de gelenler:** GTA V, Red Dead Redemption 2, Assassin's Creed Shadows, Death Stranding 2 ve Call of Duty: Modern Warfare (2019) paketleri; Android TV'de siyah ekran için katman modu (TV uygulaması 0.9.11); Windows'ta "Çeviriyi başlat"ta kapanma düzeltmesi; daha açık PS5 durumu; Samsung TV kurulumu düzeltmeleri (sebepli hata mesajları, eski TV uygulamasının kendiliğinden güncellenmesi).
 
