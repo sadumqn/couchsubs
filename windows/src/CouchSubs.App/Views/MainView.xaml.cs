@@ -71,6 +71,7 @@ public partial class MainView : UserControl
         // Altyazının gideceği bir yer yoksa (TV seçili ama bağlı değil) çeviri başlatılamaz.
         Toggle.IsEnabled = !controller.IsStarting && (running || controller.CanStart);
         ModelCard.Visibility = controller.ModelInstalled ? Visibility.Collapsed : Visibility.Visible;
+        EngineCard.Visibility = controller.TranslatorStatus == TranslatorStatus.EngineFailed ? Visibility.Visible : Visibility.Collapsed;
         // Çevrimiçi motor çeviremiyor; satırlar bu arada cihaz üstü modelle geliyor.
         var issue = running ? controller.OnlineIssue : null;
         OnlineCard.Visibility = issue is null ? Visibility.Collapsed : Visibility.Visible;

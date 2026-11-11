@@ -70,7 +70,19 @@ internal sealed class FakeTranslation : ITranslationModel
         Installed = true;
         progress.Report(1);
     }
-    public ITextTranslator Create(string source, string target) => new EchoTranslator();
+    /// <summary>Verilirse Create bunu fırlatır (ör. onnxruntime.dll yüklenemedi).</summary>
+    public Exception? CreateError { get; set; }
+    public ITextTranslator Create(string source, string target) => CreateError is { } error ? throw error : new EchoTranslator();
+
+    public bool EngineFailed { get; private set; }
+    public event Action? EngineFailure;
+
+    /// <summary>Motor arka planda (ısınırken) açılamadı.</summary>
+    public void Fail()
+    {
+        EngineFailed = true;
+        EngineFailure?.Invoke();
+    }
 
     private sealed class EchoTranslator : ITextTranslator
     {
@@ -587,6 +599,11 @@ public class AppControllerTests
     [InlineData("Subtitle text is sent to Google. With a free key, Google may use it to improve its products, and people at Google may read it. Only the game's subtitles are sent.")]
     [InlineData("The free key has a per-minute limit. When it is reached, that line is translated by the free translation.")]
     public void FreeGeminiStringsAreTranslated(string key) => Assert.NotEqual(key, Localizer.ForLanguage("tr")[key]);
+
+    [Theory]
+    [InlineData("The free translation engine could not start on this computer.", "Ücretsiz çeviri motoru bu bilgisayarda açılamadı.")]
+    [InlineData("Choose Gemini (free) or DeepL in Settings › Translation.", "Ayarlar › Çeviri'den Gemini (ücretsiz) ya da DeepL seçin.")]
+    public void EngineFailureStringsAreTranslated(string key, string turkish) => Assert.Equal(turkish, Localizer.ForLanguage("tr")[key]);
 }
 
 public class AppControllerRunTests
@@ -733,6 +750,44 @@ public class AppControllerRunTests
         Assert.False(controller.HasDeepLKey);
         Assert.False(controller.Settings.OnlineTranslation);
         Assert.Equal(TranslatorStatus.NeedsDownload, controller.TranslatorStatus);
+        controller.Dispose();
+    }
+
+    /// Ücretsiz motor açılamazsa (onnxruntime.dll yüklenemedi) çeviri yine başlar ve ana ekranda uyarı çıkar.
+    [Fact]
+    public async Task StartSurvivesFreeEngineThatCannotBeCreated()
+    {
+        var services = new FakeServices();
+        services.Translation.CreateError = new TypeInitializationException("Microsoft.ML.OnnxRuntime.NativeMethods",
+            new DllNotFoundException("Unable to load DLL 'onnxruntime'"));
+        var (controller, _, _) = Ready(services);
+
+        await controller.StartAsync();
+
+        Assert.True(controller.IsRunning);
+        Assert.Equal(TranslatorStatus.EngineFailed, controller.TranslatorStatus);
+        controller.Dispose();
+    }
+
+    /// Motor ısınırken açılamadı: uyarı hemen çıkar; çevrimiçi motor seçilince kalkar ve açılamayan motor yedek olmaz.
+    [Fact]
+    public async Task FreeEngineFailureShowsWarningUntilAnOnlineEngineIsChosen()
+    {
+        var services = new FakeServices();
+        var (controller, _, _) = Ready(services);
+        await controller.StartAsync();
+        Assert.Equal(TranslatorStatus.Ready, controller.TranslatorStatus);
+
+        services.Translation.Fail();
+        Assert.Equal(TranslatorStatus.EngineFailed, controller.TranslatorStatus);
+
+        await controller.SetDeepLKeyAsync("key:fx");
+        Assert.Equal(TranslatorStatus.Ready, controller.TranslatorStatus);
+        var (_, fallback) = Assert.Single(services.OnlineTranslators);
+        Assert.Null(fallback);
+
+        controller.RemoveDeepLKey();
+        Assert.Equal(TranslatorStatus.EngineFailed, controller.TranslatorStatus);
         controller.Dispose();
     }
 

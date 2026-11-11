@@ -100,7 +100,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         step = ready ? OnboardingStep.Done : OnboardingStep.Welcome;
         AttachServer();
         StartPacksAndPool();
+        services.Translation.EngineFailure += OnEngineFailure;
     }
+
+    /// <summary>Ücretsiz çeviri motoru açılamadı (arka planda, ısınma sırasında da olabilir): ana ekran uyarısı çıksın.</summary>
+    private void OnEngineFailure() => post(RefreshTranslatorStatus);
 
     /// <summary>Sunucunun TV sayısını, altyazı yerini ve bilgisayar ekranına giden olayları bağlar (sunucu yeniden kurulunca da).</summary>
     private void AttachServer()
@@ -1056,6 +1060,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        services.Translation.EngineFailure -= OnEngineFailure;
         Stop();
         server.Dispose();
         poolTimer?.Dispose();
@@ -1131,7 +1136,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private ITextTranslator MakeTranslator()
     {
         var local = MakeLocalTranslator();
-        var fallback = local is UnavailableTranslator ? null : local;
+        // Açılamayan ücretsiz motor yedek olamaz; çevrimiçi motor çeviremeyince satır yeniden denenir.
+        var fallback = local is UnavailableTranslator || services.Translation.EngineFailed ? null : local;
         var engine = settings.OnlineEngine;
         if (!OnlineTranslationActive || engine.StoreKey() is not { } storeKey || store.Load<string>(storeKey) is not { Length: > 0 } key)
             return local;
@@ -1149,7 +1155,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         var translation = services.Translation;
         var (source, target) = (settings.SourceLanguage, settings.TargetLanguage);
         if (!translation.IsSupported(source, target)) return new UnavailableTranslator(TranslatorStatus.Unsupported);
-        return translation.IsInstalled(source, target) ? translation.Create(source, target) : new UnavailableTranslator(TranslatorStatus.NeedsDownload);
+        if (!translation.IsInstalled(source, target)) return new UnavailableTranslator(TranslatorStatus.NeedsDownload);
+        if (translation.EngineFailed) return new UnavailableTranslator(TranslatorStatus.EngineFailed);
+        try
+        {
+            return translation.Create(source, target);
+        }
+        catch (Exception error)
+        {
+            // Çeviriyi başlatma, motor açılamadı diye yarıda kalmasın: oyun paketleri ve çevrimiçi motorlar çalışır,
+            // ana ekranda uyarı çıkar.
+            RemotePlayLog.Note($"Ücretsiz çeviri motoru açılamadı: {error.GetType().Name}: {error.Message}");
+            if (!OnlineTranslationActive) post(() => TranslatorStatus = TranslatorStatus.EngineFailed);
+            return new UnavailableTranslator(TranslatorStatus.EngineFailed);
+        }
     }
 
     /// <summary>Çevrimiçi çeviri yalnız İngilizce→Türkçe için ve seçili motorun anahtarı kayıtlıysa açılır.</summary>
@@ -1223,8 +1242,9 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         var translation = services.Translation;
         TranslatorStatus = OnlineTranslationActive ? TranslatorStatus.Ready
             : !translation.IsSupported(settings.SourceLanguage, settings.TargetLanguage) ? TranslatorStatus.Unsupported
-            : translation.IsInstalled(settings.SourceLanguage, settings.TargetLanguage) ? TranslatorStatus.Ready
-            : TranslatorStatus.NeedsDownload;
+            : !translation.IsInstalled(settings.SourceLanguage, settings.TargetLanguage) ? TranslatorStatus.NeedsDownload
+            : translation.EngineFailed ? TranslatorStatus.EngineFailed
+            : TranslatorStatus.Ready;
     }
 
     /// <summary>PS5'in adresi değişti: sonraki açılışlar yeni adresle başlasın.</summary>
