@@ -4,10 +4,15 @@ import Foundation
 import Security
 
 /// PS5 kaydı, PSN hesap kimliği ve TV anahtarı Anahtarlık'ta saklanır.
-enum SecureStore {
+public enum SecureStore {
+    /// Anahtarlık hizmet adı: Mac ve iPhone/iPad uygulamaları kendi kayıtlarını tutar.
+    #if os(macOS)
     private static let service = "com.couchsubs.mac"
+    #else
+    private static let service = "com.couchsubs.ios"
+    #endif
 
-    static func save<T: Encodable>(_ value: T, for key: String) {
+    public static func save<T: Encodable>(_ value: T, for key: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
         let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: key]
         SecItemDelete(query as CFDictionary)
@@ -16,7 +21,7 @@ enum SecureStore {
         SecItemAdd(item as CFDictionary, nil)
     }
 
-    static func load<T: Decodable>(_ type: T.Type, for key: String) -> T? {
+    public static func load<T: Decodable>(_ type: T.Type, for key: String) -> T? {
         let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: key,
                                       kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne]
         var result: CFTypeRef?
@@ -24,7 +29,7 @@ enum SecureStore {
         return try? JSONDecoder().decode(type, from: data)
     }
 
-    static func remove(_ key: String) {
+    public static func remove(_ key: String) {
         SecItemDelete([kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: key] as CFDictionary)
     }
 }

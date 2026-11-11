@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import CoreGraphics
-import CouchSubsCore
 import Foundation
 import Vision
 
-protocol TextReader: Sendable {
+public protocol TextReader: Sendable {
     func read(_ image: CGImage) throws -> String
     /// `deep` false ise boş bölgede büyütülmüş okuma denenmez (işlemciyi çok daha az yorar).
     func read(_ image: CGImage, deep: Bool) throws -> String
@@ -14,35 +13,39 @@ protocol TextReader: Sendable {
 }
 
 extension TextReader {
-    func read(_ image: CGImage, deep: Bool) throws -> String { try read(image) }
-    func readLines(_ image: CGImage, deep: Bool) throws -> Reading { Reading(text: try read(image, deep: deep)) }
+    public func read(_ image: CGImage, deep: Bool) throws -> String { try read(image) }
+    public func readLines(_ image: CGImage, deep: Bool) throws -> Reading { Reading(text: try read(image, deep: deep)) }
 }
 
 /// Apple Vision ile cihaz üstünde yazı tanıma. Satırlar yukarıdan aşağı sıralanır.
-struct VisionReader: TextReader {
-    var language = "en"
+public struct VisionReader: TextReader {
+    public var language = "en"
 
-    func read(_ image: CGImage) throws -> String {
+    public init(language: String = "en") {
+        self.language = language
+    }
+
+    public func read(_ image: CGImage) throws -> String {
         try readLines(image, deep: true).lines.map(\.text).joined(separator: " ")
     }
 
-    func read(_ image: CGImage, deep: Bool) throws -> String {
+    public func read(_ image: CGImage, deep: Bool) throws -> String {
         try readLines(image, deep: deep).lines.map(\.text).joined(separator: " ")
     }
 
-    func readLines(_ image: CGImage, deep: Bool) throws -> Reading {
+    public func readLines(_ image: CGImage, deep: Bool) throws -> Reading {
         deep ? try Self.firstLines(of: image, using: recognize) : try recognize(image)
     }
 
     /// Satırsız eski biçim (testler için): bulunan yazı tek metin olarak döner.
-    static func firstReading(of image: CGImage, using recognize: @escaping @Sendable (CGImage) throws -> String) throws -> String {
+    public static func firstReading(of image: CGImage, using recognize: @escaping @Sendable (CGImage) throws -> String) throws -> String {
         try firstLines(of: image) { Reading(text: try recognize($0)) }.text
     }
 
     /// Vision geniş bölgede "Go!" gibi kısa satırları sık sık hiç bulmaz. Bölgede yazı çıkmazsa
     /// ortadaki şerit (altyazılar ortalıdır) ve bölgenin tamamı büyütülerek aynı anda yeniden okunur;
     /// ikisi de yazı bulursa şeridinki seçilir. Aynı anda okumak, boş karede yeni satırı geç fark etmeyi önler.
-    static func firstLines(of image: CGImage, using recognize: @escaping @Sendable (CGImage) throws -> Reading) throws -> Reading {
+    public static func firstLines(of image: CGImage, using recognize: @escaping @Sendable (CGImage) throws -> Reading) throws -> Reading {
         let reading = try recognize(image)
         guard reading.lines.isEmpty else { return reading }
 

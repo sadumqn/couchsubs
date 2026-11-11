@@ -349,7 +349,9 @@ private final class Once: @unchecked Sendable {
     }
 }
 
-/// Komutları `Process` ile çalıştırır.
+#if os(macOS)
+/// Komutları `Process` ile çalıştırır (yalnız macOS: iOS'ta başka program çalıştırılamaz, LG kurulumu bu yüzden
+/// iPhone/iPad'de yapılamaz).
 public struct ProcessRunner: CommandRunning {
     public init() {}
 
@@ -369,3 +371,4 @@ public struct ProcessRunner: CommandRunning {
         }.value
     }
 }
+#endif

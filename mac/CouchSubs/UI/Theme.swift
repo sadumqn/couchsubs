@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import AppKit
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// design/tokens.json: renkler, yazı boyutları, boşluklar. Windows sürümü de aynı dosyayı kullanır;
 /// bir değeri değiştirmek için yalnız o dosya düzenlenir.
@@ -53,11 +57,20 @@ enum Theme {
 
     static func color(_ name: String) -> Color {
         guard let pair = tokens.color[name] else { fatalError("Bilinmeyen renk: \(name)") }
+        #if os(macOS)
         return Color(nsColor: NSColor(name: NSColor.Name(name)) { appearance in
             let hex = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? pair.dark : pair.light
             let (r, g, b) = DesignTokens.rgb(hex) ?? (0, 0, 0)
             return NSColor(srgbRed: r, green: g, blue: b, alpha: 1)
         })
+        #else
+        // iPhone/iPad uygulaması da aynı tokens.json'u kullanır (bkz. couchsubs-ios/project.yml).
+        return Color(uiColor: UIColor { traits in
+            let hex = traits.userInterfaceStyle == .dark ? pair.dark : pair.light
+            let (r, g, b) = DesignTokens.rgb(hex) ?? (0, 0, 0)
+            return UIColor(red: r, green: g, blue: b, alpha: 1)
+        })
+        #endif
     }
 
     static func font(_ name: String) -> Font {

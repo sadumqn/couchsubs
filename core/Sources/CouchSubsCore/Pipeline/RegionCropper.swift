@@ -3,15 +3,22 @@
 import CoreGraphics
 
 /// Görüntüde altyazının arandığı bölge, kenarlara oranla (0–1, üstten ve soldan).
-struct CropRegion: Codable, Equatable {
-    var top = 0.62
-    var bottom = 0.97
-    var left = 0.14
-    var right = 0.86
+public struct CropRegion: Codable, Equatable {
+    public var top = 0.62
+    public var bottom = 0.97
+    public var left = 0.14
+    public var right = 0.86
+
+    public init(top: Double = 0.62, bottom: Double = 0.97, left: Double = 0.14, right: Double = 0.86) {
+        self.top = top
+        self.bottom = bottom
+        self.left = left
+        self.right = right
+    }
 }
 
-enum RegionCropper {
-    static func crop(_ image: CGImage, to region: CropRegion) -> CGImage {
+public enum RegionCropper {
+    public static func crop(_ image: CGImage, to region: CropRegion) -> CGImage {
         let width = Double(image.width), height = Double(image.height)
         let rect = CGRect(x: width * region.left, y: height * region.top,
                           width: width * (region.right - region.left), height: height * (region.bottom - region.top))
@@ -19,7 +26,7 @@ enum RegionCropper {
     }
 
     /// Bölgenin küçültülmüş gri kopyası: iki kareyi yazı tanımaya gerek kalmadan karşılaştırmaya yeter.
-    static func signature(of image: CGImage) -> [UInt8] {
+    public static func signature(of image: CGImage) -> [UInt8] {
         let width = 64, height = 12
         var pixels = [UInt8](repeating: 0, count: width * height)
         pixels.withUnsafeMutableBytes { buffer in
