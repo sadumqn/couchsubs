@@ -786,8 +786,27 @@ public class AppControllerRunTests
         Assert.Equal("Turn on your PS5", AppController.StatusText(SessionState.Disconnected(DisconnectKind.ConsoleAsleep), true, text));
         Assert.Equal("Remote Play is in use on another device", AppController.StatusText(SessionState.Disconnected(DisconnectKind.InUse), true, text));
         Assert.Equal("The PS5 refused the connection. Set up the PS5 again.", AppController.StatusText(SessionState.Disconnected(DisconnectKind.Refused), true, text));
-        Assert.Equal("Reconnecting…", AppController.StatusText(SessionState.Disconnected(DisconnectKind.Network), true, text));
+        Assert.Equal("Can't reach the PS5. Reconnecting…", AppController.StatusText(SessionState.Disconnected(DisconnectKind.Network), true, text));
+        Assert.Equal("PS5 not found at 192.168.1.70. Make sure it is on and on the same network. Reconnecting…",
+            AppController.StatusText(SessionState.Disconnected(DisconnectKind.NotFound, "192.168.1.70"), true, text));
+        Assert.Equal("Reconnecting… (Session Request RP Version Mismatch)",
+            AppController.StatusText(SessionState.Disconnected(DisconnectKind.Other, "Session Request RP Version Mismatch"), true, text));
+        Assert.Equal("Reconnecting…", AppController.StatusText(SessionState.Disconnected(DisconnectKind.Other), true, text));
         Assert.Equal("Not connected", AppController.StatusText(SessionState.Disconnected(DisconnectKind.Stopped), false, text));
+    }
+
+    /// Eşleştirme başarılıyken çeviri başlamadan ana ekran "Bağlı değil" demez (kullanıcı PS5'i bağlanmamış sanıyordu).
+    [Fact]
+    public async Task PairedConsoleIsNotShownAsDisconnectedBeforeStart()
+    {
+        var services = new FakeServices();
+        var controller = AppControllerTests.Make(services);
+        Assert.Equal("Not connected", controller.Ps5StatusText);
+        await controller.CompletePsnLoginAsync(new Uri("https://x/?code=x"));
+        await controller.RegisterAsync("192.168.1.70", "12345678");
+        Assert.Equal("Paired with PS5-789. Connects when you start translating.", controller.Ps5StatusText);
+        Assert.Equal("PS5-789 ile eşleşti. Çeviriyi başlatınca bağlanır.",
+            AppController.StatusText(SessionState.Disconnected(DisconnectKind.Stopped), false, Localizer.ForLanguage("tr"), "PS5-789"));
     }
 
     [Fact]

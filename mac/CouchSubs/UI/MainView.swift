@@ -10,7 +10,7 @@ struct MainView: View {
     private var targetName: String { Locale.current.localizedString(forLanguageCode: model.settings.targetLanguage) ?? model.settings.targetLanguage }
 
     private var ps5Status: (String, Bool) {
-        (AppModel.statusText(model.sessionState, running: model.isRunning), model.sessionState == .streaming)
+        (model.ps5StatusText, model.sessionState == .streaming)
     }
 
 

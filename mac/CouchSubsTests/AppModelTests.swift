@@ -124,6 +124,7 @@ final class FakeServices: AppServices {
 final class FakeStream: StreamControlling {
     var onFrame: ((CGImage) -> Void)?
     var onState: ((SessionState) -> Void)?
+    var onConsoleMoved: ((RegisteredConsole) -> Void)?
     var started = false
     func start() { started = true }
     func stop() { started = false }
@@ -499,8 +500,40 @@ final class AppModelRunTests: XCTestCase {
         XCTAssertEqual(AppModel.statusText(.disconnected(.consoleAsleep), running: true), String(localized: "Turn on your PS5"))
         XCTAssertEqual(AppModel.statusText(.disconnected(.inUse), running: true), String(localized: "Remote Play is in use on another device"))
         XCTAssertEqual(AppModel.statusText(.disconnected(.refused), running: true), String(localized: "The PS5 refused the connection. Set up the PS5 again."))
-        XCTAssertEqual(AppModel.statusText(.disconnected(.network), running: true), String(localized: "Reconnecting…"))
+        XCTAssertEqual(AppModel.statusText(.disconnected(.network), running: true), String(localized: "Can't reach the PS5. Reconnecting…"))
+        XCTAssertTrue(AppModel.statusText(.disconnected(.notFound("192.168.1.70")), running: true).contains("192.168.1.70"))
+        XCTAssertTrue(AppModel.statusText(.disconnected(.other("Session Request RP Version Mismatch")), running: true)
+            .contains("Session Request RP Version Mismatch"))
+        XCTAssertEqual(AppModel.statusText(.disconnected(.other("")), running: true), String(localized: "Reconnecting…"))
         XCTAssertEqual(AppModel.statusText(.disconnected(.stopped), running: false), String(localized: "Not connected"))
+    }
+
+    /// Eşleştirme başarılıyken çeviri başlamadan ana ekran "Bağlı değil" demez (kullanıcı PS5'i bağlanmamış sanıyordu).
+    func testPairedConsoleIsNotShownAsDisconnectedBeforeStart() async throws {
+        let model = AppModel(services: FakeServices(), store: MemoryStore(), defaults: .isolated())
+        XCTAssertEqual(model.ps5StatusText, String(localized: "Not connected"))
+        model.accountId = Data(repeating: 1, count: 8)
+        try await model.register(host: "192.168.1.70", pin: "12345678")
+        XCTAssertEqual(model.ps5StatusText,
+                       String(format: String(localized: "Paired with %@. Connects when you start translating."), "PS5-789"))
+    }
+
+    /// PS5 yeni adreste bulununca adres kaydedilir; sonraki açılış yeni adresle başlar.
+    func testMovedConsoleIsSaved() async throws {
+        let services = FakeServices()
+        let store = MemoryStore()
+        let model = AppModel(services: services, store: store, defaults: .isolated())
+        model.accountId = Data(repeating: 1, count: 8)
+        try await model.register(host: "192.168.1.70", pin: "12345678")
+        model.settings.output = .computer
+        await model.start()
+        let moved = RegisteredConsole(host: "192.168.1.71", name: "PS5-789", registKey: Data(repeating: 0x31, count: 16),
+                                      morning: Data(repeating: 2, count: 16))
+        services.streams.first?.onConsoleMoved?(moved)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(model.console?.host, "192.168.1.71")
+        XCTAssertEqual(store.load(RegisteredConsole.self, for: StoreKey.console)?.host, "192.168.1.71")
+        model.stop()
     }
 }
 

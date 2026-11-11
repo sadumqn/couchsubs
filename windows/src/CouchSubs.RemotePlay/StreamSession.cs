@@ -187,6 +187,10 @@ public sealed class StreamSession : IStreamSession
 
         // PS5 uyuyorsa uyandır; uyanmayı kuyruğu bloklamadan, aralıklı kontrollerle bekle.
         var info = ConsoleDiscovery.Discover(console.Host, TimeSpan.FromSeconds(2)).FirstOrDefault() ?? Relocate();
+        searchAnswered = info is not null;
+        RemotePlayLog.Note(info is null
+            ? $"PS5 oturumu: {console.Host} aramaya yanıt vermedi, yine de bağlanılıyor"
+            : $"PS5 oturumu: {info.Name} {info.Host} {(info.IsAwake ? "uyanık" : "dinlenmede, uyandırılıyor")}");
         if (info is { IsAwake: false })
         {
             try { ConsoleDiscovery.Wake(console); }
@@ -196,6 +200,14 @@ public sealed class StreamSession : IStreamSession
         }
         OpenSession(current);
     }
+
+    /// <summary>Son aramada PS5 yanıt verdi mi (yalnız kuyrukta).</summary>
+    private bool searchAnswered = true;
+
+    /// <summary>Oturum ağ hatasıyla düştüyse ve PS5 aramaya da yanıt vermediyse neden "bulunamadı"dır (adresle).
+    /// Eskiden ikisi de yalnız "Yeniden bağlanılıyor…" idi.</summary>
+    internal static DisconnectReason Classify(DisconnectReason reason, bool searchAnswered, string host) =>
+        !searchAnswered && reason.Kind is DisconnectKind.Network or DisconnectKind.Other ? new DisconnectReason(DisconnectKind.NotFound, host) : reason;
 
     /// <summary>Kayıtlı adreste PS5 yoksa (modem adresini değiştirmiş olabilir) ağda arar; bulursa adresi günceller.</summary>
     private ConsoleInfo? Relocate()
@@ -231,6 +243,7 @@ public sealed class StreamSession : IStreamSession
         var started = SessionBox.Start(this, current, console, accountId, out var failure);
         if (started is null)
         {
+            RemotePlayLog.Note($"PS5 oturumu başlatılamadı ({console.Host}): {failure}");
             ScheduleReconnect(current, new DisconnectReason(DisconnectKind.Other, failure ?? "session could not be started"));
             return;
         }
@@ -284,6 +297,7 @@ public sealed class StreamSession : IStreamSession
 
     private void ScheduleReconnect(int current, DisconnectReason reason)
     {
+        reason = Classify(reason, searchAnswered, console.Host);
         Emit(new SessionState(SessionPhase.Disconnected, reason));
         if (!IsCurrent(current)) return;
         var delay = policy.NextDelay();
@@ -292,6 +306,9 @@ public sealed class StreamSession : IStreamSession
 
     private void Emit(SessionState state)
     {
+        // Ana ekrandaki durumun nedeni remoteplay.log'da da görünsün.
+        if (state.Phase != SessionPhase.Connecting)
+            RemotePlayLog.Note($"PS5 oturumu: {state.Phase}{(state.Reason is { } why ? $" {why.Kind} {why.Detail}" : "")}");
         try { StateChanged?.Invoke(state); }
         catch (Exception error) { RemotePlayLog.Write(0, $"StateChanged handler: {error}"); }
     }

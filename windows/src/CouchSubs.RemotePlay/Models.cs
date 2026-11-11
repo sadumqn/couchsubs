@@ -40,6 +40,8 @@ public enum DisconnectKind
     Network,
     /// <summary>İkinci kullanıcının PS5'te giriş şifresi var; Uzaktan Oynatma şifre istiyor.</summary>
     LoginPasscode,
+    /// <summary>Kayıtlı adreste PS5 aramaya yanıt vermedi ve oturum da açılamadı (ayrıntı: adres).</summary>
+    NotFound,
     Other,
 }
 

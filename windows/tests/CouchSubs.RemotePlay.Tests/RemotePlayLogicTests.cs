@@ -89,6 +89,22 @@ public class DisconnectReasonTests
     }
 }
 
+public class SessionReasonTests
+{
+    /// PS5 aramaya yanıt vermediyse ve oturum ağ hatasıyla düştüyse neden "bulunamadı"dır; yanıt verdiyse neden olduğu gibi kalır.
+    [Fact]
+    public void MissingConsoleIsReportedAsNotFound()
+    {
+        var network = new DisconnectReason(DisconnectKind.Network);
+        Assert.Equal(new DisconnectReason(DisconnectKind.NotFound, "192.168.1.70"), StreamSession.Classify(network, false, "192.168.1.70"));
+        Assert.Equal(new DisconnectReason(DisconnectKind.NotFound, "192.168.1.70"),
+                     StreamSession.Classify(new DisconnectReason(DisconnectKind.Other, "x"), false, "192.168.1.70"));
+        Assert.Equal(network, StreamSession.Classify(network, true, "192.168.1.70"));
+        var inUse = new DisconnectReason(DisconnectKind.InUse);
+        Assert.Equal(inUse, StreamSession.Classify(inUse, false, "192.168.1.70"));
+    }
+}
+
 public class RegistrationReasonTests
 {
     [Fact]
