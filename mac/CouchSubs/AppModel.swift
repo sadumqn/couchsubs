@@ -247,6 +247,8 @@ struct TVPairing: Equatable {
 protocol StreamControlling: AnyObject {
     var onFrame: ((CGImage) -> Void)? { get set }
     var onState: ((SessionState) -> Void)? { get set }
+    /// PS5 ağda yeni bir adreste bulundu; yeni adres kaydedilir.
+    var onConsoleMoved: ((RegisteredConsole) -> Void)? { get set }
     func start()
     func stop()
     func reconnectNow()
@@ -1058,8 +1060,10 @@ final class AppModel {
         makePipeline()
         if settings.dubbing.enabled, dubbingModelReady { makeDubber().prepare() }
 
+        RemotePlayLog.write("Çeviri başladı; PS5'e bağlanılıyor: \(console.name) \(console.host)")
         let session = services.makeStream(console: console, accountId: accountId)
         session.onState = { [weak self] state in Task { @MainActor in self?.sessionStateChanged(state) } }
+        session.onConsoleMoved = { [weak self] moved in Task { @MainActor in self?.consoleMoved(moved) } }
         session.onFrame = { [weak self] frame in Task { @MainActor in await self?.handle(frame) } }
         session.start()
         self.session = session
@@ -1389,21 +1393,47 @@ final class AppModel {
         clients > 0 ? .good : running ? .warning : .idle
     }
 
-    /// PS5 durumunun kullanıcıya gösterilecek metni.
-    static func statusText(_ state: SessionState, running: Bool) -> String {
+    /// Ana ekrandaki PS5 durumu (eşleşmiş PS5'in adıyla).
+    var ps5StatusText: String {
+        Self.statusText(sessionState, running: isRunning, pairedName: console.map { $0.name.isEmpty ? "PS5" : $0.name })
+    }
+
+    /// PS5 durumunun kullanıcıya gösterilecek metni. `pairedName`: eşleşmiş PS5'in adı; çeviri başlamamışken eşleşmiş
+    /// PS5 için "Bağlı değil" yerine "eşleşti, başlatınca bağlanır" denir (eskiden eşleştirme başarılı olsa da ana ekran
+    /// "Bağlı değil" diyordu).
+    static func statusText(_ state: SessionState, running: Bool, pairedName: String? = nil) -> String {
         switch state {
         case .streaming: return String(localized: "Connected")
         case .connecting: return String(localized: "Connecting…")
         case .disconnected(let reason):
-            guard running else { return String(localized: "Not connected") }
-            switch reason {
-            case .consoleAsleep: return String(localized: "Turn on your PS5")
-            case .inUse: return String(localized: "Remote Play is in use on another device")
-            case .refused: return String(localized: "The PS5 refused the connection. Set up the PS5 again.")
-            case .loginPasscode: return String(localized: "The second user has a login passcode on the PS5. Turn it off in Settings › Users and Accounts.")
-            default: return String(localized: "Reconnecting…")
+            guard running else {
+                guard let pairedName else { return String(localized: "Not connected") }
+                return String(format: String(localized: "Paired with %@. Connects when you start translating."), pairedName)
             }
+            return disconnectText(reason)
         }
+    }
+
+    private static func disconnectText(_ reason: DisconnectReason) -> String {
+        switch reason {
+        case .consoleAsleep: return String(localized: "Turn on your PS5")
+        case .inUse: return String(localized: "Remote Play is in use on another device")
+        case .refused: return String(localized: "The PS5 refused the connection. Set up the PS5 again.")
+        case .loginPasscode: return String(localized: "The second user has a login passcode on the PS5. Turn it off in Settings › Users and Accounts.")
+        // Eskiden ağ hatası, bulunamayan PS5 ve diğer nedenler hep yalnız "Yeniden bağlanılıyor…" idi.
+        case .notFound(let host):
+            return String(format: String(localized: "PS5 not found at %@. Make sure it is on and on the same network. Reconnecting…"), host)
+        case .network: return String(localized: "Can't reach the PS5. Reconnecting…")
+        case .other(let detail) where !detail.isEmpty: return String(format: String(localized: "Reconnecting… (%@)"), detail)
+        case .other, .stopped: return String(localized: "Reconnecting…")
+        }
+    }
+
+    /// PS5'in adresi değişti: sonraki açılışlar yeni adresle başlasın.
+    private func consoleMoved(_ moved: RegisteredConsole) {
+        guard console != nil else { return }
+        console = moved
+        store.save(moved, for: StoreKey.console)
     }
 
     private func handle(_ frame: CGImage) async {

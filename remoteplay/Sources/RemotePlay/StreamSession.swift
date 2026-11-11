@@ -47,7 +47,19 @@ public enum DisconnectReason: Equatable, Sendable {
     case network
     /// İkinci kullanıcının PS5'te giriş şifresi var; Uzaktan Oynatma şifre istiyor.
     case loginPasscode
+    /// Kayıtlı adreste PS5 aramaya yanıt vermedi ve oturum da açılamadı (değer: adres).
+    case notFound(String)
     case other(String)
+
+    /// Oturum ağ hatasıyla düştüyse ve PS5 aramaya da yanıt vermediyse neden "bulunamadı"dır (eskiden yalnız
+    /// "Yeniden bağlanılıyor…" görünüyordu).
+    static func classify(_ reason: DisconnectReason, searchAnswered: Bool, host: String) -> DisconnectReason {
+        guard !searchAnswered else { return reason }
+        switch reason {
+        case .network, .other: return .notFound(host)
+        default: return reason
+        }
+    }
 
     init(quit: ChiakiQuitReason) {
         switch quit {
@@ -111,8 +123,15 @@ private final class ChiakiSessionBox {
 public final class StreamSession: @unchecked Sendable {
     public var onFrame: ((CGImage) -> Void)?
     public var onState: ((SessionState) -> Void)?
+    /// PS5 ağda yeni bir adreste bulununca (oturum kuyruğunda) çağrılır; yeni adres kaydedilmelidir.
+    public var onConsoleMoved: ((RegisteredConsole) -> Void)?
 
-    private let console: RegisteredConsole
+    /// Yalnız `queue` üzerinde değişir (PS5'in adresi değişirse; Windows'taki gibi).
+    private var console: RegisteredConsole
+    /// Son aramada PS5 yanıt verdi mi (yalnız `queue`).
+    private var searchAnswered = true
+    /// Tüm ağı taramak pahalı; PS5 kapalıyken her yeniden denemede yapılmaz.
+    private var nextRelocate = Date.distantPast
     private let accountId: Data
     private let queue = DispatchQueue(label: "couchsubs.stream-session")
     private let decodeQueue = DispatchQueue(label: "couchsubs.decode")
@@ -194,11 +213,38 @@ public final class StreamSession: @unchecked Sendable {
         emit(.connecting)
 
         // PS5 uyuyorsa uyandır; uyanmayı kuyruğu bloklamadan, aralıklı kontrollerle bekle.
-        if let info = Console.blockingDiscover(timeout: 2, host: console.host).first, !info.isAwake {
-            try? Console.wake(console)
+        let info = Console.blockingDiscover(timeout: 2, host: console.host).first ?? relocate()
+        searchAnswered = info != nil
+        if let info {
+            RemotePlayLog.write("PS5 oturumu: \(info.name) \(info.host) \(info.isAwake ? "uyanık" : "dinlenmede, uyandırılıyor")")
+        } else {
+            RemotePlayLog.write("PS5 oturumu: \(console.host) aramaya yanıt vermedi, yine de bağlanılıyor")
+        }
+        if let info, !info.isAwake {
+            do { try Console.wake(console) } catch { RemotePlayLog.write("PS5 uyandırılamadı: \(error)") }
             return waitForWake(current, deadline: Date().addingTimeInterval(20))
         }
         openSession(current)
+    }
+
+    /// Kayıtlı adreste PS5 yoksa (modem adresini değiştirmiş olabilir) ağda arar; bulursa adresi günceller.
+    /// Eskiden yalnız Windows'ta vardı; Mac'te adres değişince bağlantı hiç kurulamıyordu.
+    private func relocate() -> ConsoleInfo? {
+        guard Date() >= nextRelocate else { return nil }
+        nextRelocate = Date().addingTimeInterval(30)
+        guard let moved = Self.pickMoved(Console.search(timeout: .seconds(3), host: nil), name: console.name),
+              moved.host != console.host else { return nil }
+        RemotePlayLog.write("PS5 yeni adreste: \(console.host) -> \(moved.host)")
+        console = console.withHost(moved.host)
+        onConsoleMoved?(console)
+        return moved
+    }
+
+    /// Taramada bulunanlar arasından kayıtlı PS5: tek PS5 varsa odur, birden çoksa adı tek eşleşen; emin değilse nil.
+    static func pickMoved(_ found: [ConsoleInfo], name: String) -> ConsoleInfo? {
+        if found.count == 1 { return found[0] }
+        let named = found.filter { $0.name == name }
+        return named.count == 1 ? named[0] : nil
     }
 
     private func waitForWake(_ current: Int, deadline: Date) {
@@ -306,7 +352,7 @@ public final class StreamSession: @unchecked Sendable {
     private func scheduleReconnect(_ current: Int, reason: DisconnectReason, initialized: Bool = true, box failed: ChiakiSessionBox? = nil) {
         // Başlatılamamış kutunun join edilecek iş parçacığı yok; yalnız belleği bırakılır.
         if let failed, !initialized { failed.markUnused() }
-        emit(.disconnected(reason))
+        emit(.disconnected(DisconnectReason.classify(reason, searchAnswered: searchAnswered, host: console.host)))
         guard isCurrent(current) else { return }
         let delay = policy.nextDelay()
         queue.asyncAfter(deadline: .now() + .seconds(delay)) { [weak self] in self?.connect(current) }
@@ -325,6 +371,8 @@ public final class StreamSession: @unchecked Sendable {
     }
 
     private func emit(_ state: SessionState) {
+        // Ana ekrandaki durumun nedeni remoteplay.log'da da görünsün.
+        if state != .connecting { RemotePlayLog.write("PS5 oturumu: \(state)") }
         onState?(state)
     }
 }

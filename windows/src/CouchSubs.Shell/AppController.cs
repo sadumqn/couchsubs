@@ -138,7 +138,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public bool IsRunning { get => isRunning; private set => Set(ref isRunning, value, [nameof(Ps5StatusText), nameof(Ps5Tone), nameof(TvTone)]); }
     public bool IsStarting { get => isStarting; private set => Set(ref isStarting, value); }
     public SessionState SessionState { get => sessionState; private set => Set(ref sessionState, value, [nameof(Ps5StatusText), nameof(Ps5Tone)]); }
-    public string Ps5StatusText => StatusText(sessionState, isRunning, text);
+    public string Ps5StatusText => StatusText(sessionState, isRunning, text, console is null ? null : string.IsNullOrEmpty(console.Name) ? "PS5" : console.Name);
     public StatusTone Ps5Tone => Ps5ToneFor(sessionState, isRunning);
     public int TvClients { get => tvClients; private set => Set(ref tvClients, value, [nameof(TvTone), nameof(TvStatusText)]); }
     public StatusTone TvTone => HasTv ? TvToneFor(tvClients, isRunning) : StatusTone.Idle;
@@ -286,7 +286,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         ClearFirewallPrompt();
         console = registered;
         store.Save(StoreKeys.Console, registered);
-        Changed(nameof(Console), nameof(CanAdvance));
+        Changed(nameof(Console), nameof(CanAdvance), nameof(Ps5StatusText));
     }
 
     /// <summary>Kullanıcıya gösterilen hata; destek bildirimleri teşhis edilebilsin diye PS5'in kodu da yazılır.</summary>
@@ -867,6 +867,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             MakePipeline();
             if (settings.Dubbing.Enabled && DubbingInstalled) MakeDubber()?.Prepare();
 
+            RemotePlayLog.Note($"Çeviri başladı; PS5'e bağlanılıyor: {console.Name} {console.Host}");
             var stream = services.MakeStream(console, accountId);
             stream.StateChanged += state => post(() => SessionStateChanged(state));
             stream.ConsoleMoved += moved => post(() => ConsoleMoved(moved));
@@ -990,22 +991,30 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         clients > 0 ? StatusTone.Good : running ? StatusTone.Warning : StatusTone.Idle;
 
     /// <summary>PS5 durumunun kullanıcıya gösterilecek metni.</summary>
-    public static string StatusText(SessionState state, bool running, Localizer text)
+    /// <param name="pairedName">Eşleşmiş PS5'in adı. Çeviri başlamamışken eşleşmiş PS5 için "Bağlı değil" yerine "eşleşti,
+    /// başlatınca bağlanır" denir: eskiden eşleştirme başarılı olsa da ana ekran "Bağlı değil" diyordu.</param>
+    public static string StatusText(SessionState state, bool running, Localizer text, string? pairedName = null)
     {
         switch (state.Phase)
         {
             case SessionPhase.Streaming: return text["Connected"];
             case SessionPhase.Connecting: return text["Connecting…"];
         }
-        if (!running) return text["Not connected"];
-        return text[state.Reason?.Kind switch
+        if (!running)
+            return pairedName is null ? text["Not connected"] : text.Format("Paired with %@. Connects when you start translating.", pairedName);
+        var detail = state.Reason?.Detail;
+        return state.Reason?.Kind switch
         {
-            DisconnectKind.ConsoleAsleep => "Turn on your PS5",
-            DisconnectKind.InUse => "Remote Play is in use on another device",
-            DisconnectKind.Refused => "The PS5 refused the connection. Set up the PS5 again.",
-            DisconnectKind.LoginPasscode => "The second user has a login passcode on the PS5. Turn it off in Settings › Users and Accounts.",
-            _ => "Reconnecting…",
-        }];
+            DisconnectKind.ConsoleAsleep => text["Turn on your PS5"],
+            DisconnectKind.InUse => text["Remote Play is in use on another device"],
+            DisconnectKind.Refused => text["The PS5 refused the connection. Set up the PS5 again."],
+            DisconnectKind.LoginPasscode => text["The second user has a login passcode on the PS5. Turn it off in Settings › Users and Accounts."],
+            // Eskiden ağ hatası, bulunamayan PS5 ve diğer nedenler hep yalnız "Yeniden bağlanılıyor…" idi.
+            DisconnectKind.NotFound => text.Format("PS5 not found at %@. Make sure it is on and on the same network. Reconnecting…", detail ?? "?"),
+            DisconnectKind.Network => text["Can't reach the PS5. Reconnecting…"],
+            DisconnectKind.Other when !string.IsNullOrEmpty(detail) => text.Format("Reconnecting… (%@)", detail),
+            _ => text["Reconnecting…"],
+        };
     }
 
     public void Dispose()
@@ -1187,7 +1196,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (console is null) return;
         console = moved;
         store.Save(StoreKeys.Console, moved);
-        Changed(nameof(Console));
+        Changed(nameof(Console), nameof(Ps5StatusText));
     }
 
     private void SessionStateChanged(SessionState state)

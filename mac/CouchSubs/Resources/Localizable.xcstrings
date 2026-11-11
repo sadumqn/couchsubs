@@ -5728,6 +5728,70 @@
           }
         }
       }
+    },
+    "Paired with %@. Connects when you start translating.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paired with %@. Connects when you start translating."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ile eşleşti. Çeviriyi başlatınca bağlanır."
+          }
+        }
+      }
+    },
+    "PS5 not found at %@. Make sure it is on and on the same network. Reconnecting…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 not found at %@. Make sure it is on and on the same network. Reconnecting…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 %@ adresinde bulunamadı. Açık ve aynı ağda olduğundan emin olun. Yeniden bağlanılıyor…"
+          }
+        }
+      }
+    },
+    "Can't reach the PS5. Reconnecting…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach the PS5. Reconnecting…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'e ulaşılamıyor. Yeniden bağlanılıyor…"
+          }
+        }
+      }
+    },
+    "Reconnecting… (%@)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnecting… (%@)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden bağlanılıyor… (%@)"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

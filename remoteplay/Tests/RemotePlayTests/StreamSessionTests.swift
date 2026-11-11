@@ -82,4 +82,22 @@ final class DisconnectReasonTests: XCTestCase {
         XCTAssertEqual(DisconnectReason(quit: CHIAKI_QUIT_REASON_SESSION_REQUEST_CONNECTION_REFUSED), .refused)
         XCTAssertEqual(DisconnectReason(quit: CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED), .network)
     }
+
+    /// PS5 aramaya yanıt vermediyse ve oturum ağ hatasıyla düştüyse neden "bulunamadı"dır; yanıt verdiyse olduğu gibi kalır.
+    func testMissingConsoleIsReportedAsNotFound() {
+        XCTAssertEqual(DisconnectReason.classify(.network, searchAnswered: false, host: "192.168.1.70"), .notFound("192.168.1.70"))
+        XCTAssertEqual(DisconnectReason.classify(.other("x"), searchAnswered: false, host: "192.168.1.70"), .notFound("192.168.1.70"))
+        XCTAssertEqual(DisconnectReason.classify(.network, searchAnswered: true, host: "192.168.1.70"), .network)
+        XCTAssertEqual(DisconnectReason.classify(.inUse, searchAnswered: false, host: "192.168.1.70"), .inUse)
+    }
+
+    /// Adresi değişen PS5 yalnız eminken seçilir (Windows'taki PickMoved).
+    func testMovedConsoleIsPickedOnlyWhenCertain() {
+        let a = ConsoleInfo(host: "192.168.1.20", name: "PS5-A", isAwake: true)
+        let b = ConsoleInfo(host: "192.168.1.21", name: "PS5-B", isAwake: true)
+        XCTAssertEqual(StreamSession.pickMoved([a], name: "other"), a)
+        XCTAssertEqual(StreamSession.pickMoved([a, b], name: "PS5-B"), b)
+        XCTAssertNil(StreamSession.pickMoved([a, b], name: "other"))
+        XCTAssertNil(StreamSession.pickMoved([], name: "PS5-A"))
+    }
 }
