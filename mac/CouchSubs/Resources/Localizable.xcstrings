@@ -6512,6 +6512,3510 @@
           }
         }
       }
+    },
+    "%@ per month": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ per month"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aylık %@"
+          }
+        }
+      }
+    },
+    "%@ per year": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ per year"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yıllık %@"
+          }
+        }
+      }
+    },
+    "Account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap"
+          }
+        }
+      }
+    },
+    "Accounts are not available yet in this version.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accounts are not available yet in this version."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sürümde hesaplar henüz açık değil."
+          }
+        }
+      }
+    },
+    "Active": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etkin"
+          }
+        }
+      }
+    },
+    "An account keeps your subscription and settings. The free translation works without one.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An account keeps your subscription and settings. The free translation works without one."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap aboneliğinizi ve ayarlarınızı saklar. Ücretsiz çeviri hesapsız da çalışır."
+          }
+        }
+      }
+    },
+    "Change e-mail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change e-mail"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-postayı değiştir"
+          }
+        }
+      }
+    },
+    "Change password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreyi değiştir"
+          }
+        }
+      }
+    },
+    "Check the e-mail address.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the e-mail address."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-posta adresini kontrol edin."
+          }
+        }
+      }
+    },
+    "Continue with Google": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue with Google"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google ile devam et"
+          }
+        }
+      }
+    },
+    "Continue without an account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue without an account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesapsız devam et"
+          }
+        }
+      }
+    },
+    "Create an account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create an account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap oluştur"
+          }
+        }
+      }
+    },
+    "Delete account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabı sil"
+          }
+        }
+      }
+    },
+    "Delete your account?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete your account?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabınız silinsin mi?"
+          }
+        }
+      }
+    },
+    "Devices": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devices"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cihazlar"
+          }
+        }
+      }
+    },
+    "E-mail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-mail"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-posta"
+          }
+        }
+      }
+    },
+    "For your security, sign in again and repeat this step.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For your security, sign in again and repeat this step."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenliğiniz için yeniden giriş yapıp bu adımı tekrarlayın."
+          }
+        }
+      }
+    },
+    "Forgot password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forgot password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifremi unuttum"
+          }
+        }
+      }
+    },
+    "Get started": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get started"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlayalım"
+          }
+        }
+      }
+    },
+    "Hand-checked Turkish translations of popular games, shown instantly instead of machine translation. New packs arrive automatically.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand-checked Turkish translations of popular games, shown instantly instead of machine translation. New packs arrive automatically."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popüler oyunların elle denetlenmiş Türkçe çevirileri; makine çevirisi yerine anında gösterilir. Yeni paketler kendiliğinden gelir."
+          }
+        }
+      }
+    },
+    "I have an account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I have an account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabım var"
+          }
+        }
+      }
+    },
+    "Manage subscription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage subscription"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aboneliği yönet"
+          }
+        }
+      }
+    },
+    "Monthly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monthly"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aylık"
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ad"
+          }
+        }
+      }
+    },
+    "New e-mail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New e-mail"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni e-posta"
+          }
+        }
+      }
+    },
+    "New game packs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New game packs"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni oyun paketleri"
+          }
+        }
+      }
+    },
+    "Next": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İleri"
+          }
+        }
+      }
+    },
+    "No account found with this e-mail.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No account found with this e-mail."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu e-postayla bir hesap bulunamadı."
+          }
+        }
+      }
+    },
+    "No active subscription was found for this Apple ID.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No active subscription was found for this Apple ID."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Apple Kimliği'nde etkin bir abonelik bulunamadı."
+          }
+        }
+      }
+    },
+    "No internet connection. Try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No internet connection. Try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İnternet bağlantısı yok. Yeniden deneyin."
+          }
+        }
+      }
+    },
+    "Not subscribed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not subscribed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abone değil"
+          }
+        }
+      }
+    },
+    "Notifications": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimler"
+          }
+        }
+      }
+    },
+    "Privacy policy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy policy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizlilik politikası"
+          }
+        }
+      }
+    },
+    "Profile": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil"
+          }
+        }
+      }
+    },
+    "Ready Turkish translations for popular games": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready Turkish translations for popular games"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popüler oyunlar için hazır Türkçe çeviriler"
+          }
+        }
+      }
+    },
+    "Ready Turkish translations of popular games come with a subscription.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready Turkish translations of popular games come with a subscription."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popüler oyunların hazır Türkçe çevirileri abonelikle gelir."
+          }
+        }
+      }
+    },
+    "Restore purchases": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore purchases"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satın alımları geri yükle"
+          }
+        }
+      }
+    },
+    "See the plans": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See the plans"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planları gör"
+          }
+        }
+      }
+    },
+    "Sign in to download the game packs.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to download the game packs."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oyun paketlerini indirmek için giriş yapın."
+          }
+        }
+      }
+    },
+    "Sign out": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıkış yap"
+          }
+        }
+      }
+    },
+    "Skip": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geç"
+          }
+        }
+      }
+    },
+    "Subscription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subscription"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abonelik"
+          }
+        }
+      }
+    },
+    "Subscriptions are coming soon.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subscriptions are coming soon."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abonelik yakında."
+          }
+        }
+      }
+    },
+    "Terms of use": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms of use"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanım koşulları"
+          }
+        }
+      }
+    },
+    "The e-mail or password is wrong.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The e-mail or password is wrong."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-posta ya da şifre yanlış."
+          }
+        }
+      }
+    },
+    "The game packs could not be downloaded. Try again later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The game packs could not be downloaded. Try again later."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oyun paketleri indirilemedi. Daha sonra yeniden deneyin."
+          }
+        }
+      }
+    },
+    "The password must be at least 6 characters.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password must be at least 6 characters."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifre en az 6 karakter olmalı."
+          }
+        }
+      }
+    },
+    "The prices could not be loaded. Check the internet connection and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The prices could not be loaded. Check the internet connection and try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fiyatlar yüklenemedi. İnternet bağlantısını kontrol edip yeniden deneyin."
+          }
+        }
+      }
+    },
+    "The subscription renews automatically until you cancel it in your App Store account settings, at least 24 hours before the end of the period. Translation with the free engine, DeepL or your own AI key stays free.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subscription renews automatically until you cancel it in your App Store account settings, at least 24 hours before the end of the period. Translation with the free engine, DeepL or your own AI key stays free."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abonelik, dönem bitmeden en az 24 saat önce App Store hesap ayarlarınızdan iptal edilmedikçe kendiliğinden yenilenir. Ücretsiz motor, DeepL ya da kendi yapay zekâ anahtarınızla çeviri ücretsiz kalır."
+          }
+        }
+      }
+    },
+    "This e-mail already has an account. Sign in instead.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This e-mail already has an account. Sign in instead."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu e-postanın zaten bir hesabı var. Giriş yapın."
+          }
+        }
+      }
+    },
+    "Update the packs now": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update the packs now"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paketleri şimdi güncelle"
+          }
+        }
+      }
+    },
+    "We sent a confirmation link to the new e-mail.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We sent a confirmation link to the new e-mail."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni e-postaya bir onay bağlantısı gönderdik."
+          }
+        }
+      }
+    },
+    "We sent a password reset link to your e-mail.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We sent a password reset link to your e-mail."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-postanıza şifre sıfırlama bağlantısı gönderdik."
+          }
+        }
+      }
+    },
+    "Yearly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yearly"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yıllık"
+          }
+        }
+      }
+    },
+    "Your account and everything CouchSubs keeps on this phone are deleted. An App Store subscription is cancelled separately in your Apple ID settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account and everything CouchSubs keeps on this phone are deleted. An App Store subscription is cancelled separately in your Apple ID settings."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabınız ve CouchSubs'ın bu telefonda tuttuğu her şey silinir. App Store aboneliği Apple Kimliği ayarlarınızdan ayrıca iptal edilir."
+          }
+        }
+      }
+    },
+    "Your subscription is active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your subscription is active."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aboneliğiniz etkin."
+          }
+        }
+      }
+    },
+    "Your subscription is not active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your subscription is not active."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aboneliğiniz etkin değil."
+          }
+        }
+      }
+    },
+    "Turkish subtitles for every PS5 game": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkish subtitles for every PS5 game"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her PS5 oyununa Türkçe altyazı"
+          }
+        }
+      }
+    },
+    "CouchSubs reads the English subtitles of your game and translates them into Turkish while you play.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs reads the English subtitles of your game and translates them into Turkish while you play."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs, siz oynarken oyunun İngilizce altyazısını okur ve Türkçeye çevirir."
+          }
+        }
+      }
+    },
+    "On your TV, over the game": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On your TV, over the game"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'de, oyunun üstünde"
+          }
+        }
+      }
+    },
+    "The translation appears on the TV with the CouchSubs TV app, or on this phone if you don't have one.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The translation appears on the TV with the CouchSubs TV app, or on this phone if you don't have one."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çeviri, CouchSubs TV uygulamasıyla TV'de görünür; TV'niz yoksa bu telefonda."
+          }
+        }
+      }
+    },
+    "Ready translations for popular games": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready translations for popular games"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popüler oyunlar için hazır çeviriler"
+          }
+        }
+      }
+    },
+    "With a subscription, hand-checked Turkish game packs are used instead of machine translation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With a subscription, hand-checked Turkish game packs are used instead of machine translation."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abonelikle makine çevirisi yerine elle denetlenmiş Türkçe oyun paketleri kullanılır."
+          }
+        }
+      }
+    },
+    "Press Start when you begin playing. CouchSubs connects to your PS5 as the second user.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press Start when you begin playing. CouchSubs connects to your PS5 as the second user."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynamaya başlarken Başlat'a basın. CouchSubs PS5'inize ikinci kullanıcı olarak bağlanır."
+          }
+        }
+      }
+    },
+    "Here you see whether the PS5 and the TV are connected.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Here you see whether the PS5 and the TV are connected."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'in ve TV'nin bağlı olup olmadığını burada görürsünüz."
+          }
+        }
+      }
+    },
+    "The latest translated subtitles appear here.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The latest translated subtitles appear here."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son çevrilen altyazılar burada görünür."
+          }
+        }
+      }
+    },
+    "In Settings you choose the translation engine, text size and colour.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Settings you choose the translation engine, text size and colour."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar'da çeviri motorunu, yazı boyutunu ve rengini seçersiniz."
+          }
+        }
+      }
+    },
+    "Password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifre"
+          }
+        }
+      }
+    },
+    "New password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni şifre"
+          }
+        }
+      }
+    },
+    "PSN account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PSN account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PSN hesabı"
+          }
+        }
+      }
+    },
+    "Ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır"
+          }
+        }
+      }
+    },
+    "Almost ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Almost ready"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neredeyse hazır"
+          }
+        }
+      }
+    },
+    "Open the game on the PS5, then start.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the game on the PS5, then start."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'te oyunu aç, sonra başlat."
+          }
+        }
+      }
+    },
+    "Finish the setup to start translating.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish the setup to start translating."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çeviriye başlamak için kurulumu bitir."
+          }
+        }
+      }
+    },
+    "Last session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last session"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son oturum"
+          }
+        }
+      }
+    },
+    "Instant subtitles with ready packs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instant subtitles with ready packs"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır paketlerle anında altyazı"
+          }
+        }
+      }
+    },
+    "GTA V, RDR2, Mafia and 3 more games": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GTA V, RDR2, Mafia and 3 more games"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GTA V, RDR2, Mafia ve 3 oyun daha"
+          }
+        }
+      }
+    },
+    "This phone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu telefon"
+          }
+        }
+      }
+    },
+    "Free": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretsiz"
+          }
+        }
+      }
+    },
+    "Translating · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translating · %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çeviri sürüyor · %@"
+          }
+        }
+      }
+    },
+    "Ready translation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready translation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır çeviri"
+          }
+        }
+      }
+    },
+    "Now": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi"
+          }
+        }
+      }
+    },
+    "ready translation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ready translation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hazır çeviri"
+          }
+        }
+      }
+    },
+    "ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ready"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hazır"
+          }
+        }
+      }
+    },
+    "From ready translation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From ready translation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır çeviriden"
+          }
+        }
+      }
+    },
+    "Screen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekran"
+          }
+        }
+      }
+    },
+    "Subtitle screen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitle screen"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazı ekranı"
+          }
+        }
+      }
+    },
+    "The screen stays on · brightness is lowered automatically": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The screen stays on · brightness is lowered automatically"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekran açık kalır · parlaklık otomatik kısılır"
+          }
+        }
+      }
+    },
+    "PS5 connected · ready translation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 connected · ready translation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 bağlı · hazır çeviri"
+          }
+        }
+      }
+    },
+    "PS5 connected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 connected"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 bağlı"
+          }
+        }
+      }
+    },
+    "Start translating here": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start translating here"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çeviriyi buradan başlat"
+          }
+        }
+      }
+    },
+    "Tap after you open the game on the PS5. The phone takes the picture, reads the subtitles and translates them.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap after you open the game on the PS5. The phone takes the picture, reads the subtitles and translates them."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'te oyunu açtıktan sonra dokun. Telefon görüntüyü alır, altyazıyı okuyup çevirir."
+          }
+        }
+      }
+    },
+    "Where the subtitles appear": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where the subtitles appear"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazı nerede görünsün"
+          }
+        }
+      }
+    },
+    "On the TV over the game, or on this phone. Tap to change it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the TV over the game, or on this phone. Tap to change it."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'de oyunun üstünde ya da bu telefonda. Değiştirmek için dokun."
+          }
+        }
+      }
+    },
+    "Ready packs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready packs"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır paketler"
+          }
+        }
+      }
+    },
+    "In popular games the subtitles come from ready translations, without waiting.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In popular games the subtitles come from ready translations, without waiting."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popüler oyunlarda altyazı hazır çeviriden, beklemeden gelir."
+          }
+        }
+      }
+    },
+    "Profile and settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile and settings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil ve ayarlar"
+          }
+        }
+      }
+    },
+    "Your account, subscription, devices and translation settings are here.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account, subscription, devices and translation settings are here."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabın, aboneliğin, cihazların ve çeviri ayarların burada."
+          }
+        }
+      }
+    },
+    "Let's start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's start"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlayalım"
+          }
+        }
+      }
+    },
+    "Are you listening to me?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Are you listening to me?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dinliyor musun beni?"
+          }
+        }
+      }
+    },
+    "Turkish subtitles for PS5 games": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkish subtitles for PS5 games"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 oyunlarına Türkçe altyazı"
+          }
+        }
+      }
+    },
+    "Your phone reads the English subtitles in the game, translates them and shows them on the TV or on its own screen. You keep playing without putting the controller down.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your phone reads the English subtitles in the game, translates them and shows them on the TV or on its own screen. You keep playing without putting the controller down."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefonun oyundaki İngilizce altyazıyı okur, çevirir ve TV'de ya da kendi ekranında gösterir. Sen kumandayı bırakmadan oynarsın."
+          }
+        }
+      }
+    },
+    "190 thousand lines ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "190 thousand lines ready"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "190 bin satır hazır"
+          }
+        }
+      }
+    },
+    "Instantly with ready packs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instantly with ready packs"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır paketlerle anında"
+          }
+        }
+      }
+    },
+    "The whole text of popular games is already translated. Subtitles come without waiting, even offline. In other games the free translation works.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The whole text of popular games is already translated. Subtitles come without waiting, even offline. In other games the free translation works."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popüler oyunların bütün metni önceden çevrildi. Altyazı beklemeden, internetsiz gelir. Diğer oyunlarda ücretsiz çeviri çalışır."
+          }
+        }
+      }
+    },
+    "Over the game": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Over the game"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oyunun üstünde"
+          }
+        }
+      }
+    },
+    "On the phone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the phone"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefonda"
+          }
+        }
+      }
+    },
+    "Next to the TV": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next to the TV"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'nin yanında"
+          }
+        }
+      }
+    },
+    "The same Wi-Fi is enough": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The same Wi-Fi is enough"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aynı Wi-Fi yeter"
+          }
+        }
+      }
+    },
+    "Keep the PS5, TV and phone on the same network": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep the PS5, TV and phone on the same network"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5, TV ve telefon aynı ağda olsun"
+          }
+        }
+      }
+    },
+    "On the screen you want": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the screen you want"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İstediğin ekranda"
+          }
+        }
+      }
+    },
+    "Show the subtitles on the TV over the game, or in large text on your phone. Setup takes a few minutes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the subtitles on the TV over the game, or in large text on your phone. Setup takes a few minutes."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazıyı TV'de oyunun üstünde ya da telefonunda büyük yazıyla göster. Kurulum birkaç dakika sürer."
+          }
+        }
+      }
+    },
+    "Your settings, devices and subscription stay with you on every phone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your settings, devices and subscription stay with you on every phone."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarların, cihazların ve aboneliğin her telefonda seninle olsun."
+          }
+        }
+      }
+    },
+    "Sign up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign up"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıt ol"
+          }
+        }
+      }
+    },
+    "or with e-mail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "or with e-mail"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ya da e-posta ile"
+          }
+        }
+      }
+    },
+    "At least 8 characters": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At least 8 characters"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En az 8 karakter"
+          }
+        }
+      }
+    },
+    "By continuing you accept the %@ and the %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By continuing you accept the %@ and the %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devam ederek %1$@ ve %2$@ metnini kabul edersin."
+          }
+        }
+      }
+    },
+    "Setup · Step 1/3": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup · Step 1/3"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurulum · Adım 1/3"
+          }
+        }
+      }
+    },
+    "Setup · Step 2/3": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup · Step 2/3"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurulum · Adım 2/3"
+          }
+        }
+      }
+    },
+    "Setup · Step 3/3": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup · Step 3/3"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurulum · Adım 3/3"
+          }
+        }
+      }
+    },
+    "Second PSN account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Second PSN account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İkinci PSN hesabı"
+          }
+        }
+      }
+    },
+    "The phone connects to the PS5 with Remote Play. Sign in with a free second PSN account, separate from the one you play with.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The phone connects to the PS5 with Remote Play. Sign in with a free second PSN account, separate from the one you play with."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefon PS5'e Remote Play ile bağlanır. Oyunu oynadığın hesaptan ayrı, ücretsiz ikinci bir PSN hesabıyla giriş yap."
+          }
+        }
+      }
+    },
+    "Free account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free account"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretsiz hesap"
+          }
+        }
+      }
+    },
+    "No PS Plus needed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No PS Plus needed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS Plus gerekmez"
+          }
+        }
+      }
+    },
+    "You play": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You play"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sen oynarsın"
+          }
+        }
+      }
+    },
+    "With your own account, on the TV": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With your own account, on the TV"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kendi hesabınla, TV'de"
+          }
+        }
+      }
+    },
+    "We don't keep your password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We don't keep your password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifren bizde kalmaz"
+          }
+        }
+      }
+    },
+    "You sign in on Sony's page": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You sign in on Sony's page"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giriş Sony'nin sayfasında yapılır"
+          }
+        }
+      }
+    },
+    "Why a second account?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Why a second account?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neden ikinci hesap?"
+          }
+        }
+      }
+    },
+    "Sign in with Sony": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with Sony"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sony ile giriş yap"
+          }
+        }
+      }
+    },
+    "Remote Play with your own account would take over your controller and stop your game. With a second, free account the PS5 lets the phone watch the picture while you keep playing on the TV. Create it on the PS5 (Add User) or at playstation.com.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Play with your own account would take over your controller and stop your game. With a second, free account the PS5 lets the phone watch the picture while you keep playing on the TV. Create it on the PS5 (Add User) or at playstation.com."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kendi hesabınla Uzaktan Oynatma kolunu devralır ve oyununu keser. Ücretsiz ikinci bir hesapla PS5, sen TV'de oynamaya devam ederken telefonun görüntüyü izlemesine izin verir. Hesabı PS5'te (Kullanıcı Ekle) ya da playstation.com'da açabilirsin."
+          }
+        }
+      }
+    },
+    "Pair the PS5": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pair the PS5"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'i eşle"
+          }
+        }
+      }
+    },
+    "On the PS5, with the second account, choose Settings › System › Remote Play › Pair Device and type the code on the screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the PS5, with the second account, choose Settings › System › Remote Play › Pair Device and type the code on the screen."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'te ikinci hesapla Ayarlar › Sistem › Uzaktan Oynatma › Cihazı Eşle'yi seç, ekrandaki kodu yaz."
+          }
+        }
+      }
+    },
+    "%@ found": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ found"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bulundu"
+          }
+        }
+      }
+    },
+    "%@ · same Wi-Fi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · same Wi-Fi"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · aynı Wi-Fi"
+          }
+        }
+      }
+    },
+    "Looking for the PS5…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looking for the PS5…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 aranıyor…"
+          }
+        }
+      }
+    },
+    "No PS5 found": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No PS5 found"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 bulunamadı"
+          }
+        }
+      }
+    },
+    "Turn on the PS5 and keep it on the same Wi-Fi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on the PS5 and keep it on the same Wi-Fi"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'i aç ve aynı Wi-Fi'da tut"
+          }
+        }
+      }
+    },
+    "Pairing code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pairing code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eşleme kodu"
+          }
+        }
+      }
+    },
+    "The code is valid for 5 minutes. If something goes wrong, the reason is shown here.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The code is valid for 5 minutes. If something goes wrong, the reason is shown here."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodun süresi 5 dakika. Hata olursa sebebi burada yazar."
+          }
+        }
+      }
+    },
+    "Can't find the PS5?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't find the PS5?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'i bulamadın mı?"
+          }
+        }
+      }
+    },
+    "Pair": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pair"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eşle"
+          }
+        }
+      }
+    },
+    "Make sure the PS5 is on (not in rest mode) and on the same Wi-Fi, and that CouchSubs is allowed in Settings › Privacy & Security › Local Network. You can also type the PS5's IP address (PS5: Settings › Network › Connection Status).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make sure the PS5 is on (not in rest mode) and on the same Wi-Fi, and that CouchSubs is allowed in Settings › Privacy & Security › Local Network. You can also type the PS5's IP address (PS5: Settings › Network › Connection Status)."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5'in açık (dinlenme modunda değil) ve aynı Wi-Fi'da olduğundan, CouchSubs'a Ayarlar › Gizlilik ve Güvenlik › Yerel Ağ'dan izin verildiğinden emin ol. PS5'in IP adresini de yazabilirsin (PS5: Ayarlar › Ağ › Bağlantı Durumu)."
+          }
+        }
+      }
+    },
+    "Subtitle target": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitle target"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazı hedefi"
+          }
+        }
+      }
+    },
+    "Where are the subtitles?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where are the subtitles?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyazı nerede?"
+          }
+        }
+      }
+    },
+    "You can change this later on the home screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can change this later on the home screen."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonra ana ekrandan değiştirebilirsin."
+          }
+        }
+      }
+    },
+    "On the TV, over the game": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the TV, over the game"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'de, oyunun üstünde"
+          }
+        }
+      }
+    },
+    "No TV found on the network.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No TV found on the network."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ağda TV bulunamadı."
+          }
+        }
+      }
+    },
+    "No TV, or the app is not installed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No TV, or the app is not installed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'm yok ya da kurulu değil"
+          }
+        }
+      }
+    },
+    "My TV is not listed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My TV is not listed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TV'm listede yok"
+          }
+        }
+      }
+    },
+    "Supported TVs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supported TVs"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desteklenen TV'ler"
+          }
+        }
+      }
+    },
+    "CouchSubs installed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs installed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs kurulu"
+          }
+        }
+      }
+    },
+    "no app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no app"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "uygulama yok"
+          }
+        }
+      }
+    },
+    "Install with a computer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install with a computer"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilgisayarla kur"
+          }
+        }
+      }
+    },
+    "CouchSubs works with LG (webOS 4+), Samsung (Tizen, 2019+) and Android TV / Google TV. Type the TV's IP address, or choose Android TV: its CouchSubs app finds this phone by itself.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs works with LG (webOS 4+), Samsung (Tizen, 2019+) and Android TV / Google TV. Type the TV's IP address, or choose Android TV: its CouchSubs app finds this phone by itself."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs; LG (webOS 4 ve üstü), Samsung (Tizen, 2019 ve sonrası) ve Android TV / Google TV ile çalışır. TV'nin IP adresini yaz ya da Android TV'yi seç: oradaki CouchSubs uygulaması bu telefonu kendisi bulur."
+          }
+        }
+      }
+    },
+    "The pack is chosen by itself when the game opens. Lines not in the pack are translated with the engine you chose.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pack is chosen by itself when the game opens. Lines not in the pack are translated with the engine you chose."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oyun açılınca paket kendiliğinden seçilir. Pakette olmayan satır seçtiğin motorla çevrilir."
+          }
+        }
+      }
+    },
+    "Downloading the packs…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading the packs…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paketler indiriliyor…"
+          }
+        }
+      }
+    },
+    "New games are coming": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New games are coming"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni oyunlar geliyor"
+          }
+        }
+      }
+    },
+    "New games come with Pro at no extra cost": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New games come with Pro at no extra cost"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro'da yeni oyunlar ek ücretsiz gelir"
+          }
+        }
+      }
+    },
+    "Ready translation is in Pro": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready translation is in Pro"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır çeviri Pro'da"
+          }
+        }
+      }
+    },
+    "offline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "offline"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "internetsiz"
+          }
+        }
+      }
+    },
+    "The free translation, DeepL and translation with your own key are always free.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The free translation, DeepL and translation with your own key are always free."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretsiz çeviri, DeepL ve kendi anahtarınla çeviri her zaman ücretsiz."
+          }
+        }
+      }
+    },
+    "399 TL per month, or 299 TL per month when you buy yearly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "399 TL per month, or 299 TL per month when you buy yearly"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "399 TL/ay ya da yıllık alımda aylık 299 TL"
+          }
+        }
+      }
+    },
+    "See Pro": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See Pro"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro'yu incele"
+          }
+        }
+      }
+    },
+    "%lld thousand lines": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld thousand lines"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld bin satır"
+          }
+        }
+      }
+    },
+    "%lld lines": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld lines"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld satır"
+          }
+        }
+      }
+    },
+    "%lld games": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld games"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld oyun"
+          }
+        }
+      }
+    },
+    "Without waiting, %@ in Turkish": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Without waiting, %@ in Turkish"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beklemeden, %@ Türkçe"
+          }
+        }
+      }
+    },
+    "instantly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "instantly"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "anında"
+          }
+        }
+      }
+    },
+    "With ready translation packs the subtitles come at the same time as the game.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With ready translation packs the subtitles come at the same time as the game."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır çeviri paketleriyle altyazı oyunla aynı anda gelir."
+          }
+        }
+      }
+    },
+    "6 games, 517 thousand lines": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "6 games, 517 thousand lines"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "6 oyun, 517 bin satır"
+          }
+        }
+      }
+    },
+    "Subtitles without delay": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitles without delay"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gecikmesiz altyazı"
+          }
+        }
+      }
+    },
+    "Translation without internet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translation without internet"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İnternetsiz çeviri"
+          }
+        }
+      }
+    },
+    "New games included": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New games included"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni oyunlar dahil"
+          }
+        }
+      }
+    },
+    "Go Pro": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go Pro"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro'ya geç"
+          }
+        }
+      }
+    },
+    "You can cancel any time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can cancel any time."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İstediğin zaman iptal edebilirsin."
+          }
+        }
+      }
+    },
+    "Terms": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koşullar"
+          }
+        }
+      }
+    },
+    "Privacy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizlilik"
+          }
+        }
+      }
+    },
+    "%lld%% saving": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% saving"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%%%lld tasarruf"
+          }
+        }
+      }
+    },
+    "Renews every month": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renews every month"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her ay yenilenir"
+          }
+        }
+      }
+    },
+    "Not signed in": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not signed in"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giriş yapılmadı"
+          }
+        }
+      }
+    },
+    "The free translation works without an account.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The free translation works without an account."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretsiz çeviri hesapsız çalışır."
+          }
+        }
+      }
+    },
+    "Pro · Monthly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro · Monthly"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro · Aylık"
+          }
+        }
+      }
+    },
+    "Pro · Yearly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro · Yearly"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro · Yıllık"
+          }
+        }
+      }
+    },
+    "Account details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account details"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap bilgileri"
+          }
+        }
+      }
+    },
+    "Data and privacy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data and privacy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veri ve gizlilik"
+          }
+        }
+      }
+    },
+    "Help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yardım"
+          }
+        }
+      }
+    },
+    "%lld PS5 · %lld TV": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld PS5 · %lld TV"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld PS5 · %2$lld TV"
+          }
+        }
+      }
+    },
+    "verified": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verified"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "doğrulandı"
+          }
+        }
+      }
+    },
+    "Change": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Değiştir"
+          }
+        }
+      }
+    },
+    "New packs and updates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New packs and updates"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni paket ve güncellemeler"
+          }
+        }
+      }
+    },
+    "Contribute to the shared pool": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contribute to the shared pool"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ortak havuza katkı"
+          }
+        }
+      }
+    },
+    "English lines that are read, anonymous": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English lines that are read, anonymous"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okunan İngilizce satırlar, anonim"
+          }
+        }
+      }
+    },
+    "Usage data": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage data"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanım verisi"
+          }
+        }
+      }
+    },
+    "Error and usage statistics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error and usage statistics"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hata ve kullanım istatistikleri"
+          }
+        }
+      }
+    },
+    "The subscription is cancelled separately in the store": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subscription is cancelled separately in the store"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abonelik mağazadan ayrıca iptal edilir"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydet"
+          }
+        }
+      }
+    },
+    "Pro active": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro active"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro aktif"
+          }
+        }
+      }
+    },
+    "Monthly plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monthly plan"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aylık plan"
+          }
+        }
+      }
+    },
+    "Yearly plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yearly plan"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yıllık plan"
+          }
+        }
+      }
+    },
+    "Ends": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ends"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitiş"
+          }
+        }
+      }
+    },
+    "Renewal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renewal"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yenileme"
+          }
+        }
+      }
+    },
+    "Ready translation in 6 games": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready translation in 6 games"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "6 oyunda hazır çeviri"
+          }
+        }
+      }
+    },
+    "New packs at no extra cost": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New packs at no extra cost"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni paketler ek ücretsiz"
+          }
+        }
+      }
+    },
+    "The same account on all your devices": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The same account on all your devices"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tüm cihazlarında aynı hesap"
+          }
+        }
+      }
+    },
+    "Switch to the monthly plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to the monthly plan"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aylık plana geç"
+          }
+        }
+      }
+    },
+    "Switch to the yearly plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to the yearly plan"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yıllık plana geç"
+          }
+        }
+      }
+    },
+    "starts at the end of the year": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "starts at the end of the year"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "yıl sonunda başlar"
+          }
+        }
+      }
+    },
+    "Manage in the App Store": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage in the App Store"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store'da yönet"
+          }
+        }
+      }
+    },
+    "Cancellation and refunds are done in App Store › Subscriptions.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancellation and refunds are done in App Store › Subscriptions."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İptal ve iade App Store › Abonelikler'den yapılır."
+          }
+        }
+      }
+    },
+    "Other": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer"
+          }
+        }
+      }
+    },
+    "%@ key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ key"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ anahtarı"
+          }
+        }
+      }
+    },
+    "saved": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "saved"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "kayıtlı"
+          }
+        }
+      }
+    },
+    "In games with a ready pack this engine only translates the missing lines.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In games with a ready pack this engine only translates the missing lines."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazır paketi olan oyunlarda bu motor yalnız eksik satırlar için çalışır."
+          }
+        }
+      }
+    },
+    "PS5 and connection": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 and connection"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 ve bağlantı"
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hakkında"
+          }
+        }
+      }
+    },
+    "CouchSubs is free and open source (AGPL-3.0). Remote Play uses chiaki-ng (AGPL-3.0).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs is free and open source (AGPL-3.0). Remote Play uses chiaki-ng (AGPL-3.0)."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs ücretsiz ve açık kaynaklıdır (AGPL-3.0). Remote Play için chiaki-ng (AGPL-3.0) kullanılır."
+          }
+        }
+      }
+    },
+    "Pro": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro"
+          }
+        }
+      }
+    },
+    "CouchSubs Pro": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs Pro"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CouchSubs Pro"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
