@@ -81,7 +81,7 @@ public class GamePackTests
     {
         Assert.Throws<InvalidDataException>(() => GamePack.Decode(Encoding.UTF8.GetBytes("not json"), "x"));
         Assert.Throws<InvalidDataException>(() => GamePack.Decode([0x1f, 0x8b, 8, 0, .. Enumerable.Repeat((byte)7, 30)], "x"));
-        Assert.Throws<InvalidDataException>(() => GamePack.Decode(Encoding.UTF8.GetBytes("{\"format\":2,\"entries\":{\"0123456789abcdef\":\"x\"}}"), "x"));
+        Assert.Throws<InvalidDataException>(() => GamePack.Decode(Encoding.UTF8.GetBytes("{\"format\":3,\"entries\":{\"0123456789abcdef\":\"x\"}}"), "x"));
         Assert.Throws<InvalidDataException>(() => GamePack.Decode(Encoding.UTF8.GetBytes("{\"bad\":\"x\"}"), "x"));
     }
 
@@ -184,6 +184,25 @@ public class GamePackTests
             Assert.False(string.IsNullOrEmpty(turkish), $"{id} {key}");
             Assert.DoesNotContain("~", turkish);
         }
+    }
+
+    /// <summary>Biçim 2: Mafia paketinde parçalar ve imzalar da var; hiç tam eşleşme olmadan bulanık arama yapılmaz.</summary>
+    [Fact]
+    public void VersionTwoPackHasSegmentsAndSignatures()
+    {
+        var (name, data) = EmbeddedOnly("mafia-the-old-country.json.gz").Single();
+        var pack = GamePack.Decode(data, name[..^".json.gz".Length]);
+        Assert.True(pack.Segments.Count > 10000, $"{pack.Segments.Count}");
+        Assert.True(pack.Fuzzy?.Count > 20000, $"{pack.Fuzzy?.Count}");
+        var library = new GamePackLibrary(() => EmbeddedOnly("mafia-the-old-country.json.gz"), null);
+        const string garbled = "All this will bébehind u soon: Uötil'then don't let any of these båétards getpyou, alrightiz:t";
+        Assert.Null(library.SearchScope);
+        Assert.Null(library.Nearest(garbled));
+        Assert.Equal("Che buono.", library.Find("Che buono."));
+        Assert.NotNull(library.Find("then clear the way for someone who does."));
+        Assert.NotNull(library.Find("You fucked up now, boy!"));
+        Assert.Equal("mafia-the-old-country", library.SearchScope);
+        Assert.Equal(library.Find("All this will be behind us soon. Until then don’t let any of these bastards get to you, alright?"), library.Nearest(garbled));
     }
 
     /// <summary>Assassin's Creed Shadows, Death Stranding 2 ve Modern Warfare (2019) paketleri de uygulamaya gömülüdür.</summary>

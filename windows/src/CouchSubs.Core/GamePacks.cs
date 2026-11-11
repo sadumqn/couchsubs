@@ -108,13 +108,21 @@ public static class PackKey
 
 /// <summary>
 /// Bir oyunun çeviri paketi. Dosya gzip'li JSON'dur: <c>{"format":1,"id":…,"title":…,"entries":{anahtar: Türkçe}}</c>;
-/// yalnız <c>{anahtar: Türkçe}</c> nesnesi de kabul edilir (adı dosya adından gelir).
+/// yalnız <c>{anahtar: Türkçe}</c> nesnesi de kabul edilir (adı dosya adından gelir). Biçim 2 ayrıca <c>segments</c>
+/// (oyunun ayrı gösterdiği parçalar, çok cümleli satırların cümleleri ve Türkçesi İngilizcesiyle aynı satırlar; aynı
+/// <c>{anahtar: Türkçe}</c> düzeni) ve <c>fuzzy</c> (OCR'ın bozduğu satırı bulmak için imzalar, bkz. <see cref="PackFuzzy"/>)
+/// taşır; İngilizce metin yine yoktur.
 /// </summary>
-public sealed class GamePack(string id, string title, IReadOnlyDictionary<ulong, string> entries)
+public sealed class GamePack(string id, string title, IReadOnlyDictionary<ulong, string> entries,
+    IReadOnlyDictionary<ulong, string>? segments = null, IReadOnlyList<ulong>? keys = null, PackFuzzyIndex? fuzzy = null)
 {
     public string Id { get; } = id;
     public string Title { get; } = title;
     public IReadOnlyDictionary<ulong, string> Entries { get; } = entries;
+    public IReadOnlyDictionary<ulong, string> Segments { get; } = segments ?? new Dictionary<ulong, string>();
+    /// <summary>Paketteki bütün anahtarlar (entries + segments), sayı sırasıyla: satırın hangi paketten geldiği buradan bulunur.</summary>
+    internal IReadOnlyList<ulong> Keys { get; } = keys ?? [.. entries.Keys.Concat(segments?.Keys ?? []).Distinct().Order()];
+    internal PackFuzzyIndex? Fuzzy { get; } = fuzzy;
 
     /// <param name="name">Dosya adı uzantısız ("mafia-the-old-country"); düz biçimde kimlik ve başlık olur.</param>
     /// <exception cref="InvalidDataException">Dosya paket değil ya da bozuk.</exception>
@@ -131,24 +139,39 @@ public sealed class GamePack(string id, string title, IReadOnlyDictionary<ulong,
             var id = name;
             var title = name;
             var raw = root;
+            JsonElement? rawSegments = null;
             if (root.TryGetProperty("entries", out var wrapped) && wrapped.ValueKind == JsonValueKind.Object)
             {
-                if (root.TryGetProperty("format", out var format) && format.ValueKind == JsonValueKind.Number && format.GetDouble() != 1)
+                if (root.TryGetProperty("format", out var format) && format.ValueKind == JsonValueKind.Number
+                    && format.GetDouble() is not (1 or 2))
                     throw new InvalidDataException("Desteklenmeyen paket biçimi");
                 raw = wrapped;
+                if (root.TryGetProperty("segments", out var segmentsJson) && segmentsJson.ValueKind == JsonValueKind.Object)
+                    rawSegments = segmentsJson;
                 if (root.TryGetProperty("id", out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } given) id = given;
                 title = root.TryGetProperty("title", out var named) && named.ValueKind == JsonValueKind.String && named.GetString() is { Length: > 0 } titled
                     ? titled : id;
             }
-            var entries = new Dictionary<ulong, string>();
-            foreach (var entry in raw.EnumerateObject())
+            // İmzaların sırası: dosyadaki bütün geçerli anahtarlar (Türkçesi boş kalanlar da), sayı sırasıyla.
+            var order = new HashSet<ulong>();
+            Dictionary<ulong, string> Read(JsonElement element)
             {
-                if (entry.Value.ValueKind != JsonValueKind.String || PackKey.Number(entry.Name.ToLowerInvariant()) is not { } number) continue;
-                var text = Cleaned(entry.Value.GetString() ?? "");
-                if (text.Length > 0) entries[number] = text;
+                var result = new Dictionary<ulong, string>();
+                foreach (var entry in element.EnumerateObject())
+                {
+                    if (entry.Value.ValueKind != JsonValueKind.String || PackKey.Number(entry.Name.ToLowerInvariant()) is not { } number) continue;
+                    order.Add(number);
+                    var text = Cleaned(entry.Value.GetString() ?? "");
+                    if (text.Length > 0) result[number] = text;
+                }
+                return result;
             }
+            var entries = Read(raw);
+            var segments = rawSegments is { } segmentsElement ? Read(segmentsElement) : [];
             if (entries.Count == 0) throw new InvalidDataException("Pakette satır yok");
-            return new GamePack(id, title, entries);
+            List<ulong> keys = [.. order.Order()];
+            var fuzzy = root.TryGetProperty("fuzzy", out var fuzzyJson) ? PackFuzzyIndex.Decode(fuzzyJson, keys) : null;
+            return new GamePack(id, title, entries, segments, keys, fuzzy);
         }
     }
 
@@ -197,6 +220,12 @@ public sealed class GamePackLibrary(Func<IEnumerable<(string Name, byte[] Data)>
     private readonly object gate = new();
     private bool loaded;
     private Dictionary<ulong, string> entries = [];
+    private IReadOnlyList<GamePack> loadedPacks = [];
+    /// <summary>
+    /// Son tam eşleşmenin geldiği paket: bulanık arama yalnız orada yapılır (oynanan oyun). Satır birden çok pakette
+    /// varsa kapsam o paketlerden biri değilse ilkine geçer; hiç tam eşleşme olmadıysa bulanık arama yapılmaz.
+    /// </summary>
+    private int? scope;
     private IReadOnlyList<Info> infos = [];
 
     /// <summary>Uygulamaya gömülü paketler (core/Sources/CouchSubsCore/Resources/packs, ad: "packs/x.json.gz").</summary>
@@ -243,16 +272,65 @@ public sealed class GamePackLibrary(Func<IEnumerable<(string Name, byte[] Data)>
         }
     }
 
-    /// <summary>Satırın tamamı için sözlükteki Türkçe (parçalara bölme yok; bkz. CouchSubs.Translation.PackLookup).</summary>
+    /// <summary>
+    /// Satırın tamamı için sözlükteki Türkçe (parçalara bölme yok; bkz. CouchSubs.Translation.PackLookup). Bulunursa
+    /// bulanık aramanın kapsamı satırın paketine geçer.
+    /// </summary>
     public string? Find(string text)
     {
         Dictionary<ulong, string> current;
+        IReadOnlyList<GamePack> packs;
         lock (gate)
         {
             LoadIfNeeded();
             current = entries;
+            packs = loadedPacks;
         }
-        return current.Count > 0 && PackKey.Key(text) is { } key && PackKey.Number(key) is { } number ? current.GetValueOrDefault(number) : null;
+        if (current.Count == 0 || PackKey.Key(text) is not { } key || PackKey.Number(key) is not { } number
+            || !current.TryGetValue(number, out var turkish)) return null;
+        var owners = new List<int>();
+        for (var index = 0; index < packs.Count; index++)
+            if (Contains(packs[index].Keys, number)) owners.Add(index);
+        if (owners.Count > 0)
+        {
+            lock (gate)
+                if (owners.Count == 1 || scope is not { } chosen || !owners.Contains(chosen)) scope = owners[0];
+        }
+        return turkish;
+    }
+
+    /// <summary>
+    /// OCR hatalarına dayanıklı arama: oynanan oyunun paketinde (son tam eşleşmenin paketi) satıra en çok benzeyen
+    /// satırın Türkçesi; benzerlik eşiği geçmezse ya da kapsam yoksa null.
+    /// </summary>
+    public string? Nearest(string text)
+    {
+        Dictionary<ulong, string> current;
+        PackFuzzyIndex? index;
+        lock (gate)
+        {
+            LoadIfNeeded();
+            current = entries;
+            index = scope is { } chosen && chosen < loadedPacks.Count ? loadedPacks[chosen].Fuzzy : null;
+        }
+        return index?.Nearest(text, key => current.GetValueOrDefault(key)) is { } found ? current.GetValueOrDefault(found) : null;
+    }
+
+    /// <summary>Bulanık aramanın yapılacağı paketin kimliği (son tam eşleşmenin paketi); yoksa null.</summary>
+    public string? SearchScope
+    {
+        get { lock (gate) return scope is { } chosen && chosen < infos.Count ? infos[chosen].Id : null; }
+    }
+
+    private static bool Contains(IReadOnlyList<ulong> sorted, ulong key)
+    {
+        int low = 0, high = sorted.Count;
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (sorted[middle] < key) low = middle + 1; else high = middle;
+        }
+        return low < sorted.Count && sorted[low] == key;
     }
 
     private void LoadIfNeeded()
@@ -282,10 +360,15 @@ public sealed class GamePackLibrary(Func<IEnumerable<(string Name, byte[] Data)>
                 Add(Path.GetFileName(file), data, false);
             }
         }
-        var merged = new Dictionary<ulong, string>(packs.Sum(p => p.Pack.Entries.Count));
+        // Önce bütün paketlerin parçaları, sonra tam satırlar: bir oyunun tam satırı başka oyunun parçasına yenilmez.
+        var merged = new Dictionary<ulong, string>(packs.Sum(p => p.Pack.Entries.Count + p.Pack.Segments.Count));
+        foreach (var (pack, _) in packs)
+            foreach (var (key, value) in pack.Segments) merged[key] = value;
         foreach (var (pack, _) in packs)
             foreach (var (key, value) in pack.Entries) merged[key] = value;
         entries = merged;
+        loadedPacks = [.. packs.Select(p => p.Pack)];
+        scope = null;
         infos = [.. packs.Select(p => new Info(p.Pack.Id, p.Pack.Title, p.Pack.Entries.Count, p.BuiltIn))];
     }
 

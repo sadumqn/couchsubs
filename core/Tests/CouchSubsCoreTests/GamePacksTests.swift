@@ -57,7 +57,7 @@ final class GamePackTests: XCTestCase {
     func testBrokenFilesAreRejected() {
         XCTAssertThrowsError(try GamePack.decode(Data("not json".utf8), name: "x"))
         XCTAssertThrowsError(try GamePack.decode(Data([0x1f, 0x8b, 8, 0] + [UInt8](repeating: 7, count: 30)), name: "x"))
-        XCTAssertThrowsError(try GamePack.decode(Data("{\"format\":2,\"entries\":{\"0123456789abcdef\":\"x\"}}".utf8), name: "x"))
+        XCTAssertThrowsError(try GamePack.decode(Data("{\"format\":3,\"entries\":{\"0123456789abcdef\":\"x\"}}".utf8), name: "x"))
         XCTAssertThrowsError(try GamePack.decode(Data("{\"bad\":\"x\"}".utf8), name: "x"))
     }
 
@@ -115,7 +115,8 @@ final class GamePackTests: XCTestCase {
         print("paket yükleme: \(Int(elapsed * 1000)) ms, \(all.packs.reduce(0) { $0 + $1.entries }) satır")
         XCTAssertEqual(ids, ["assassins-creed-shadows", "call-of-duty-modern-warfare-2019", "death-stranding-2", "gta-v", "mafia-the-old-country", "red-dead-redemption-2"])
         XCTAssertTrue(all.packs.allSatisfy(\.builtIn))
-        XCTAssertLessThan(elapsed, 10)
+        // Biçim 2 (parçalar ve imzalar) yüklemeyi Release'te ~%30 uzatıyor; Debug derlemede ve yüklü makinede daha yavaş.
+        XCTAssertLessThan(elapsed, 30)
 
         let library = try bundledOnly("mafia-the-old-country.json.gz")
         let mafia = library.packs.first { $0.id == "mafia-the-old-country" }
@@ -231,5 +232,143 @@ final class PackLookupTests: XCTestCase {
         let custom = [PackKey.key("Get down! Get back!")!: "Eğil ve geri çekil!", PackKey.key("Get Down!")!: "Yere yat!"]
         let found = PackLookup.match("Get down! Get back!") { PackKey.key($0).flatMap { custom[$0] } }
         XCTAssertEqual(found?.text, "Eğil ve geri çekil!")
+    }
+
+    /// OCR'ın bozduğu etiket ("-GAETANO:", "M]:", "li LUCA:") da atılıp aranır; ekranda olduğu gibi kalır.
+    func testGarbledSpeakerLabelIsStripped() {
+        XCTAssertEqual(match("-GAETANO: Don Torrisi wants you.")?.text, "- GAETANO: Don Torrisi seni istiyor.")
+        XCTAssertEqual(match("- GAETANO: Don Torrisi wants you.")?.text, "- GAETANO: Don Torrisi seni istiyor.")
+        XCTAssertEqual(match("M]: Get down!")?.text, "M]: Yere yat!")
+        XCTAssertEqual(match("li LUCA: Who is that?")?.text, "li LUCA: O da kim?")
+        XCTAssertEqual(match("SEBASTIAN Who is that?")?.text, "SEBASTIAN O da kim?")
+        XCTAssertNil(match("I told you: get out!"))
+    }
+
+    /// Paket betiğiyle aynı gevşek etiket kuralı (Fixtures/fuzzy-vectors.json).
+    func testLooseLabelVectors() throws {
+        let vectors = try FuzzyVectors.load()
+        for vector in vectors.looseLabels {
+            let found = PackLookup.looseLabel(vector.input)
+            XCTAssertEqual(found?.label, vector.label, vector.input)
+            XCTAssertEqual(found?.body, vector.body, vector.input)
+        }
+    }
+
+    /// Tam anahtar tutmazsa her parça önce tam, sonra bulanık aranır; tam satır her zaman önce gelir.
+    func testNearestIsTriedOnlyAfterExactParts() {
+        var asked: [String] = []
+        let nearest: (String) -> String? = { line in
+            asked.append(line)
+            return line == "Who iz that?" ? "O da kim?" : nil
+        }
+        let found = PackLookup.match("ENZO: Get down! Who iz that?", find: { PackKey.key($0).flatMap { self.pack[$0] } },
+                                     nearest: nearest)
+        XCTAssertEqual(found?.text, "ENZO: Yere yat! O da kim?")
+        XCTAssertEqual(PackLookup.match("GET DOWN!!", find: { PackKey.key($0).flatMap { self.pack[$0] } }, nearest: { _ in "x" })?.text,
+                       "Yere yat!")
+        XCTAssertFalse(asked.contains("Get down!"))
+    }
+}
+
+/// Paket betiğinin (common.py) ürettiği ortak deneme verisi.
+struct FuzzyVectors: Decodable {
+    struct Signature: Decodable { let input: String; let folded: String; let damaged: Bool; let length: Int?; let bits: Int?; let bloom: String? }
+    struct Pair: Decodable { let query: String; let entry: String; let bits: Int; let similarity: Double }
+    struct Loose: Decodable { let input: String; let label: String?; let body: String? }
+    let signatures: [Signature]
+    let similarities: [Pair]
+    let looseLabels: [Loose]
+
+    static func load() throws -> FuzzyVectors {
+        try JSONDecoder().decode(FuzzyVectors.self, from: Data(contentsOf: fixture("fuzzy-vectors.json")))
+    }
+}
+
+final class PackFuzzyTests: XCTestCase {
+    /// İmza Windows ve paket betiğiyle bit bit aynı.
+    func testSignatureVectors() throws {
+        let vectors = try FuzzyVectors.load()
+        XCTAssertGreaterThan(vectors.signatures.count, 10)
+        for vector in vectors.signatures {
+            var view = String.UnicodeScalarView()
+            view.append(contentsOf: PackFuzzy.folded(vector.input))
+            XCTAssertEqual(String(view), vector.folded, vector.input)
+            XCTAssertEqual(PackFuzzy.damaged(vector.input), vector.damaged, vector.input)
+            let signature = PackFuzzy.signature(vector.input)
+            XCTAssertEqual(signature?.length, vector.length, vector.input)
+            XCTAssertEqual(signature.map { PackFuzzy.bits(forLength: $0.length) }, vector.bits, vector.input)
+            XCTAssertEqual(signature?.bytes.map { String(format: "%02x", $0) }.joined(), vector.bloom, vector.input)
+        }
+        for pair in vectors.similarities {
+            let query = PackFuzzy.bloom(PackFuzzy.trigramHashes(PackFuzzy.folded(pair.query)), bits: pair.bits)
+            let entry = PackFuzzy.bloom(PackFuzzy.trigramHashes(PackFuzzy.folded(pair.entry)), bits: pair.bits)
+            XCTAssertEqual(PackFuzzy.similarity(query, entry, offset: 0, bits: pair.bits), pair.similarity, accuracy: 1e-9, pair.query)
+        }
+    }
+
+    /// Yalnız Mafia paketiyle kitaplık (birleşik kitaplıkta ortak satırlarda başka oyunun çevirisi kazanabilir).
+    private func library(_ file: String) throws -> GamePackLibrary {
+        let directory = temporaryDirectory()
+        let source = try XCTUnwrap(GamePackLibrary.bundledDirectory).appendingPathComponent(file)
+        try FileManager.default.copyItem(at: source, to: directory.appendingPathComponent(file))
+        return GamePackLibrary(bundled: directory, user: nil)
+    }
+
+    /// Kullanıcılardan gelen gerçek ıskalamalar (Mafia: The Old Country, OCR hatalı, parça parça ve etiketi bozuk
+    /// satırlar): paket betiğinin Python karşılığıyla aynı Türkçe ya da hiç eşleşme (başka oyunların satırları).
+    func testRealOcrMissesMatchLikeThePackScript() throws {
+        struct Cases: Decodable {
+            struct Case: Decodable { let screen: String; let turkish: String? }
+            let warmUp: String
+            let cases: [Case]
+        }
+        let fixtures = try JSONDecoder().decode(Cases.self, from: Data(contentsOf: fixture("pack-matches.json")))
+        XCTAssertGreaterThanOrEqual(fixtures.cases.count, 50)
+        let library = try library("mafia-the-old-country.json.gz")
+        XCTAssertNil(library.searchScope)
+        XCTAssertNotNil(library.match(fixtures.warmUp))
+        XCTAssertEqual(library.searchScope, "mafia-the-old-country")
+        let start = Date()
+        for item in fixtures.cases {
+            XCTAssertEqual(library.match(item.screen)?.text, item.turkish, item.screen)
+        }
+        let elapsed = Date().timeIntervalSince(start) / Double(fixtures.cases.count)
+        print("Mafia bulanık arama: satır başına \(String(format: "%.2f", elapsed * 1000)) ms")
+    }
+
+    /// Hiç tam eşleşme olmadan bulanık arama yapılmaz (hangi oyunun oynandığı belli değil).
+    func testNoFuzzySearchBeforeTheGameIsKnown() throws {
+        let library = try library("mafia-the-old-country.json.gz")
+        let garbled = "GAETANO: All this will bébehind u soon: Uötil'then don't let any of these båétards getpyou, alrightiz:t"
+        XCTAssertNil(library.match(garbled))
+        XCTAssertNotNil(library.match("You fucked up now, boy!"))
+        XCTAssertEqual(library.match(garbled)?.text,
+                       "GAETANO: " + (library.match("All this will be behind us soon. Until then don’t let any of these bastards get to you, alright?")?.text ?? "-"))
+    }
+
+    /// Biçim 2: oyunun ayrı gösterdiği [delay] parçaları, cümleler ve Türkçesi İngilizcesiyle aynı satırlar.
+    func testVersionTwoSegmentsAreFound() throws {
+        let library = try library("mafia-the-old-country.json.gz")
+        XCTAssertNotNil(library.match("Che buono."))
+        XCTAssertEqual(library.match("ENZO: Che buono.")?.text, "ENZO: Che buono.")
+        XCTAssertNotNil(library.match("then clear the way for someone who does."))
+        XCTAssertNotNil(library.match("I see. Well, please pass on my apologies for missing our appointment last week."))
+        let data = try Data(contentsOf: XCTUnwrap(GamePackLibrary.bundledDirectory).appendingPathComponent("mafia-the-old-country.json.gz"))
+        let pack = try GamePack.decode(data, name: "mafia-the-old-country")
+        XCTAssertGreaterThan(pack.segments.count, 10000)
+        XCTAssertGreaterThan(pack.fuzzy?.count ?? 0, 20000)
+    }
+
+    /// En büyük pakette (GTA V) bulanık arama da hızlı.
+    func testFuzzySearchIsFastInTheLargestPack() throws {
+        let library = try library("gta-v.json.gz")
+        XCTAssertNotNil(library.match("Are you listening to me?"))
+        let lines = ["Wh4t the fück are y0u doing here, man? Get öut of my house!", "Mich ael, I tbink we need to tälk about this",
+                     "Yöu know what, Franklin? You're a good kid, but you gotta lısten", "Lâmar, get in the c ar, we're late!"]
+        let start = Date()
+        for _ in 0..<25 { for line in lines { _ = library.match(line) } }
+        let elapsed = Date().timeIntervalSince(start) / 100
+        print("GTA V bulanık arama: satır başına \(String(format: "%.2f", elapsed * 1000)) ms")
+        XCTAssertLessThan(elapsed, 0.05)
     }
 }

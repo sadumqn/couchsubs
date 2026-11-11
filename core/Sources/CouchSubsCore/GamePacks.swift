@@ -71,43 +71,77 @@ public enum PackKey {
 
 /// Bir oyunun çeviri paketi. Dosya gzip'li JSON'dur: `{"format":1,"id":…,"title":…,"entries":{anahtar: Türkçe}}`;
 /// yalnız `{anahtar: Türkçe}` nesnesi de kabul edilir (adı dosya adından gelir).
+/// Biçim 2 ayrıca `segments` (oyunun ayrı gösterdiği parçalar, çok cümleli satırların cümleleri ve Türkçesi
+/// İngilizcesiyle aynı satırlar; aynı `{anahtar: Türkçe}` düzeni) ve `fuzzy` (OCR'ın bozduğu satırı bulmak için
+/// imzalar, bkz. `PackFuzzy`) taşır; İngilizce metin yine yoktur.
 public struct GamePack: Sendable {
     public let id: String
     public let title: String
     public let entries: [UInt64: String]
+    public let segments: [UInt64: String]
+    /// Paketteki bütün anahtarlar (entries + segments), sayı sırasıyla: satırın hangi paketten geldiği buradan bulunur.
+    let keys: [UInt64]
+    let fuzzy: PackFuzzyIndex?
 
     public enum LoadError: Error { case notJSON, unsupportedFormat, empty }
 
-    public init(id: String, title: String, entries: [UInt64: String]) {
+    public init(id: String, title: String, entries: [UInt64: String], segments: [UInt64: String] = [:]) {
+        self.init(id: id, title: title, entries: entries, segments: segments,
+                  keys: Set(entries.keys).union(segments.keys).sorted(), fuzzy: nil)
+    }
+
+    init(id: String, title: String, entries: [UInt64: String], segments: [UInt64: String], keys: [UInt64],
+         fuzzy: PackFuzzyIndex?) {
         self.id = id
         self.title = title
         self.entries = entries
+        self.segments = segments
+        self.keys = keys
+        self.fuzzy = fuzzy
     }
 
     /// `name`: dosya adı uzantısız ("mafia-the-old-country"); düz biçimde kimlik ve başlık olur.
     public static func decode(_ data: Data, name: String) throws -> GamePack {
         let json = try Gzip.isCompressed(data) ? Gzip.decompress(data) : data
-        guard let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any] else { throw LoadError.notJSON }
-        let raw: [String: Any]
+        // NSDictionary olarak kalır: yüz binlerce satırı Swift sözlüğüne köprülemek yüklemeyi yavaşlatıyor.
+        guard let object = try? JSONSerialization.jsonObject(with: json) as? NSDictionary else { throw LoadError.notJSON }
+        let raw: NSDictionary
+        var rawSegments = NSDictionary()
         var id = name
         var title = name
-        if let wrapped = object["entries"] as? [String: Any] {
-            if let format = object["format"] as? Int, format != 1 { throw LoadError.unsupportedFormat }
+        if let wrapped = object["entries"] as? NSDictionary {
+            if let format = object["format"] as? Int, format != 1, format != 2 { throw LoadError.unsupportedFormat }
             raw = wrapped
+            rawSegments = object["segments"] as? NSDictionary ?? NSDictionary()
             if let value = object["id"] as? String, !value.isEmpty { id = value }
             if let value = object["title"] as? String, !value.isEmpty { title = value } else { title = id }
         } else {
             raw = object
         }
-        var entries: [UInt64: String] = [:]
-        entries.reserveCapacity(raw.count)
-        for (key, value) in raw {
-            guard let number = PackKey.number(key.lowercased()), let turkish = value as? String else { continue }
-            let text = cleaned(turkish)
-            if !text.isEmpty { entries[number] = text }
+        // İmzaların sırası: dosyadaki bütün geçerli anahtarlar (Türkçesi boş kalanlar da), sayı sırasıyla.
+        var order: [UInt64] = []
+        order.reserveCapacity(raw.count + rawSegments.count)
+        func read(_ raw: NSDictionary) -> [UInt64: String] {
+            var result: [UInt64: String] = [:]
+            result.reserveCapacity(raw.count)
+            raw.enumerateKeysAndObjects { key, value, _ in
+                // Onaltılık sayı büyük/küçük harf ayırmaz.
+                guard let key = key as? String, let number = PackKey.number(key), let turkish = value as? String else { return }
+                order.append(number)
+                let text = cleaned(turkish)
+                if !text.isEmpty { result[number] = text }
+            }
+            return result
         }
+        let entries = read(raw)
+        let segments = read(rawSegments)
         guard !entries.isEmpty else { throw LoadError.empty }
-        return GamePack(id: id, title: title, entries: entries)
+        order.sort()
+        var keys: [UInt64] = []
+        keys.reserveCapacity(order.count)
+        for key in order where keys.last != key { keys.append(key) }
+        let fuzzy = (object["fuzzy"] as? [String: Any]).flatMap { PackFuzzyIndex(json: $0, order: keys) }
+        return GamePack(id: id, title: title, entries: entries, segments: segments, keys: keys, fuzzy: fuzzy)
     }
 
     /// Paketteki Türkçede de oyunun biçim etiketleri kalmış olabilir ("<b><h>…</></>"); TV'de görünmesinler.
@@ -152,10 +186,29 @@ public final class GamePackLibrary: @unchecked Sendable {
             .appendingPathComponent("packs", isDirectory: true)
     }
 
+    /// Bulanık arama için paket başına anahtarlar ve imzalar (yükleme sırasıyla).
+    private struct Searchable {
+        let keys: [UInt64]
+        let fuzzy: PackFuzzyIndex?
+
+        func contains(_ key: UInt64) -> Bool {
+            var low = 0, high = keys.count
+            while low < high {
+                let middle = (low + high) / 2
+                if keys[middle] < key { low = middle + 1 } else { high = middle }
+            }
+            return low < keys.count && keys[low] == key
+        }
+    }
+
     private let directories: [(url: URL, builtIn: Bool)]
     private let lock = NSLock()
     private var loaded = false
     private var entries: [UInt64: String] = [:]
+    private var searchable: [Searchable] = []
+    /// Son tam eşleşmenin geldiği paket: bulanık arama yalnız orada yapılır (oynanan oyun). Satır birden çok pakette
+    /// varsa kapsam o paketlerden biri değilse ilkine geçer; hiç tam eşleşme olmadıysa bulanık arama yapılmaz.
+    private var scope: Int?
     private var infos: [Info] = []
 
     public init(bundled: URL?, user: URL?) {
@@ -190,14 +243,46 @@ public final class GamePackLibrary: @unchecked Sendable {
         }
     }
 
-    /// Satırın paketteki Türkçesi (bkz. `PackLookup`); yoksa nil.
+    /// Satırın paketteki Türkçesi (bkz. `PackLookup`); yoksa nil. Tam anahtar bulunmazsa oynanan oyunun paketinde
+    /// OCR hatalarına dayanıklı bulanık arama yapılır.
     public func match(_ text: String) -> PackMatch? {
-        let entries = lock.withLock {
+        let (entries, searchable) = lock.withLock {
             loadIfNeeded()
-            return self.entries
+            return (self.entries, self.searchable)
         }
         guard !entries.isEmpty else { return nil }
-        return PackLookup.match(text) { line in PackKey.key(line).flatMap(PackKey.number).flatMap { entries[$0] } }
+        // Aynı parça bir aramada birkaç yoldan sorulabilir (etiketli/etiketsiz gövde aynı); bulanık sonuç bir kez hesaplanır.
+        var asked: [String: String?] = [:]
+        return PackLookup.match(text, find: { line in
+            guard let number = PackKey.key(line).flatMap(PackKey.number), let turkish = entries[number] else { return nil }
+            self.noteHit(number, in: searchable)
+            return turkish
+        }, nearest: { line in
+            if let known = asked[line] { return known }
+            guard let index = self.lock.withLock({ self.scope }).flatMap({ $0 < searchable.count ? searchable[$0].fuzzy : nil }) else {
+                return nil
+            }
+            let found = index.nearest(line, translation: { entries[$0] }).flatMap { entries[$0] }
+            asked[line] = found
+            return found
+        })
+    }
+
+    /// Bulanık aramanın yapılacağı paketin kimliği (son tam eşleşmenin paketi); yoksa nil.
+    public var searchScope: String? {
+        lock.withLock { scope.flatMap { $0 < infos.count ? infos[$0].id : nil } }
+    }
+
+    private func noteHit(_ key: UInt64, in searchable: [Searchable]) {
+        let owners = searchable.indices.filter { searchable[$0].contains(key) }
+        guard let first = owners.first else { return }
+        lock.withLock {
+            if owners.count == 1 {
+                scope = first
+            } else if scope.map({ !owners.contains($0) }) ?? true {
+                scope = first
+            }
+        }
     }
 
     private func loadIfNeeded() {
@@ -212,10 +297,14 @@ public final class GamePackLibrary: @unchecked Sendable {
                 packs.append((pack, builtIn))
             }
         }
+        // Önce bütün paketlerin parçaları, sonra tam satırlar: bir oyunun tam satırı başka oyunun parçasına yenilmez.
         var merged: [UInt64: String] = [:]
-        merged.reserveCapacity(packs.reduce(0) { $0 + $1.pack.entries.count })
+        merged.reserveCapacity(packs.reduce(0) { $0 + $1.pack.entries.count + $1.pack.segments.count })
+        for (pack, _) in packs { merged.merge(pack.segments) { _, later in later } }
         for (pack, _) in packs { merged.merge(pack.entries) { _, later in later } }
         entries = merged
+        searchable = packs.map { Searchable(keys: $0.pack.keys, fuzzy: $0.pack.fuzzy) }
+        scope = nil
         infos = packs.map { Info(id: $0.pack.id, title: $0.pack.title, entries: $0.pack.entries.count, builtIn: $0.builtIn) }
     }
 
@@ -236,11 +325,18 @@ public final class GamePackLibrary: @unchecked Sendable {
 /// Satırı pakette arar. Sırayla: satırın tamamı; konuşmacı etiketi ("ENZO: ") varsa etiketsiz hâli (etiket çeviriye
 /// eklenir); birden çok satırsa her satır ayrı ayrı; birden çok cümleyse her cümle ayrı ayrı. Parçalı aramada parçaların
 /// hepsi bulunmalıdır, yoksa satır motorla çevrilir. Etiket ve ayraçlar ücretli motorlardaki gibi korunur
-/// (`SubtitleSegmenter`).
+/// (`SubtitleSegmenter`). Tam anahtarla hiçbir yol tutmazsa aynı sıra bir kez daha denenir; bu kez her parça önce tam,
+/// sonra `nearest` ile (OCR hatalarına dayanıklı) aranır.
 public enum PackLookup {
-    public static func match(_ text: String, find: (String) -> String?) -> PackMatch? {
+    public static func match(_ text: String, find: (String) -> String?, nearest: ((String) -> String?)? = nil) -> PackMatch? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        if let found = phase(trimmed, find: find) { return found }
+        guard let nearest else { return nil }
+        return phase(trimmed) { find($0) ?? nearest($0) }
+    }
+
+    private static func phase(_ trimmed: String, find: (String) -> String?) -> PackMatch? {
         if let found = single(trimmed, find: find) { return found.match }
 
         // Her satır ayrı bir altyazı olabilir (iki konuşmacı alt alta).
@@ -274,21 +370,74 @@ public enum PackLookup {
         return result(pieces, translations)
     }
 
-    /// Tek satır: başında konuşmacı etiketi ya da diyalog tiresi varsa önce onsuz hâli (etiket/tire çeviriye eklenir),
-    /// sonra tamamı.
+    /// Tek satır: başında konuşmacı etiketi ya da diyalog tiresi varsa ("- ENZO: ") önce onlarsız hâli (etiket/tire
+    /// çeviriye eklenir), sonra tamamı, sonra OCR'ın bozduğu etiketsiz hâli (`looseLabel`).
     private static func single(_ line: String, find: (String) -> String?)
         -> (match: PackMatch, pieces: [SubtitleSegmenter.Piece], translations: [String?])? {
         let split = SubtitleSegmenter.split(line)
-        if let first = split.first, !first.translate, split.count > 1, !split.contains(where: { $0.text == "\n" }) {
-            let body = split.dropFirst().map(\.text).joined()
+        let lead = split.prefix { !$0.translate }
+        if !lead.isEmpty, lead.count < split.count, !split.contains(where: { $0.text == "\n" }) {
+            let body = split.dropFirst(lead.count).map(\.text).joined()
             if let turkish = find(body) {
-                let pieces = [first, SubtitleSegmenter.Piece(body, translate: true)]
-                return (result(pieces, [nil, turkish]), pieces, [nil, turkish])
+                let pieces = Array(lead) + [SubtitleSegmenter.Piece(body, translate: true)]
+                let translations = [String?](repeating: nil, count: lead.count) + [turkish]
+                return (result(pieces, translations), pieces, translations)
             }
         }
-        guard let turkish = find(line) else { return nil }
-        let pieces = [SubtitleSegmenter.Piece(line, translate: true)]
-        return (result(pieces, [turkish]), pieces, [turkish])
+        if let turkish = find(line) {
+            let pieces = [SubtitleSegmenter.Piece(line, translate: true)]
+            return (result(pieces, [turkish]), pieces, [turkish])
+        }
+        guard let loose = looseLabel(line), let turkish = find(loose.body) else { return nil }
+        let pieces = [SubtitleSegmenter.Piece(loose.label, translate: false), SubtitleSegmenter.Piece(loose.body, translate: true)]
+        return (result(pieces, [nil, turkish]), pieces, [nil, turkish])
+    }
+
+    /// OCR'ın bozduğu konuşmacı etiketi: "-GAETANO:", "M]:", "li LUCA:", "MİNE GUARD•" (ilk 32 karakterde iki nokta ya
+    /// da • ve önündeki sözcükte küçük harf yok) ya da iki noktasız "SEBASTIAN Where…" (en çok üç büyük harfli sözcük,
+    /// ardından büyük harfle başlayan küçük harfli sözcük). (ekranda kalacak etiket, aranacak gövde) ya da nil.
+    /// Yalnız paket aramasında yeniden deneme içindir.
+    static func looseLabel(_ line: String) -> (label: String, body: String)? {
+        let scalars = Array(line.unicodeScalars)
+        func text(_ range: Range<Int>) -> String {
+            var view = String.UnicodeScalarView()
+            view.append(contentsOf: scalars[range])
+            return String(view)
+        }
+        func nameLike(_ token: Substring, minimum: Int) -> Bool {
+            let letters = token.unicodeScalars.filter(PackFuzzy.isLetter)
+            return letters.count >= minimum && !letters.contains { $0.properties.isLowercase }
+        }
+        func isSpace(_ scalar: Unicode.Scalar) -> Bool { scalar.properties.isWhitespace }
+        let trim = CharacterSet.whitespacesAndNewlines
+        if scalars.count > 1 {
+            for index in 1..<min(scalars.count, 33) where scalars[index] == ":" || scalars[index] == "•" {
+                guard let last = text(0..<index).split(whereSeparator: \.isWhitespace).last, nameLike(last, minimum: 1) else {
+                    continue
+                }
+                var start = index + 1
+                while start < scalars.count, !PackFuzzy.isLetter(scalars[start]), scalars[start].properties.numericType == nil {
+                    start += 1
+                }
+                let body = text(start..<scalars.count).trimmingCharacters(in: trim)
+                guard body.unicodeScalars.contains(where: PackFuzzy.isLetter) else { return nil }
+                return (text(0..<(index + 1)).trimmingCharacters(in: trim) + " ", body)
+            }
+        }
+        var start = 0
+        while start < scalars.count, !PackFuzzy.isLetter(scalars[start]) { start += 1 }
+        for _ in 0..<3 {
+            var end = start
+            while end < scalars.count, !isSpace(scalars[end]) { end += 1 }
+            guard end < scalars.count, scalars[start].properties.isUppercase,
+                  nameLike(Substring(text(start..<end)), minimum: 2) else { break }
+            while end < scalars.count, isSpace(scalars[end]) { end += 1 }
+            start = end
+            if start + 1 < scalars.count, scalars[start].properties.isUppercase, scalars[start + 1].properties.isLowercase {
+                return (text(0..<start).trimmingCharacters(in: trim) + " ", text(start..<scalars.count).trimmingCharacters(in: trim))
+            }
+        }
+        return nil
     }
 
     private static func result(_ pieces: [SubtitleSegmenter.Piece], _ translations: [String?]) -> PackMatch {
