@@ -860,6 +860,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         IsStarting = true;
         try
         {
+            // Uygulama başlatırken kapanırsa günlükte hangi adımda kaldığı görünsün.
+            RemotePlayLog.Note($"Çeviri hazırlanıyor; altyazı: {settings.Output}, TV: {(tv is null ? "yok" : tv.Brand.ToString())}");
             RefreshTranslatorStatus();
             try { await StartServerAsync(); } catch { /* port açılamadıysa TV durumu "bekleniyor" kalır */ }
             server.SendStyle(settings.Style);
@@ -880,6 +882,13 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             sleep.Begin();
             IsRunning = true;
             UpdateTroubleClocks();
+        }
+        catch (Exception error)
+        {
+            // Yarım kalan başlatma geride çalışan bir PS5 oturumu bırakmasın; düğme yeniden "Başlat" olur.
+            RemotePlayLog.Note($"Çeviri başlatılamadı: {error.GetType().Name}: {error.Message}");
+            Stop();
+            throw;
         }
         finally
         {
@@ -1212,25 +1221,32 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>
+    /// Kare iş parçacığında çağrılır. async void olduğu için buradan hiçbir hata kaçmamalı: kaçan hata eşzamanlama
+    /// bağlamı olmayan iş parçacığında süreci kapatırdı.
+    /// </summary>
     private async void HandleFrame(Frame frame)
     {
-        post(() => LastFrame = frame);
-        // Duraklatıldıysa kare yalnız ek bölgeler ve serbest alan için saklanır; altyazı okunmaz.
-        if (subtitlesPaused) return;
-        // Önceki kare hâlâ işleniyorsa bu kare atlanır; okuma kareleri biriktirmez.
-        var current = pipeline;
-        if (current is null || Interlocked.Exchange(ref processing, 1) == 1) return;
         try
         {
-            await current.ProcessAsync(frame, settings.Region);
+            post(() => LastFrame = frame);
+            // Duraklatıldıysa kare yalnız ek bölgeler ve serbest alan için saklanır; altyazı okunmaz.
+            if (subtitlesPaused) return;
+            // Önceki kare hâlâ işleniyorsa bu kare atlanır; okuma kareleri biriktirmez.
+            var current = pipeline;
+            if (current is null || Interlocked.Exchange(ref processing, 1) == 1) return;
+            try
+            {
+                await current.ProcessAsync(frame, settings.Region);
+            }
+            finally
+            {
+                Volatile.Write(ref processing, 0);
+            }
         }
         catch
         {
             // Tek bir karenin okunamaması akışı durdurmaz.
-        }
-        finally
-        {
-            Volatile.Write(ref processing, 0);
         }
     }
 

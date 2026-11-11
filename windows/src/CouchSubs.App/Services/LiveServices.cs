@@ -340,10 +340,21 @@ public sealed class FileSettingsStore : ISettingsStore
         catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException) { return new UserSettings(); }
     }
 
+    /// <summary>
+    /// Dosya o an yazılamıyorsa (antivirüs ya da eşitleme kilitlemiş) ayar bellekte geçerli kalır ve sonraki kayıtta
+    /// yazılır; hata ayarı değiştiren işi (pencereyi taşıma, Num 7) yarıda bırakmaz.
+    /// </summary>
     public void Save(UserSettings settings)
     {
-        Directory.CreateDirectory(AppPaths.Data);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(settings));
+        try
+        {
+            Directory.CreateDirectory(AppPaths.Data);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(settings));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            StartupGuard.Log("Ayarlar kaydedilemedi", error);
+        }
     }
 }
 

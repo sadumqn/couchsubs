@@ -30,7 +30,6 @@ public sealed partial class SubtitleOverlayWindow : Window
     private const long WsExTransparent = 0x20;
     private const long WsExToolWindow = 0x80;
     private const long WsExNoActivate = 0x08000000;
-    private const double SmallestWidth = 320;
 
     [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static partial IntPtr GetWindowLongPtr(IntPtr window, int index);
@@ -47,11 +46,13 @@ public sealed partial class SubtitleOverlayWindow : Window
     private readonly Dictionary<int, Border> boxes = [];
     private readonly Grid adjustLayer = new() { Visibility = Visibility.Collapsed };
     private IntPtr handle;
+    /// <summary>Pencere bir kez açılamadı ya da çizilemedi: bu oturumda bir daha denenmez, çeviri pencere olmadan sürer.</summary>
+    private bool broken;
 
     private double Now => clock.Elapsed.TotalSeconds;
 
     /// <summary>Yazı boyu TV'deki gibi 1080 satırlık ekrana göredir.</summary>
-    private static double Scale => SystemParameters.PrimaryScreenHeight / 1080;
+    private static double Scale => OverlayPlacement.Scale(SystemParameters.PrimaryScreenHeight);
 
     public static SubtitleOverlayWindow Attach(AppController controller) => new(controller);
 
@@ -75,26 +76,28 @@ public sealed partial class SubtitleOverlayWindow : Window
         Content = root;
         PlaceFromSettings();
 
-        timer.Tick += (_, _) =>
+        timer.Tick += (_, _) => Guard("zamanlayıcı", () =>
         {
             timer.Stop();
             Refresh();
-        };
-        SourceInitialized += (_, _) =>
+        });
+        SourceInitialized += (_, _) => Guard("pencere tutamağı", () =>
         {
             handle = new WindowInteropHelper(this).Handle;
+            if (handle == IntPtr.Zero) return;
             var style = (long)GetWindowLongPtr(handle, GwlExStyle);
             // Odağı almaz ve Alt+Tab listesinde görünmez.
             SetWindowLongPtr(handle, GwlExStyle, (IntPtr)(style | WsExNoActivate | WsExToolWindow));
             ApplyClickThrough();
-        };
+        });
         // Tıklamalar geçmiyorsa pencere her yerinden sürüklenir.
-        MouseLeftButtonDown += (_, e) =>
+        MouseLeftButtonDown += (_, e) => Guard("sürükleme", () =>
         {
-            if (e.OriginalSource is Thumb or ButtonBase) return;
-            DragMove();
+            if (e.OriginalSource is Thumb or ButtonBase || e.ButtonState != MouseButtonState.Pressed) return;
+            try { DragMove(); }
+            catch (InvalidOperationException) { return; /* düğme bu arada bırakıldı */ }
             SaveBounds();
-        };
+        });
         controller.OverlayEvent += OnEvent;
         controller.OverlayHidden += OnHidden;
         controller.PropertyChanged += OnChanged;
@@ -106,30 +109,62 @@ public sealed partial class SubtitleOverlayWindow : Window
         controller.OverlayHidden -= OnHidden;
         controller.PropertyChanged -= OnChanged;
         timer.Stop();
-        Close();
+        try { Close(); }
+        catch (InvalidOperationException error) { StartupGuard.Log("Altyazı penceresi kapatılamadı", error); }
     }
 
     private void OnChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is not (nameof(AppController.Settings) or nameof(AppController.OverlayAdjusting))) return;
-        // Yazı boyu, rengi ya da zemini değişmiş olabilir; kutular yeniden kurulur.
-        if (e.PropertyName == nameof(AppController.Settings)) boxes.Clear();
-        ApplyClickThrough();
-        FitHeight();
-        Refresh();
+        Guard("ayar değişikliği", () =>
+        {
+            // Yazı boyu, rengi ya da zemini değişmiş olabilir; kutular yeniden kurulur.
+            if (e.PropertyName == nameof(AppController.Settings)) boxes.Clear();
+            ApplyClickThrough();
+            FitHeight();
+            Refresh();
+        });
     }
 
-    private void OnEvent(SubtitleEvent e)
+    private void OnEvent(SubtitleEvent e) => Guard("altyazı", () =>
     {
         if (e.Kind == SubtitleEventKind.Subtitle) stack.Show(e.Text, e.DurationMs, e.Paragraphs, Now);
         else stack.Clear(Now);
         Refresh();
-    }
+    });
 
-    private void OnHidden()
+    private void OnHidden() => Guard("gizleme", () =>
     {
         stack.Hide();
         Refresh();
+    });
+
+    /// <summary>
+    /// Penceredeki her iş bundan geçer. Pencere açılamaz ya da çizilemezse hata hata.log'a yazılır, kullanıcıya bir kez
+    /// söylenir ve pencere kapatılır; uygulama kapanmaz, çeviri (TV'ye, OBS'ye, dublaja) sürer.
+    /// </summary>
+    private void Guard(string where, Action action)
+    {
+        if (broken) return;
+        try
+        {
+            action();
+        }
+        catch (Exception error)
+        {
+            broken = true;
+            StartupGuard.Log($"Altyazı penceresi ({where})", error);
+            try
+            {
+                timer.Stop();
+                if (IsVisible) Hide();
+            }
+            catch (Exception hideError)
+            {
+                StartupGuard.Log("Altyazı penceresi gizlenemedi", hideError);
+            }
+            StartupGuard.Show(Application.Current, StartupGuard.OverlayFailedMessage(error));
+        }
     }
 
     /// <summary>Görünen satırları çizer, pencereyi gösterir ya da gizler, bir sonraki değişime zamanlayıcı kurar.</summary>
@@ -177,12 +212,13 @@ public sealed partial class SubtitleOverlayWindow : Window
         var style = controller.Settings.Style;
         var scale = Scale;
         var current = line.Role == SubtitleStack.Role.Current;
-        var size = style.FontSize * scale * (current ? 1 : 0.8);
+        // Satır yüksekliği sıfır olursa WPF hata verir; boy en az 1.
+        var size = Math.Max(1, OverlayPlacement.FontSize(style.FontSize) * scale * (current ? 1 : 0.8));
         var alpha = Math.Clamp(style.Background, 0, 100) / 100.0 * (current ? 1 : 0.83);
         var text = new TextBlock
         {
             Text = line.Text,
-            FontSize = Math.Max(1, size),
+            FontSize = size,
             FontWeight = style.Bold ? FontWeights.Bold : FontWeights.SemiBold,
             Foreground = style.TextColor == SubtitleTextColor.Yellow ? new SolidColorBrush(Color.FromRgb(0xFF, 0xE1, 0x35)) : Brushes.White,
             TextWrapping = TextWrapping.Wrap,
@@ -217,7 +253,7 @@ public sealed partial class SubtitleOverlayWindow : Window
         });
         var done = new Button { Content = Localizer.Current["Done"], Margin = new Thickness(12, 0, 0, 0) };
         if (Application.Current?.TryFindResource("PrimaryButton") is Style primary) done.Style = primary;
-        done.Click += (_, _) => controller.OverlayAdjusting = false;
+        done.Click += (_, _) => Guard("Bitti", () => controller.OverlayAdjusting = false);
         var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12) };
         bar.Children.Add(new TextBlock
         {
@@ -248,15 +284,17 @@ public sealed partial class SubtitleOverlayWindow : Window
             Cursor = Cursors.SizeWE,
             Template = new ControlTemplate(typeof(Thumb)) { VisualTree = face },
         };
-        thumb.DragDelta += (_, e) =>
+        thumb.DragDelta += (_, e) => Guard("genişletme", () =>
         {
             var grow = side == HorizontalAlignment.Right ? e.HorizontalChange : -e.HorizontalChange;
             var center = Left + Width / 2;
-            var width = Math.Clamp(Width + 2 * grow, SmallestWidth, SystemParameters.VirtualScreenWidth);
+            if (!double.IsFinite(center)) return;
+            // Math.Clamp en büyük değer en küçükten küçükse hata verir; sınırlar OverlayPlacement'ta güvenle hesaplanır.
+            var width = OverlayPlacement.ClampWidth(Width + 2 * grow, SystemParameters.VirtualScreenWidth);
             Width = width;
             Left = center - width / 2;
-        };
-        thumb.DragCompleted += (_, _) => SaveBounds();
+        });
+        thumb.DragCompleted += (_, _) => Guard("genişletme", SaveBounds);
         return thumb;
     }
 
@@ -273,34 +311,34 @@ public sealed partial class SubtitleOverlayWindow : Window
     /// <summary>Pencere en çok üç satıra (ve satırların kaymasına) yetecek kadar yüksektir; alt kenarı sabit kalır.</summary>
     private void FitHeight()
     {
-        var font = controller.Settings.Style.FontSize * Scale;
-        var height = Math.Round(font * 8.1 + 140 * Scale);
+        var height = OverlayPlacement.Height(controller.Settings.Style.FontSize, Scale);
         if (Math.Abs(Height - height) < 0.5) return;
         var bottom = double.IsNaN(Top) ? double.NaN : Top + Height;
         Height = height;
         if (!double.IsNaN(bottom)) Top = bottom - height;
     }
 
-    /// <summary>Kayıtlı yer (ekranlardan birindeyse) ya da ana ekranın altında ortada, %70 genişlikte.</summary>
+    /// <summary>
+    /// Kayıtlı yer (ekranlardan birinde yeterince görünüyorsa) ya da ana ekranın altında ortada, %70 genişlikte. Kayıt
+    /// bozuksa ya da o ekran artık bağlı değilse pencere ekran dışında ya da sıfır genişlikte açılmaz.
+    /// </summary>
     private void PlaceFromSettings()
     {
+        var height = OverlayPlacement.Height(controller.Settings.Style.FontSize, Scale);
         var work = SystemParameters.WorkArea;
-        Height = Math.Round(controller.Settings.Style.FontSize * Scale * 8.1 + 140 * Scale);
-        if (controller.Settings.Overlay is { } saved && OnScreen(saved))
-        {
-            Left = saved.Left;
-            Top = saved.Top;
-            Width = Math.Max(SmallestWidth, saved.Width);
-            return;
-        }
-        Width = Math.Round(work.Width * 0.7);
-        Left = work.Left + (work.Width - Width) / 2;
-        Top = work.Bottom - work.Height * 0.04 - Height;
+        var place = OverlayPlacement.Place(controller.Settings.Overlay,
+            new ScreenArea(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+                SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight),
+            new ScreenArea(work.Left, work.Top, work.Width, work.Height), height);
+        Height = height;
+        Width = place.Width;
+        Left = place.Left;
+        Top = place.Top;
     }
 
-    private bool OnScreen(OverlayBounds bounds) =>
-        bounds.Left + bounds.Width > SystemParameters.VirtualScreenLeft && bounds.Left < SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth
-        && bounds.Top + Height > SystemParameters.VirtualScreenTop && bounds.Top < SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight;
-
-    private void SaveBounds() => controller.SaveOverlayBounds(new OverlayBounds(Math.Round(Left), Math.Round(Top), Math.Round(Width)));
+    /// <summary>NaN ya da sonsuz değer JSON'a yazılamaz (ayar kaydı hata verirdi); öyleyse kaydedilmez.</summary>
+    private void SaveBounds()
+    {
+        if (OverlayPlacement.ToSave(Left, Top, Width) is { } bounds) controller.SaveOverlayBounds(bounds);
+    }
 }

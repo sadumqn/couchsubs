@@ -104,6 +104,70 @@ public class ComputerScreenTests
         controller.Stop();
     }
 
+    /// <summary>
+    /// beta.26'da TV'siz (Samsung 2017 desteklenmiyor) "Bilgisayar ekranı" seçen kullanıcıda "Çeviriyi başlat" uygulamayı
+    /// kapatıyordu: başlatma hiçbir TV hizmetine dokunmadan, hata vermeden çeviriye geçmeli.
+    /// </summary>
+    [Fact]
+    public async Task StartOnComputerWithoutTvNeverTouchesTv()
+    {
+        var services = new FakeServices();
+        var sleep = new FakeSleep();
+        var controller = AppControllerTests.Make(services, StoreWithoutTv(), new MemorySettings(), sleep);
+        controller.Settings = controller.Settings with { Output = SubtitleOutput.Computer };
+        Assert.False(controller.HasTv);
+        Assert.False(controller.NeedsTv);
+        await controller.StartAsync();
+        Assert.True(controller.IsRunning);
+        Assert.False(controller.IsStarting);
+        Assert.True(sleep.Active);
+        Assert.True(Assert.Single(services.Streams).Started);
+        // PS5 bağlanamasa da (ör. kapalı) TV aranmaz, beklenmez.
+        services.Streams[0].Emit(SessionState.Disconnected(DisconnectKind.Network));
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(0, services.TvCalls);
+        controller.Stop();
+        Assert.False(sleep.Active);
+    }
+
+    /// <summary>Samsung'la eşleşme yarım kaldıysa (TV kayıtlı, anahtarı yok) bilgisayar ekranında çeviri yine başlar.</summary>
+    [Fact]
+    public async Task StartOnComputerWithHalfPairedTvNeverTouchesTv()
+    {
+        var services = new FakeServices();
+        var store = StoreWithoutTv();
+        store.Save(StoreKeys.Tv, new LgTv("Samsung TV", "192.168.1.40", TvBrand.Samsung));
+        var controller = Make(services, store);
+        controller.Settings = controller.Settings with { Output = SubtitleOutput.Computer };
+        Assert.True(controller.CanStart);
+        await controller.StartAsync();
+        Assert.True(controller.IsRunning);
+        Assert.Equal(0, services.TvCalls);
+        controller.Stop();
+    }
+
+    /// <summary>Başlatma yarıda hata verirse geride çalışan oturum ya da "Başlatılıyor" durumu kalmaz; hata çağırana gider.</summary>
+    [Fact]
+    public async Task FailedStartCleansUp()
+    {
+        var services = new FakeServices { StreamError = new InvalidOperationException("couchsubs_native yok") };
+        var sleep = new FakeSleep();
+        var controller = AppControllerTests.Make(services, StoreWithoutTv(), new MemorySettings(), sleep);
+        controller.Settings = controller.Settings with { Output = SubtitleOutput.Computer };
+        var hidden = 0;
+        controller.OverlayHidden += () => hidden++;
+        await Assert.ThrowsAsync<InvalidOperationException>(controller.StartAsync);
+        Assert.False(controller.IsRunning);
+        Assert.False(controller.IsStarting);
+        Assert.False(sleep.Active);
+        Assert.Equal(1, hidden);
+        // Sorun giderilince yeniden başlatılabilir.
+        services.StreamError = null;
+        await controller.StartAsync();
+        Assert.True(controller.IsRunning);
+        controller.Stop();
+    }
+
     [Fact]
     public async Task TvOnlyWithoutTvCannotStart()
     {

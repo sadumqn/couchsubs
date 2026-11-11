@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace CouchSubs.App;
 
@@ -82,20 +83,105 @@ internal static class StartupGuard
         app.Shutdown(3);
     }
 
+    /// <summary>Bilgisayar ekranındaki altyazı penceresi açılamadı ya da çizilemedi; çeviri sürer.</summary>
+    public static string OverlayFailedMessage(Exception error) =>
+        (Turkish
+            ? "Bilgisayar ekranındaki altyazı penceresi açılamadı. Çeviri sürüyor ama altyazılar bu pencerede görünmeyecek; " +
+              "CouchSubs'ı yeniden açınca pencere yeniden denenir.\n\n"
+            : "The subtitle window on this computer's screen could not be shown. Translation continues, but subtitles won't " +
+              "appear in that window until you reopen CouchSubs.\n\n") +
+        $"{error.GetType().Name}: {error.Message}\n\n" +
+        (Turkish
+            ? $"Ayrıntılar {LogPath} dosyasında. Sorunu bu dosyayla birlikte GitHub'daki Issues sayfasından bildirebilirsiniz."
+            : $"Details are in {LogPath}. Please report it on the GitHub Issues page with that file.");
+
+    /// <summary>Arka plandaki bir hata uygulamayı kapatıyor; hiç değilse nedeni görünsün.</summary>
+    static string ClosingMessage(Exception? error) =>
+        (Turkish
+            ? "CouchSubs bir hata yüzünden kapanmak zorunda kaldı:\n\n"
+            : "CouchSubs has to close because of an error:\n\n") +
+        (error is null ? "" : $"{error.GetType().Name}: {error.Message}\n\n") +
+        (Turkish
+            ? $"Ayrıntılar {LogPath} dosyasında. Sorunu bu dosyayla birlikte GitHub'daki Issues sayfasından bildirebilirsiniz."
+            : $"Details are in {LogPath}. Please report it on the GitHub Issues page with that file.");
+
     /// <summary>
     /// Açılıştan sonraki yakalanmamış hataları da sessiz kalmadan gösterir. Uygulama kapanmaz: kullanıcı yaptığı işi
-    /// (ör. az önce bitirdiği PSN girişini) kaybetmesin.
+    /// (ör. az önce bitirdiği PSN girişini) kaybetmesin ve çeviri sürsün.
     /// </summary>
     public static void Watch(Application app)
     {
         app.DispatcherUnhandledException += (_, e) =>
         {
             Log("DispatcherUnhandledException", e.Exception);
-            MessageBox.Show(ErrorMessage(e.Exception), "CouchSubs", MessageBoxButton.OK, MessageBoxImage.Error);
+            // İleti burada, hatanın içinde açılmaz: düzen ya da çizim sırasında çıkan hatada MessageBox kendisi hata verir
+            // (iletiler askıdayken pencere açılamaz) ve o ikinci hata uygulamayı kapatırdı. Her karede yinelenen bir hata
+            // da iç içe yüzlerce pencere açıp yığını taşırırdı. İleti sonra, tek seferde gösterilir.
             e.Handled = true;
+            Show(app, ErrorMessage(e.Exception));
         };
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-            Log("UnhandledException", e.ExceptionObject as Exception);
+        {
+            var error = e.ExceptionObject as Exception;
+            Log(e.IsTerminating ? "UnhandledException (uygulama kapanıyor)" : "UnhandledException", error);
+            // Arka plan iş parçacığındaki hata süreci kapatır; uygulama sessizce kaybolmasın.
+            if (e.IsTerminating) ShowNow(ClosingMessage(error));
+        };
+        // Beklenmeyen görev hataları da kayda geçer (gözlenmemiş görev uygulamayı kapatmaz ama sorunun izi kalsın).
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Log("UnobservedTaskException", e.Exception);
+            e.SetObserved();
+        };
+    }
+
+    static readonly object LogGate = new();
+    static int showing;
+    static string? lastShown;
+    static DateTime lastShownAt;
+
+    /// <summary>
+    /// Hata iletisini arayüz boşalınca gösterir. Aynı anda tek ileti açılır; aynı ileti yarım dakika içinde yinelenirse
+    /// yalnız kayda geçer (her karede yinelenen hata kullanıcıyı ileti yağmuruna tutmasın).
+    /// </summary>
+    public static void Show(Application? app, string message)
+    {
+        if (app is null) return;
+        try
+        {
+            app.Dispatcher.InvokeAsync(() =>
+            {
+                if (showing > 0) return;
+                if (message == lastShown && DateTime.UtcNow - lastShownAt < TimeSpan.FromSeconds(30)) return;
+                showing++;
+                try
+                {
+                    ShowNow(message);
+                }
+                finally
+                {
+                    showing--;
+                    lastShown = message;
+                    lastShownAt = DateTime.UtcNow;
+                }
+            }, DispatcherPriority.Background);
+        }
+        catch (Exception error)
+        {
+            Log("Hata iletisi sıraya alınamadı", error);
+        }
+    }
+
+    static void ShowNow(string message)
+    {
+        try
+        {
+            MessageBox.Show(message, "CouchSubs", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch (Exception error)
+        {
+            Log("Hata iletisi gösterilemedi", error);
+        }
     }
 
     /// <summary>%LOCALAPPDATA%\CouchSubs\hata.log dosyasına yazar; yazılamazsa sessizce geçer.</summary>
@@ -103,12 +189,16 @@ internal static class StartupGuard
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
-            File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n{error}\n\n");
+            // Arka plan iş parçacıkları da yazar; aynı anda yazılan satırlar birbirini silmesin.
+            lock (LogGate)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
+                File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n{error}\n\n");
+            }
         }
-        catch (Exception logError) when (logError is IOException or UnauthorizedAccessException)
+        catch (Exception)
         {
-            // Kayıt yazılamasa da mesaj gösterilir.
+            // Kayıt yazılamasa da mesaj gösterilir; hata işleyicisinin içinden yeni hata çıkmamalı.
         }
     }
 }

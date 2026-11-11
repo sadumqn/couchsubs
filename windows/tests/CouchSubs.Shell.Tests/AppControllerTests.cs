@@ -143,21 +143,32 @@ internal sealed class FakeServices : IAppServices
         Registered = new RegisteredConsole(host, "PS5-789", Enumerable.Repeat((byte)0x31, 16).ToArray(), Enumerable.Repeat((byte)2, 16).ToArray());
         return Task.FromResult(Registered);
     }
-    public Task<IReadOnlyList<LgTv>> DiscoverTvsAsync() => Task.FromResult<IReadOnlyList<LgTv>>(Tvs);
+    /// <summary>TV'ye dokunan çağrıların sayısı (arama, eşleşme, açık tutma, uygulama denetimi).</summary>
+    public int TvCalls { get; private set; }
+    /// <summary>Verilirse PS5 oturumu kurulurken bu hata atılır.</summary>
+    public Exception? StreamError { get; set; }
+    public Task<IReadOnlyList<LgTv>> DiscoverTvsAsync()
+    {
+        TvCalls++;
+        return Task.FromResult<IReadOnlyList<LgTv>>(Tvs);
+    }
     public Task<TvPairing> PairTvAsync(LgTv tv, string? key, string server)
     {
         LaunchedServer = server;
         PairCount++;
+        TvCalls++;
         return Task.FromResult(new TvPairing("tv-key", AppOnTv is not null));
     }
     public IStreamSession MakeStream(RegisteredConsole console, byte[] accountId)
     {
+        if (StreamError is not null) throw StreamError;
         var stream = new FakeStream();
         Streams.Add(stream);
         return stream;
     }
     public IKeeper MakeKeeper(LgTv tv, string? key, IReadOnlyDictionary<string, string> parameters, Func<bool> appConnected, Action<LgTv> onMoved)
     {
+        TvCalls++;
         var keeper = new FakeKeeper();
         Keepers.Add(keeper);
         return keeper;
@@ -169,7 +180,11 @@ internal sealed class FakeServices : IAppServices
     public int Installs { get; private set; }
     public int PairCount { get; private set; }
     public string? BundledTvAppVersion { get; set; } = "0.6.1";
-    public Task<bool> IsDevModeOnAsync(string host) => Task.FromResult(DevMode);
+    public Task<bool> IsDevModeOnAsync(string host)
+    {
+        TvCalls++;
+        return Task.FromResult(DevMode);
+    }
     public Task<string> FetchDevKeyAsync(string host, string passphrase)
     {
         if (!KeyServer) throw new DevModeException(DevModeError.KeyServerOff);
@@ -178,6 +193,7 @@ internal sealed class FakeServices : IAppServices
     }
     public Task<string?> InstalledTvAppVersionAsync(string host, string devKey)
     {
+        TvCalls++;
         if (RefuseKey) throw new DevModeException(DevModeError.KeyRefused);
         return Task.FromResult(AppOnTv);
     }
@@ -203,7 +219,11 @@ internal sealed class FakeServices : IAppServices
     public List<TvInstallEvent> Events { get; } = [];
     public List<(TvBrand Brand, string Host)> BrandInstalls { get; } = [];
     public BundledTvApp? BundledApp(TvBrand brand) => Bundled.GetValueOrDefault(brand);
-    public Task<bool> IsSamsungDevModeOnAsync(string host) => Task.FromResult(SamsungDevMode);
+    public Task<bool> IsSamsungDevModeOnAsync(string host)
+    {
+        TvCalls++;
+        return Task.FromResult(SamsungDevMode);
+    }
     public Task InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
     {
         Events.ForEach(onEvent);
@@ -211,7 +231,11 @@ internal sealed class FakeServices : IAppServices
         BrandInstalls.Add((TvBrand.Samsung, host));
         return Task.CompletedTask;
     }
-    public Task<bool> IsAndroidDebugOnAsync(string host) => Task.FromResult(AndroidHosts.Contains(host));
+    public Task<bool> IsAndroidDebugOnAsync(string host)
+    {
+        TvCalls++;
+        return Task.FromResult(AndroidHosts.Contains(host));
+    }
     public Task<IReadOnlyList<string>> ScanAndroidTvsAsync() => Task.FromResult<IReadOnlyList<string>>([.. AndroidHosts]);
     public Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
     {

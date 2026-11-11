@@ -32,12 +32,21 @@ public partial class ShellWindow : Window
         };
         // Bilgisayarda gösterilecek çeviriler küçük, üstte duran bir kutuda çıkar.
         controller.PcResultReady += PcResultWindow.Display;
-        // Bilgisayar ekranındaki altyazı penceresi (altyazı yokken gizli).
-        var overlay = SubtitleOverlayWindow.Attach(controller);
+        // Bilgisayar ekranındaki altyazı penceresi (altyazı yokken gizli). Kurulamazsa uygulama onsuz açılır.
+        SubtitleOverlayWindow? overlay = null;
+        try
+        {
+            overlay = SubtitleOverlayWindow.Attach(controller);
+        }
+        catch (Exception error)
+        {
+            StartupGuard.Log("Altyazı penceresi kurulamadı", error);
+            StartupGuard.Show(Application.Current, StartupGuard.OverlayFailedMessage(error));
+        }
         Closed += (_, _) =>
         {
             controller.PcResultReady -= PcResultWindow.Display;
-            overlay.Detach();
+            overlay?.Detach();
             hotkeys?.Dispose();
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
             controller.Dispose();
