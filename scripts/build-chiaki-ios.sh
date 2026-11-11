@@ -81,7 +81,7 @@ for sdk in $SLICES; do
     grep -q '"iossimulator-arm64-xcrun"' "$WORK/archives/openssl/Configurations/15-ios.conf" || OSSL_TARGET=iossimulator-xcrun
   fi
   # Önceki derlemeler silinir; yalnız hazır OpenSSL kalır (en uzun süren parça, sürümü sabit).
-  rm -rf "$B/chiaki" "$B"/build-*
+  rm -rf "$B/chiaki" "$B"/build-*(N)
   mkdir -p "$B/openssl" "$PREFIX"
 
   # OpenSSL: yalnız kütüphaneler (uygulamalar, testler, paylaşımlı kütüphane yok).
