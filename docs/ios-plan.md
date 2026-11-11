@@ -3,7 +3,7 @@
 Amaç: bilgisayarın yerini telefon alır. Telefon ikinci PSN hesabıyla PS5'e Remote Play istemcisi olarak bağlanır,
 görüntüdeki İngilizce altyazıyı okur (Apple Vision), çevirir (oyun paketleri, Apple'ın ücretsiz çevirisi,
 DeepL/Gemini/OpenAI/Claude) ve altyazı sunucusundan (SSE, 8787) TV uygulamasına gönderir ya da kendi ekranında
-gösterir ("TV'm yok"). Uygulama `couchsubs-ios/` klasöründe (SwiftUI, iOS 26, `com.couchsubs.ios`).
+gösterir ("TV'm yok"). Uygulama `couchsubs-ios/` klasöründe (SwiftUI, iOS 16 ve sonrası, `com.couchsubs.ios`).
 
 ## Özet
 
@@ -12,7 +12,7 @@ gösterir ("TV'm yok"). Uygulama `couchsubs-ios/` klasöründe (SwiftUI, iOS 26,
 | libchiaki (Remote Play) | Çalışır | `scripts/build-chiaki-ios.sh`, chiaki-ng kaynağına dokunmadan |
 | Görüntü çözme | Çalışır | VideoToolbox (FFmpeg gerekmez), Mac'teki `H264FrameDecoder` aynen |
 | Yazı tanıma | Çalışır | Vision, Mac'teki `VisionReader` aynen (CouchSubsCore'a taşındı) |
-| Ücretsiz çeviri | Çalışır | Translation çerçevesi; dil paketi uygulama içinden indirilir (`translationTask`) |
+| Ücretsiz çeviri | iOS 26 ve sonrası | Translation çerçevesi; dil paketi uygulama içinden indirilir (`translationTask`). iOS 16–18'de yok: paketler, DeepL, yapay zekâ |
 | DeepL / yapay zekâ | Çalışır | Anahtarlar Anahtarlık'ta (`com.couchsubs.ios` hizmeti) |
 | Oyun paketleri, ortak havuz | Çalışır | CouchSubsCore'dan aynen |
 | Altyazı sunucusu (SSE) | Çalışır, uygulama öndeyken | `NWListener`; iOS arka planda askıya alır |
@@ -31,8 +31,8 @@ Bağımlılıklar ve Mac'te nereden geldikleri:
 
 | Bağımlılık | Mac (`build-chiaki-macos.sh`) | iOS (`build-chiaki-ios.sh`) |
 |---|---|---|
-| OpenSSL 3 (libcrypto, libssl) | Homebrew `openssl@3` | Kaynaktan, `ios64-xcrun` / `iossimulator-arm64-xcrun` |
-| json-c | Homebrew | Kaynaktan (CMake) |
+| OpenSSL 3 (libcrypto, libssl) | Kaynaktan, `darwin64-arm64-cc` / `darwin64-x86_64-cc` | Kaynaktan, `ios64-xcrun` / `iossimulator-arm64-xcrun` |
+| json-c | Kaynaktan (CMake) | Kaynaktan (CMake) |
 | libevent, miniupnpc | Kaynaktan (CMake) | Kaynaktan (CMake), aynı sürümler |
 | curl (WebSocket'li) | chiaki-ng alt modülü | Aynı, OpenSSL ile |
 | nanopb, jerasure, gf-complete | chiaki-ng alt modülleri | Aynı |
@@ -52,10 +52,10 @@ Betik ne yapar:
    Mac betiği de artık bunu çağırır; biri ötekinin dilimini silmez.
 
 chiaki-ng Apple'da dağıtım hedefini CMakeLists'te 13.0'a sabitliyor (`CACHE FORCE`); iOS kütüphaneleri bu yüzden
-iOS 13'ü hedefler, iOS 26 uygulamasına sorunsuz bağlanır. Derleme süresi (4 iş, düşük öncelik): ilk sefer OpenSSL ile
+iOS 13'ü hedefler, iOS 16 uygulamasına sorunsuz bağlanır. Derleme süresi (4 iş, düşük öncelik): ilk sefer OpenSSL ile
 birlikte dilim başına birkaç dakika; OpenSSL sonraki derlemelerde yeniden kullanılır.
 
-`remoteplay/Package.swift` artık `.iOS(.v26)` bildiriyor; CoreServices yalnız macOS'ta bağlanıyor. Swift kodunda
+`remoteplay/Package.swift` `.iOS(.v16)` bildiriyor; CoreServices yalnız macOS'ta bağlanıyor. Swift kodunda
 (`StreamSession`, `Registration`, `Console`, `PSNAccount`, `H264FrameDecoder`) değişiklik gerekmedi.
 
 ## 2. CouchSubsCore iOS'ta

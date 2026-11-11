@@ -5,6 +5,7 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 **Bu sürümde yeni**
 
 - **Yeni görünüm:** Mac ve Windows uygulaması yeni, daha düzenli bir tasarıma geçti: ana ekran iki sütun (solda kontroller ve durum, sağda canlı altyazı), Ayarlar tek pencerede soldan bölümlü, kurulum adımları solda listeli. Özellikler aynı, yalnız görünüm değişti.
+- **Mac uygulaması artık eski Mac'lerde de çalışıyor:** macOS 13 Ventura ve sonrası, Apple Silicon ve Intel işlemcili Mac'ler (önceden yalnız macOS 26 ve Apple Silicon). Apple'ın ücretsiz çevirisi macOS 26 istediği için daha eski macOS'ta oyun paketleri, Gemini (ücretsiz anahtar), DeepL ya da yapay zekâ çevirisi kullanılır; uygulama bunu ana ekranda söyler.
 - **Windows'ta ücretsiz çeviri bazı bilgisayarlarda hiç çalışmıyordu, düzeltildi:** Ücretsiz çeviri motorunun ihtiyaç duyduğu Microsoft Visual C++ dosyaları artık uygulamayla birlikte geliyor. Motor yine açılamazsa uygulama kapanmıyor; ana ekranda "Ayarlar › Çeviri'den Gemini (ücretsiz) ya da DeepL seçin" uyarısı çıkıyor. Hazır paketlerdeki ve önceden çevrilmiş satırlar her durumda çalışıyor.
 - **GTA V ve RDR2 paketleri baştan sona gözden geçirildi:** GTA V'te yaklaşık 21 bin, RDR2'de 5 bin satır düzeltildi (anlam hataları, başka cümleye kaymış çeviriler, yumuşatılmış küfürler, yazım). Hitap olarak kullanılan "nigga" artık bağlama göre "kanka", "lan" gibi çevriliyor.
 - **TV uygulaması 0.9.12:** TV başlatıcısında uygulama adı görünüyor, ekran yalnız görüntü oynarken açık kalıyor, uygulamadan çıkınca seslendirme duruyor ve panel TV'nin güvenli alanının içinde kalıyor. TV'deki uygulama kendiliğinden güncellenir.
@@ -47,7 +48,7 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 
 | Dosya | Ne için |
 |---|---|
-| `CouchSubs-macos.dmg` | Mac kurulumu (Apple Silicon, macOS 26+) |
+| `CouchSubs-macos.dmg` | Mac kurulumu (macOS 13+, Apple Silicon ve Intel) |
 | `CouchSubs-windows-Setup.exe` | Windows 10 (2004) / 11 kurulumu, 64 bit |
 | `CouchSubs-macos.zip`, `CouchSubs-windows-x64.zip` | Kurulumsuz kullanmak isteyenler için |
 | `com.couchsubs.tv_…_all.ipk` | LG TV uygulaması, elle kurmak isteyenler için |
