@@ -1,0 +1,26 @@
+CouchSubs, HDMI ile TV'nize bağlı oyun konsolunuzdaki oyunların İngilizce altyazılarını Türkçe olarak, oyun görüntüsünün üstünde gösterir.
+
+<b>Önemli: Bu TV uygulaması tek başına çeviri yapmaz.</b> Altyazıları aynı ev ağındaki bilgisayarınızda (macOS ya da Windows) çalışan ücretsiz CouchSubs uygulaması okur, çevirir ve bu TV'ye gönderir. Telefon uygulaması hazırlanıyor. Bilgisayar uygulaması: https://github.com/yorulmazsinan/couchsubs
+
+<b>Nasıl çalışır</b>
+• Bilgisayarınızda CouchSubs'ı açıp konsolunuzla eşleştirirsiniz. Bilgisayar, konsolun uzaktan oynatma bağlantısından altyazıyı okur ve çeviriyi kendi üzerinde yapar.
+• TV'de CouchSubs'ı açarsınız. Uygulama ev ağındaki bilgisayarı kendisi bulur; konsolun bağlı olduğu HDMI girişini açar ve çeviriyi oyunun üstüne yazar.
+• Hızlı konuşmalarda önceki satır kısa bir süre yeni satırın üstünde kalır, okumaya yetişirsiniz.
+• Altyazının yerini kumandanın yukarı/aşağı tuşlarıyla, HDMI girişini durum panelinden seçebilirsiniz.
+• Bilgisayarda Türkçe dublajı açarsanız seslendirme de TV'den gelir.
+
+<b>Gerekenler</b>
+• HDMI girişi olan, Android TV ya da Google TV işletim sistemli bir televizyon. Televizyona takılan yayın cihazlarında (HDMI çubuk, kutu) konsol görüntüsü uygulamaya gelmez, bu cihazlarda çalışmaz.
+• Aynı ağda, CouchSubs yüklü bir Mac ya da Windows bilgisayar.
+• Konsolda uzaktan oynatma için ikinci bir kullanıcı hesabı. Desteklenen konsollar ve kurulum anlatımı proje sayfasındadır.
+• Bazı televizyonlarda HDMI görüntüsü uygulamaların içinde siyah kalır. Bu televizyonlar için gereken "katman modu" yalnız bilgisayardaki CouchSubs'ın kurduğu TV uygulamasında vardır; uygulama bu durumda ne yapacağınızı ekranda anlatır.
+
+<b>Önce görmek isterseniz</b>
+Konsol ya da bilgisayar olmadan, ilk ekrandaki "Demoyu izle" düğmesiyle örnek altyazıların nasıl göründüğünü izleyebilirsiniz.
+
+<b>Gizlilik</b>
+TV uygulaması hesap istemez, reklam, analiz ya da izleme kodu içermez ve kişisel veri toplamaz. Yalnız ev ağınızdaki CouchSubs bilgisayarıyla konuşur, internete bağlanmaz.
+
+CouchSubs ücretsiz ve açık kaynaklıdır (AGPL-3.0). Yayıncı: Enmera.
+
+CouchSubs bağımsız bir uygulamadır. Sony Interactive Entertainment ya da başka bir konsol üreticisiyle bağlantılı değildir, onlar tarafından desteklenmez veya onaylanmaz. Anılan ticari markalar sahiplerine aittir.

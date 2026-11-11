@@ -1,0 +1,1 @@
+First release on Google Play. Turkish dubbing goes quiet when you leave the app; the screen is kept on only while the HDMI picture is playing, so the TV can start its screen saver while waiting.

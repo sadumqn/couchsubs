@@ -1,0 +1,1 @@
+Google Play'deki ilk sürüm. Uygulamadan çıkınca Türkçe dublaj susar; ekran yalnız HDMI görüntüsü gelirken açık tutulur, beklerken TV ekran koruyucusuna geçebilir.
