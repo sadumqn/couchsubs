@@ -30,10 +30,10 @@ final class ScreenshotTests: XCTestCase {
         let width = Theme.size("windowWidth"), height = Theme.size("windowHeight")
         let settingsSize = CGSize(width: width - 2 * Theme.space("screen"), height: height - 2 * Theme.space("screen"))
         let screens: [(String, AnyView, CGSize)] = [
-            ("ana", AnyView(MainView().environment(main)), CGSize(width: width, height: height)),
-            ("ayarlar-ceviri", AnyView(SettingsView(section: .translation).environment(main)), settingsSize),
-            ("ayarlar-paketler", AnyView(SettingsView(section: .packs).environment(main)), settingsSize),
-            ("kurulum", AnyView(OnboardingView().environment(setup)), CGSize(width: width, height: height)),
+            ("ana", AnyView(MainView().environmentObject(main)), CGSize(width: width, height: height)),
+            ("ayarlar-ceviri", AnyView(SettingsView(section: .translation).environmentObject(main)), settingsSize),
+            ("ayarlar-paketler", AnyView(SettingsView(section: .packs).environmentObject(main)), settingsSize),
+            ("kurulum", AnyView(OnboardingView().environmentObject(setup)), CGSize(width: width, height: height)),
         ]
         let shown = screens.enumerated().map { index, screen in
             (screen.0, show(screen.1, size: screen.2, offset: CGFloat(index) * 40))

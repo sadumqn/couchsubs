@@ -8288,6 +8288,38 @@
           }
         }
       }
+    },
+    "Apple's free translation needs macOS 26 or later. Game packs, DeepL and AI translation (Settings › Translation) work on this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple's free translation needs macOS 26 or later. Game packs, DeepL and AI translation (Settings › Translation) work on this Mac."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple'ın ücretsiz çevirisi macOS 26 ve sonrasında çalışır. Oyun paketleri, DeepL ve yapay zekâ çevirisi (Ayarlar › Çeviri) bu Mac'te de çalışır."
+          }
+        }
+      }
+    },
+    "Apple's free translation needs iOS 26 or later. Game packs, DeepL and AI translation work on this device.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple's free translation needs iOS 26 or later. Game packs, DeepL and AI translation work on this device."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple'ın ücretsiz çevirisi iOS 26 ve sonrasında çalışır. Oyun paketleri, DeepL ve yapay zekâ çevirisi bu cihazda da çalışır."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

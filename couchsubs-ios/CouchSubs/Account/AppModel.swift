@@ -2,20 +2,19 @@
 
 import CouchSubsCore
 import Foundation
-import Observation
+import Combine
 
 /// Uygulama düzeyindeki durum: oyun paketlerinin güncellenmesi, ölçüm ve tanıtım turu. Uygulama tamamen ücretsizdir ve
 /// hesap istemez; paketler herkese açık sunucudan indirilir, indirilemezse uygulamayla gelenler kullanılır.
 @MainActor
-@Observable
-final class AppModel {
+final class AppModel: ObservableObject {
     enum PackStatus: Equatable {
         case idle, downloading, ready, failed(String)
     }
 
-    private(set) var packStatus: PackStatus = .idle
+    @Published private(set) var packStatus: PackStatus = .idle
     /// Paket listesi değişince okuma hattına ve ayarlardaki listeye iletilir.
-    @ObservationIgnored var onPacksChanged: (() -> Void)?
+    var onPacksChanged: (() -> Void)?
 
     let analytics: AnalyticsLogging
     private let packStore: PackStore?
@@ -65,7 +64,10 @@ final class AppModel {
 
     static let tourKey = "coachTourDone"
     var tourDone: Bool {
-        get { access(keyPath: \.tourDone); return defaults.bool(forKey: Self.tourKey) }
-        set { withMutation(keyPath: \.tourDone) { defaults.set(newValue, forKey: Self.tourKey) } }
+        get { defaults.bool(forKey: Self.tourKey) }
+        set {
+            objectWillChange.send()
+            defaults.set(newValue, forKey: Self.tourKey)
+        }
     }
 }

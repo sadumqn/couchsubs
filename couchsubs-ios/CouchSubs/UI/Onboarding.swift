@@ -137,7 +137,7 @@ struct SetupHeader: View {
 }
 
 struct PSNScreen: View {
-    @Environment(PhoneModel.self) private var model
+    @EnvironmentObject private var model: PhoneModel
     var onBack: (() -> Void)?
     var onDone: () -> Void
     @State private var showLogin = false
@@ -205,7 +205,7 @@ struct PSNScreen: View {
             }
             .padding(Mobile.Space.screen)
             .presentationDetents([.medium])
-            .presentationBackground(Mobile.Palette.surface)
+            .sheetBackground(Mobile.Palette.surface)
         }
     }
 
@@ -237,7 +237,7 @@ struct PSNScreen: View {
 }
 
 struct PS5PairScreen: View {
-    @Environment(PhoneModel.self) private var model
+    @EnvironmentObject private var model: PhoneModel
     var onBack: (() -> Void)?
     var onDone: () -> Void
     @State private var consoles: [ConsoleInfo] = []
@@ -287,7 +287,7 @@ struct PS5PairScreen: View {
                         .textContentType(.oneTimeCode)
                         .focused($codeFocused)
                         .opacity(0.01)
-                        .onChange(of: pin) { _, value in pin = String(value.filter(\.isNumber).prefix(8)) }
+                        .onChange(of: pin) { value in pin = String(value.filter(\.isNumber).prefix(8)) }
                     HStack(spacing: Mobile.Space.hair + 2) {
                         ForEach(0..<8, id: \.self) { index in
                             let digits = Array(pin)
@@ -336,7 +336,7 @@ struct PS5PairScreen: View {
             }
             .padding(Mobile.Space.screen)
             .presentationDetents([.large])
-            .presentationBackground(Mobile.Palette.surface)
+            .sheetBackground(Mobile.Palette.surface)
         }
     }
 
@@ -362,7 +362,7 @@ struct PS5PairScreen: View {
 
 /// Altyazının yeri: ağdaki TV'ler (TV uygulaması kurulu) ya da bu telefon. Ayarlar › Altyazı hedefi de burayı açar.
 struct TargetScreen: View {
-    @Environment(PhoneModel.self) private var model
+    @EnvironmentObject private var model: PhoneModel
     var setup = true
     var onBack: (() -> Void)?
     var onDone: () -> Void
@@ -491,7 +491,7 @@ struct TargetScreen: View {
         }
         .padding(Mobile.Space.screen)
         .presentationDetents([.large])
-        .presentationBackground(Mobile.Palette.surface)
+        .sheetBackground(Mobile.Palette.surface)
     }
 
     private func search() async {

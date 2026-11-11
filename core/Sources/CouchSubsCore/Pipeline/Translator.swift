@@ -28,13 +28,16 @@ public enum TranslatorStatus: Equatable {
 /// İngilizce→Türkçede Windows'taki OPUS-MT ile aynı metin hattı kullanılır (`FreeLineTranslator`): terim sözlüğü
 /// (~/Library/Application Support/CouchSubs/Glossary/*.json), kısa satır bağlamı, Türkçe düzeltmeler.
 /// Uygulama kalıcı önbelleği verir: önceki oturumlarda çevrilmiş cümleler hiç çevrilmeden döner.
+/// Arayüzsüz çeviri oturumu (`TranslationSession(installedSource:target:)`) macOS 26 / iOS 26'da geldi; daha eski
+/// sistemlerde bu motor `unsupported` döner, satırlar oyun paketlerinden ya da DeepL/yapay zekâdan gelir.
 public final class Translator: TextTranslator {
     /// Kalıcı önbellek dosyasındaki motor adı; metin hattı değişince (`FreeTranslation.pipelineVersion`) bu da değişir.
     public static let engineID = "apple-p\(FreeTranslation.pipelineVersion)"
 
     private let source: Locale.Language
     private let target: Locale.Language
-    private var session: TranslationSession?
+    /// `TranslationSession` (macOS 26 / iOS 26); eski sistemlerde hiç oluşmaz.
+    private var session: Any?
     private let cache: TranslationCache
     private let freeLine: FreeLineTranslator?
     private var speech: [String: [SpokenLine]] = [:]
@@ -50,8 +53,15 @@ public final class Translator: TextTranslator {
         freeLine = source == "en" && target == "tr" ? FreeLineTranslator(cache: cache, glossary: glossary) : nil
     }
 
+    /// Apple'ın cihaz üstü çevirisi bu sistemde kullanılabilir mi (macOS 26 / iOS 26 ve sonrası).
+    public static var isAvailable: Bool {
+        if #available(macOS 26, iOS 26, *) { return true }
+        return false
+    }
+
     public static func status(source: String, target: String) async -> TranslatorStatus {
-        switch await LanguageAvailability().status(from: Locale.Language(identifier: source), to: Locale.Language(identifier: target)) {
+        guard #available(macOS 26, iOS 26, *) else { return .unsupported }
+        return switch await LanguageAvailability().status(from: Locale.Language(identifier: source), to: Locale.Language(identifier: target)) {
         case .installed: .ready
         case .supported: .needsDownload
         default: .unsupported
@@ -90,6 +100,7 @@ public final class Translator: TextTranslator {
 
     /// Hazır metni Apple'ın çevirisine verir; oturum ilk çağrıda açılır.
     private func run(_ input: String) async throws -> String {
+        guard #available(macOS 26, iOS 26, *) else { throw TranslatorError.unsupported }
         if session == nil {
             switch await LanguageAvailability().status(from: source, to: target) {
             case .installed: session = TranslationSession(installedSource: source, target: target)
@@ -97,6 +108,7 @@ public final class Translator: TextTranslator {
             default: throw TranslatorError.unsupported
             }
         }
-        return try await session!.translate(input).targetText
+        guard let session = session as? TranslationSession else { throw TranslatorError.unsupported }
+        return try await session.translate(input).targetText
     }
 }

@@ -8,14 +8,13 @@ import SwiftUI
 // MARK: - Profil
 
 struct ProfileScreen: View {
-    @Environment(PhoneModel.self) private var model
-    @Environment(AppModel.self) private var app
+    @EnvironmentObject private var model: PhoneModel
+    @EnvironmentObject private var app: AppModel
     @Binding var path: [Route]
     @AppStorage("notifyPackUpdates") private var notifyPackUpdates = true
     @AppStorage("usageData") private var usageData = true
 
     var body: some View {
-        @Bindable var model = model
         MobileScreen {
             BackHeader(title: "Profile")
         } content: {
@@ -68,7 +67,7 @@ struct ProfileScreen: View {
         } bottom: {
             EmptyView()
         }
-        .onChange(of: usageData) { _, value in app.analytics.setCollection(value) }
+        .onChange(of: usageData) { value in app.analytics.setCollection(value) }
         .onAppear { app.analytics.screen("profile") }
     }
 
@@ -96,8 +95,8 @@ struct ProfileScreen: View {
 // MARK: - Ayarlar
 
 struct SettingsScreen: View {
-    @Environment(PhoneModel.self) private var model
-    @Environment(AppModel.self) private var app
+    @EnvironmentObject private var model: PhoneModel
+    @EnvironmentObject private var app: AppModel
     @Binding var path: [Route]
     @State private var key = ""
     @State private var checking = false
@@ -108,7 +107,6 @@ struct SettingsScreen: View {
     private static let choices: KeyValuePairs<Choice, LocalizedStringKey> = [.free: "Free", .deepL: "DeepL", .gemini: "Gemini", .other: "Other"]
 
     var body: some View {
-        @Bindable var model = model
         MobileScreen {
             BackHeader(title: "Settings")
         } content: {

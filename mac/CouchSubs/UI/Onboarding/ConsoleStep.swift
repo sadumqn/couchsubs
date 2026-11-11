@@ -4,7 +4,7 @@ import RemotePlay
 import SwiftUI
 
 struct ConsoleStep: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @State private var consoles: [ConsoleInfo] = []
     @State private var selected: String?
     @State private var manualHost = ""

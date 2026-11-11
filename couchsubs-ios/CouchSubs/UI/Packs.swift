@@ -5,11 +5,10 @@ import CouchSubsCore
 import SwiftUI
 
 struct PacksScreen: View {
-    @Environment(PhoneModel.self) private var model
-    @Environment(AppModel.self) private var app
+    @EnvironmentObject private var model: PhoneModel
+    @EnvironmentObject private var app: AppModel
 
     var body: some View {
-        @Bindable var model = model
         MobileScreen {
             BackHeader(title: "Game packs") {
                 MobilePill(text: String(localized: "Free"), kind: .pro)

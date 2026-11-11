@@ -5,7 +5,7 @@ name: CouchSubs
 options:
   bundleIdPrefix: com.couchsubs
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "16.0"
   developmentLanguage: en
 configFiles:
   # Anahtarlar Config/Secrets.xcconfig'te (gitignore'da); yoksa ilgili özellik kapalı derlenir.

@@ -4,6 +4,7 @@
 // kullanmaz; ölçü, renk ve efektler buradan gelir.
 
 import SwiftUI
+import UIKit
 
 enum Mobile {
     enum Space {
@@ -409,7 +410,7 @@ struct SegmentedTabs<Value: Hashable>: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .sensoryFeedback(.selection, trigger: selected)
+                .selectionFeedback(trigger: selected)
             }
         }
         .padding(Mobile.Space.hair)
@@ -564,6 +565,30 @@ struct MobileNote: View {
 extension View {
     /// Mobil ekran zemini.
     func mobileScreen() -> some View { background(MobileBackground()) }
+}
+
+extension View {
+    /// Alttan açılan sayfanın zemini. `presentationBackground` iOS 16.4'te geldi; öncesinde içerik zemini kenara kadar
+    /// boyanır (görünüm aynı).
+    @ViewBuilder func sheetBackground(_ color: Color) -> some View {
+        if #available(iOS 16.4, *) {
+            presentationBackground(color)
+        } else {
+            background(color.ignoresSafeArea())
+        }
+    }
+
+    /// Seçim değişince hafif dokunsal geri bildirim. `sensoryFeedback` iOS 17'de geldi; iOS 16'da UIKit'in üreteciyle
+    /// (yalnız seçilen düğmede, bir kez).
+    @ViewBuilder func selectionFeedback(trigger selected: Bool) -> some View {
+        if #available(iOS 17, *) {
+            sensoryFeedback(.selection, trigger: selected)
+        } else {
+            onChange(of: selected) { now in
+                if now { UISelectionFeedbackGenerator().selectionChanged() }
+            }
+        }
+    }
 }
 
 // MARK: - Bento ızgara (§6)

@@ -48,11 +48,32 @@ struct HomeHeader: View {
 
 // MARK: - 8 Ana ekran
 
-struct HomeScreen: View {
-    @Environment(PhoneModel.self) private var model
-    @Environment(AppModel.self) private var app
-    @Binding var path: [Route]
+/// Apple çevirisinin dil paketi henüz indirilmedi: "İndir" sistemin indirme penceresini açar.
+@available(iOS 26, *)
+private struct LanguagePackTile: View {
+    @EnvironmentObject private var model: PhoneModel
     @State private var download: TranslationSession.Configuration?
+
+    var body: some View {
+        Tile {
+            Text("The English–Turkish language pack is not downloaded yet.").font(Mobile.TypeScale.headline)
+            Button("Download") {
+                download = TranslationSession.Configuration(source: Locale.Language(identifier: model.settings.sourceLanguage),
+                                                            target: Locale.Language(identifier: model.settings.targetLanguage))
+            }
+            .buttonStyle(.mobileSecondary)
+        }
+        .translationTask(download) { session in
+            try? await session.prepareTranslation()
+            await model.refreshTranslatorStatus()
+        }
+    }
+}
+
+struct HomeScreen: View {
+    @EnvironmentObject private var model: PhoneModel
+    @EnvironmentObject private var app: AppModel
+    @Binding var path: [Route]
 
     var body: some View {
         MobileScreen {
@@ -76,15 +97,12 @@ struct HomeScreen: View {
                 StatTile(symbol: "clock.arrow.circlepath", label: "Last session", value: lastSession)
             }
             if model.tvAppMissing { MobileNote(text: String(localized: "To install the TV app for the first time, use CouchSubs on a computer once. After that this phone is enough.")) }
-            if model.translatorStatus == .needsDownload {
-                Tile {
-                    Text("The English–Turkish language pack is not downloaded yet.").font(Mobile.TypeScale.headline)
-                    Button("Download") {
-                        download = TranslationSession.Configuration(source: Locale.Language(identifier: model.settings.sourceLanguage),
-                                                                    target: Locale.Language(identifier: model.settings.targetLanguage))
-                    }
-                    .buttonStyle(.mobileSecondary)
-                }
+            // Dil paketi yalnız Apple çevirisinin kullanılabildiği sistemde (iOS 26 ve sonrası) istenir.
+            if model.translatorStatus == .needsDownload, #available(iOS 26, *) {
+                LanguagePackTile()
+            }
+            if model.translatorStatus == .unsupported, !Translator.isAvailable {
+                MobileNote(text: String(localized: "Apple's free translation needs iOS 26 or later. Game packs, DeepL and AI translation work on this device."))
             }
         } bottom: {
             Button {
@@ -96,10 +114,6 @@ struct HomeScreen: View {
             .buttonStyle(.mobilePrimary)
             .disabled(model.isStarting || !model.canStart)
             .tourTarget(.start)
-        }
-        .translationTask(download) { session in
-            try? await session.prepareTranslation()
-            await model.refreshTranslatorStatus()
         }
         .task {
             app.analytics.screen("home")
@@ -145,7 +159,7 @@ struct HomeScreen: View {
 // MARK: - 9 Çeviri sürüyor
 
 struct RunningScreen: View {
-    @Environment(PhoneModel.self) private var model
+    @EnvironmentObject private var model: PhoneModel
     @Binding var path: [Route]
     @State private var showSubtitles = false
 
@@ -262,7 +276,7 @@ struct ScanLine: View {
 // MARK: - 10 Yatay altyazı ekranı
 
 struct SubtitleScreen: View {
-    @Environment(PhoneModel.self) private var model
+    @EnvironmentObject private var model: PhoneModel
     @Environment(\.dismiss) private var dismiss
     @State private var savedBrightness: CGFloat?
 

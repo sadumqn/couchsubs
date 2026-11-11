@@ -6,12 +6,11 @@ import SwiftUI
 /// "Altyazıyı göster: TV / Bilgisayar ekranı / İkisi de" ve bilgisayar ekranındaki pencerenin seçenekleri.
 /// Ana ekranda ve ayarlarda aynı karo kullanılır (Windows'ta da aynı düzen).
 struct SubtitleOutputCard: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     /// Ayarlarda açıklamalar da gösterilir; ana ekranda karo kısa kalır.
     var detailed = false
 
     var body: some View {
-        @Bindable var model = model
         Card {
             Text("Show subtitles on").font(.csCaption).foregroundStyle(Color.csSecondary)
             Picker("Show subtitles on", selection: $model.settings.output) {
@@ -38,10 +37,9 @@ struct SubtitleOutputCard: View {
 
 /// Bilgisayar ekranındaki altyazı penceresi: tıklamalar geçsin, pencereyi ayarla.
 private struct ComputerScreenOptions: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        @Bindable var model = model
         ViewThatFits(in: .horizontal) {
             HStack(spacing: Theme.space("m")) {
                 Toggle("Clicks pass through", isOn: $model.settings.overlayClickThrough)

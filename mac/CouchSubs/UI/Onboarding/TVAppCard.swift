@@ -6,7 +6,7 @@ import SwiftUI
 
 /// TV uygulamasını geliştirici moduyla kurma adımları (LG, Samsung, Android TV). Yapılacak bir şey yoksa görünmez.
 struct TVAppCard: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @State private var passphrase = ""
 
     private var brand: TVBrand { model.tv?.brand ?? .lg }

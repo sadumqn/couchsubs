@@ -145,10 +145,9 @@ private struct SettingsPage: View {
 
 /// Yazı boyutu, yeri, arka planı, rengi; görünüm ayarları bilgisayar ekranındaki pencereye de uygulanır.
 private struct AppearanceCard: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        @Bindable var model = model
         Card(title: model.settings.output == .tv ? "On the TV" : "Subtitle appearance") {
             // 1920 piksellik TV ekranında yazı yüksekliği; sürüklerken TV'de örnek altyazı görünür.
             Slider(value: Binding(get: { Double(model.settings.style.fontSize) },
@@ -207,10 +206,9 @@ private struct AppearanceCard: View {
 }
 
 private struct LanguageCard: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        @Bindable var model = model
         Card {
             Picker("Game language", selection: $model.settings.sourceLanguage) {
                 Text("English").tag("en")
@@ -223,14 +221,23 @@ private struct LanguageCard: View {
     }
 }
 
-/// Altyazı bölgesi ve ekranı çevirme kısayolu.
-private struct AreaCards: View {
-    @Environment(AppModel.self) private var model
+/// Bölge seçici, son PS5 karesiyle (kare değişince yalnız bu görünüm yeniden çizilir).
+private struct LiveRegionPicker: View {
+    @Binding var region: CropRegion
+    @ObservedObject var preview: FramePreview
 
     var body: some View {
-        @Bindable var model = model
+        RegionPicker(region: $region, frame: preview.image)
+    }
+}
+
+/// Altyazı bölgesi ve ekranı çevirme kısayolu.
+private struct AreaCards: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
         Card {
-            RegionPicker(region: $model.settings.region, frame: model.lastFrame)
+            LiveRegionPicker(region: $model.settings.region, preview: model.framePreview)
             HintText(text: "Adjust the frame so it covers where the game shows its subtitles.")
         }
         Card(title: "Translate the screen (⌥⌘T)") {
@@ -240,7 +247,7 @@ private struct AreaCards: View {
 }
 
 private struct OBSCard: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @State private var obsCopied = false
 
     /// OBS'de "Tarayıcı kaynağı" adresi; OBS çoğunlukla CouchSubs ile aynı bilgisayarda çalışır.
@@ -269,7 +276,7 @@ private struct OBSCard: View {
 }
 
 private struct AboutCard: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var confirmReset = false
 
@@ -295,12 +302,11 @@ private struct AboutCard: View {
 /// Oyun paketleri: masaüstünde ücretsiz; kurulu paketler karolar hâlinde, altta paket ve ortak havuz anahtarları
 /// (Windows'taki ayarlarla aynı düzen).
 private struct GamePacksPage: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     private let columns = [GridItem(.flexible(), spacing: Theme.space("gap"), alignment: .top),
                            GridItem(.flexible(), spacing: Theme.space("gap"), alignment: .top)]
 
     var body: some View {
-        @Bindable var model = model
         HStack(alignment: .firstTextBaseline) {
             Text("Game packs").font(.csDisplay).tracking(-0.4)
             Spacer()
@@ -395,11 +401,10 @@ private struct AndroidDisplayModePicker: View {
 }
 
 struct TranslationCard: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        @Bindable var model = model
         let engine = model.settings.translationEngine
         Card(title: "Translation engine") {
             EngineTiles(engine: $model.settings.translationEngine)
@@ -503,7 +508,7 @@ private struct EngineTile: View {
 
 /// DeepL anahtarı: kaydedilince bu ayki kullanım görünür.
 private struct DeepLKeySection: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @State private var key = ""
     @State private var checking = false
     @State private var status: OnlineKeyCheck?
@@ -562,7 +567,7 @@ private struct DeepLKeySection: View {
 
 /// Yapay zekâ modeli (yalnız listedekiler), anahtar ve örnek satırla deneme.
 private struct AIKeySection: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     let provider: AIProvider
     @State private var key = ""
     @State private var checking = false

@@ -22,8 +22,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct CouchSubsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var model: PhoneModel
-    @State private var app: AppModel
+    @StateObject private var model: PhoneModel
+    @StateObject private var app: AppModel
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -43,8 +43,8 @@ struct CouchSubsApp: App {
         let app = AppModel(analytics: analytics, packStore: store, library: library)
         model.onAnalytics = { [analytics] event in analytics.log(event) }
         app.onPacksChanged = { [weak model] in model?.packsChanged() }
-        _model = State(initialValue: model)
-        _app = State(initialValue: app)
+        _model = StateObject(wrappedValue: model)
+        _app = StateObject(wrappedValue: app)
     }
 
     /// Hata ayıklama: COUCHSUBS_DEMO=1 ile kurulum bitmiş gibi açılır (ekran görüntüsü ve tasarım denetimi için;
@@ -67,8 +67,8 @@ struct CouchSubsApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environment(model)
-                .environment(app)
+                .environmentObject(model)
+                .environmentObject(app)
                 .appSurface()
                 // Meta'nın dönüş adresleri.
                 .onOpenURL { url in
@@ -77,7 +77,7 @@ struct CouchSubsApp: App {
                 }
                 .task { await app.start() }
         }
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase) { phase in
             switch phase {
             case .active: model.becameActive()
             case .background: Task { await model.flushPool() }
@@ -88,8 +88,8 @@ struct CouchSubsApp: App {
 }
 
 struct RootView: View {
-    @Environment(PhoneModel.self) private var model
-    @Environment(AppModel.self) private var app
+    @EnvironmentObject private var model: PhoneModel
+    @EnvironmentObject private var app: AppModel
     @AppStorage("welcomeSeen") private var welcomeSeen = false
     @State private var path: [Route] = []
 

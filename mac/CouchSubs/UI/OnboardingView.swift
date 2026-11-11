@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Kurulum sihirbazı: solda adım listesi, sağda adımın karosu, altında Geri / Devam.
 struct OnboardingView: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         HStack(alignment: .top, spacing: Theme.space("gap")) {
@@ -35,7 +35,7 @@ struct OnboardingView: View {
 
 /// Geri ve Devam (ya da isteğe bağlı adımda "Şimdilik geç").
 private struct StepButtons: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         HStack(spacing: Theme.space("m")) {
@@ -59,7 +59,7 @@ private struct StepButtons: View {
 
 /// Adım listesi: biten adımlar onaylı, sıradaki adım vurgulu; altta "Adım n / toplam" ve ilerleme çubuğu.
 private struct StepSidebar: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     private var steps: [AppModel.Step] { AppModel.Step.allCases.filter { $0 != .done } }
 

@@ -5,7 +5,7 @@ import SwiftUI
 import WebKit
 
 struct PSNLoginStep: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @State private var showLogin = false
     @State private var working = false
     @State private var error: String?

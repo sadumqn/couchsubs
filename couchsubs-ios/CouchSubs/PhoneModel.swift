@@ -3,31 +3,30 @@
 import CoreGraphics
 import CouchSubsCore
 import Foundation
-import Observation
+import Combine
 import RemotePlay
 
 /// Telefon uygulamasının bütün durumu: kurulum (PSN girişi, PS5 eşleştirme, altyazının yeri), çeviri (PS5 görüntüsü →
 /// yazı tanıma → çeviri → TV ya da telefon ekranı) ve ayarlar. Okuma hattı, çevirmenler, ayarlar ve TV denetimi Mac
 /// uygulamasıyla ortak (CouchSubsCore, RemotePlay); burada yalnız telefona özgü akış var.
 @MainActor
-@Observable
-final class PhoneModel {
+final class PhoneModel: ObservableObject {
     enum Step: Int, CaseIterable {
         case welcome, psnLogin, console, output, done
     }
 
-    var step: Step {
+    @Published var step: Step {
         didSet { if step == .done, oldValue != .done { store.save(true, for: StoreKey.setupComplete) } }
     }
-    var accountId: Data?
-    var console: RegisteredConsole?
-    var tv: LGTV?
-    private(set) var tvKeySaved: Bool
+    @Published var accountId: Data?
+    @Published var console: RegisteredConsole?
+    @Published var tv: LGTV?
+    @Published private(set) var tvKeySaved: Bool
     /// Son eşleşmede TV uygulaması açılamadı: büyük olasılıkla TV'de kurulu değil. Telefon TV uygulamasını kuramaz
     /// (LG ssh, Samsung sdb, Android TV adb ister); ilk kurulum bilgisayardaki CouchSubs ile yapılır.
-    var tvAppMissing = false
+    @Published var tvAppMissing = false
 
-    var settings: UserSettings {
+    @Published var settings: UserSettings {
         didSet {
             if let data = try? JSONEncoder().encode(settings) { defaults.set(data, forKey: StoreKey.settings) }
             server.sendStyle(settings.style)
@@ -48,24 +47,24 @@ final class PhoneModel {
     }
 
     // Çalışma durumu
-    private(set) var isRunning = false
-    private(set) var isStarting = false
-    private(set) var sessionState: SessionState = .disconnected(.stopped)
-    private(set) var tvClients = 0
-    private(set) var lastSource = ""
-    private(set) var lastTranslation = ""
-    private(set) var history = SubtitleHistory()
-    private(set) var translatorStatus: TranslatorStatus = .ready
-    private(set) var onlineIssue: OnlineKeyState?
+    @Published private(set) var isRunning = false
+    @Published private(set) var isStarting = false
+    @Published private(set) var sessionState: SessionState = .disconnected(.stopped)
+    @Published private(set) var tvClients = 0
+    @Published private(set) var lastSource = ""
+    @Published private(set) var lastTranslation = ""
+    @Published private(set) var history = SubtitleHistory()
+    @Published private(set) var translatorStatus: TranslatorStatus = .ready
+    @Published private(set) var onlineIssue: OnlineKeyState?
     /// Son altyazı oyun paketinden mi geldi (ana ekrandaki "paket kullanılıyor" göstergesi).
-    private(set) var lastFromPack = false
+    @Published private(set) var lastFromPack = false
     /// Bu oturumda çevrilen satırlar (en yenisi başta), nereden geldikleriyle.
-    private(set) var recentLines: [RecentLine] = []
+    @Published private(set) var recentLines: [RecentLine] = []
     /// Bu oturumdaki satır sayısı ve paketten gelenler ("Hazır çeviriden 47 / 50").
-    private(set) var sessionLines = 0
-    private(set) var sessionPackLines = 0
+    @Published private(set) var sessionLines = 0
+    @Published private(set) var sessionPackLines = 0
     /// Çevirinin başladığı an (çalışma ekranındaki süre).
-    private(set) var runningSince: Date?
+    @Published private(set) var runningSince: Date?
 
     struct RecentLine: Identifiable, Equatable {
         let id: Int
@@ -80,30 +79,30 @@ final class PhoneModel {
         return value > 0 ? value : nil
     }
     /// Telefon ekranında şu an görünen satırlar (TV uygulamasıyla aynı yığın kuralları).
-    private(set) var phoneLines: [SubtitleStack.Line] = []
-    private(set) var installedPacks: [GamePackLibrary.Info] = []
+    @Published private(set) var phoneLines: [SubtitleStack.Line] = []
+    @Published private(set) var installedPacks: [GamePackLibrary.Info] = []
 
     /// Çeviri sürerken ekran kararmasın (iOS uygulamayı askıya alınca bağlantı da durur). Uygulama UIKit'e bağlar.
-    @ObservationIgnored var keepScreenAwake: (Bool) -> Void = { _ in }
+    var keepScreenAwake: (Bool) -> Void = { _ in }
     /// Ölçüm olayları (Firebase Analytics, Meta); uygulama `AppModel.analytics`'e bağlar.
-    @ObservationIgnored var onAnalytics: (AnalyticsEvent) -> Void = { _ in }
-    @ObservationIgnored private var startedAt: Date?
+    var onAnalytics: (AnalyticsEvent) -> Void = { _ in }
+    private var startedAt: Date?
 
     private let services: PhoneServices
     private let store: AppStore
     private let defaults: UserDefaults
-    @ObservationIgnored private var server = SubtitleServer(port: AppIdentity.serverPort)
-    @ObservationIgnored private var serverStarted = false
-    private(set) var serverPort: UInt16 = AppIdentity.serverPort
-    @ObservationIgnored private var session: StreamControlling?
-    @ObservationIgnored private var keeper: KeeperControlling?
-    @ObservationIgnored private var pipeline: SubtitlePipeline?
-    @ObservationIgnored private var processing = false
-    @ObservationIgnored private var savedKeys: Set<TranslationEngine> = []
-    @ObservationIgnored private var stack = SubtitleStack()
-    @ObservationIgnored private var stackTimer: Task<Void, Never>?
+    private var server = SubtitleServer(port: AppIdentity.serverPort)
+    private var serverStarted = false
+    @Published private(set) var serverPort: UInt16 = AppIdentity.serverPort
+    private var session: StreamControlling?
+    private var keeper: KeeperControlling?
+    private var pipeline: SubtitlePipeline?
+    private var processing = false
+    private var savedKeys: Set<TranslationEngine> = []
+    private var stack = SubtitleStack()
+    private var stackTimer: Task<Void, Never>?
     /// Yığının saati (saniye); testlerde ileri sarılır.
-    @ObservationIgnored var clock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    var clock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
     /// Oyun paketleri: uygulamayla gelenler ve sunucudan indirilen güncel sürümleri (ücretsiz, herkese).
     let packs: GamePackLibrary
