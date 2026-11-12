@@ -125,10 +125,8 @@ targets:
         FacebookAdvertiserIDCollectionEnabled: false
         GADApplicationIdentifier: $(GAD_APPLICATION_ID)
         GADDelayAppMeasurementInit: true
-        CFBundleURLTypes:
-          - CFBundleURLName: facebook
-            CFBundleURLSchemes: [fb$(FACEBOOK_APP_ID)]
-        LSApplicationQueriesSchemes: [fbapi, fb-messenger-share-api]
+        # Meta girişi ya da paylaşımı kullanılmıyor; "fb" adres şeması gerekmez. Anahtarsız yapıda yalnız "fb" kalıyor ve
+        # App Store yüklemeyi reddediyor ("URL schemes ... disallowed: [fb]").
         # Google (AdMob) ve Meta'nın SKAdNetwork kimlikleri; yayın öncesi güncel listeyle karşılaştırılmalı.
         SKAdNetworkItems:
           - SKAdNetworkIdentifier: cstr6suwn9.skadnetwork
