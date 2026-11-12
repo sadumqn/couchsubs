@@ -5,24 +5,46 @@ import RemotePlay
 import SwiftUI
 
 /// Ana ekran: solda başlat/durdur, durum karoları ve uyarılar; sağda paket notu ve canlı altyazı.
+/// Sütunlar hiçbir genişlikte üst üste binmez: sol sütun en çok `mainColumn`, sağ sütun en az `liveColumnMin`
+/// genişliğindedir; ikisi sığmazsa (pencere sistem tarafından daraltıldıysa) sütunlar alt alta dizilir.
 struct MainView: View {
     @EnvironmentObject private var model: AppModel
+
+    /// Sol sütunun en dar hâli (iki durum karosu yan yana okunur kalır).
+    static let controlsColumnMin: CGFloat = 340
+    /// Canlı altyazı sütununun en dar hâli.
+    static let liveColumnMin: CGFloat = 320
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.space("gap")) {
             MainHeader()
-            HStack(alignment: .top, spacing: Theme.space("gap")) {
-                ScrollView {
-                    MainControls()
-                        // Düğmenin odak halkası kırpılmasın.
-                        .padding(Theme.space("m"))
-                }
-                .scrollIndicators(.never)
-                .frame(width: Theme.size("mainColumn") + 2 * Theme.space("m"))
-                .padding(-Theme.space("m"))
-                VStack(alignment: .leading, spacing: Theme.space("gap")) {
-                    PackInUseTile()
-                    LiveSubtitlesTile()
+            GeometryReader { geometry in
+                let gap = Theme.space("gap")
+                let available = geometry.size.width
+                if available >= Self.controlsColumnMin + gap + Self.liveColumnMin {
+                    HStack(alignment: .top, spacing: gap) {
+                        ScrollView {
+                            MainControls()
+                                .padding(.vertical, Theme.space("m"))
+                        }
+                        .scrollIndicators(.never)
+                        .padding(.vertical, -Theme.space("m"))
+                        .frame(width: min(Theme.size("mainColumn"), available - gap - Self.liveColumnMin))
+                        VStack(alignment: .leading, spacing: gap) {
+                            PackInUseTile()
+                            LiveSubtitlesTile()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: gap) {
+                            MainControls()
+                            PackInUseTile()
+                            LiveSubtitlesTile().frame(minHeight: Self.liveColumnMin)
+                        }
+                    }
+                    .scrollIndicators(.never)
                 }
             }
         }
