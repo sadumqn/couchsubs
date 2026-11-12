@@ -7,7 +7,8 @@ import Foundation
 /// Altyazıları TV'ye ileten taraf (gerçekte `SubtitleServer`).
 protocol SubtitleSending: AnyObject {
     /// `box`: oyundaki altyazının karedeki yeri (kenarlara oranla), bilinmiyorsa nil.
-    func sendSubtitle(_ text: String, durationMs: Int, box: TextBox?)
+    /// `replaces`: satır az önce gösterilenin uzamış ya da düzelmiş okumasıdır; TV onu öncekinin üstüne yığmaz.
+    func sendSubtitle(_ text: String, durationMs: Int, box: TextBox?, replaces: Bool)
     func clear()
 }
 
@@ -17,7 +18,11 @@ extension SubtitleServer: SubtitleSending {}
 @MainActor
 final class SubtitlePipeline {
     /// Satır ekrandan bundan uzun süre önce kalktıysa geç gelen çevirisi gösterilmez (sonraki sahnenin üstüne düşmesin).
-    static let lateResultMs = 1000
+    /// Yavaş çeviride (ücretsiz motor, zayıf işlemci) art arda gelen satırların çevirisi satır kalktıktan bir iki saniye
+    /// sonra gelir; sınır 1 sn iken üç satırlık konuşmanın yalnız ilki görünüyordu.
+    static let lateResultMs = 2500
+    /// Çeviri sürerken sırada en çok bu kadar satır bekler; daha eskisi atlanır (kuyruk konuşma hızıyla büyümesin).
+    static let maxWaiting = 2
     private static let rememberedPairs = 8
 
     /// Bir çeviri isteği; satır ekrandan kalkınca `leftAt` not edilir.
@@ -28,6 +33,8 @@ final class SubtitlePipeline {
         let session: Int
         /// Satırın ekrandan kalktığı an (hâlâ ekrandaysa nil).
         var leftAt: Int?
+        /// Yerine aynı cümlenin uzamış okuması geldi (daktilo efekti); çevirisi gösterilmez.
+        var superseded = false
         init(number: Int, source: String, box: TextBox?, session: Int) {
             self.number = number
             self.source = source
@@ -42,12 +49,13 @@ final class SubtitlePipeline {
     private let now: () -> Int
     private var stabilizer: SubtitleStabilizer
     private var scheduler: ReadScheduler
-    /// Her çeviri isteği sıra numarası alır. Aynı anda yalnız bir çeviri sürer, bir tane de sırada bekler (en yenisi):
-    /// hızlı konuşmada araya giren satırlar atlanır, kuyruk konuşma hızıyla büyümez.
+    /// Her çeviri isteği sıra numarası alır. Aynı anda yalnız bir çeviri sürer, en çok `maxWaiting` satır sırada bekler:
+    /// hızlı konuşmada satırlar sırayla çevrilir, kuyruk konuşma hızıyla büyümez. Bekleyen satırın uzamış ya da düzelmiş
+    /// okuması gelirse eskisi sıradan çıkar.
     private var lastRequested = 0
     private var lastShown = 0
     private var inFlight: Request?
-    private var pending: Request?
+    private var waiting: [Request] = []
     private var pump: Task<Void, Never>?
     /// Süren çevirinin kendisi; okuma durunca iptal edilir.
     private var work: Task<String, Error>?
@@ -133,12 +141,15 @@ final class SubtitlePipeline {
         }
     }
 
+    /// Süren ve sırada bekleyen istekler.
+    private var requests: [Request] { (inFlight.map { [$0] } ?? []) + waiting }
+
     /// Ekrandaki satır kalktı (ya da yerine başkası geldi); çevirisi sürüyorsa ne zaman kalktığı not edilir.
     private func lineLeft() {
         guard let number = lineOnScreen else { return }
         let time = now()
-        for request in [inFlight, pending] where request?.number == number && request?.leftAt == nil {
-            request?.leftAt = time
+        for request in requests where request.number == number && request.leftAt == nil {
+            request.leftAt = time
         }
         lineOnScreen = nil
     }
@@ -152,18 +163,31 @@ final class SubtitlePipeline {
             return
         }
         onPackMiss?(source)
-        // Çeviri sürüyorsa yeni satır sıraya girer; sıradaki eski satır atlanır (artık ekranda değil).
-        guard inFlight == nil else {
-            pending = request
+        guard let current = inFlight else {
+            inFlight = request
+            pump = Task { [weak self] in await self?.runPump() }
             return
         }
-        inFlight = request
-        pump = Task { [weak self] in await self?.runPump() }
+        // Aynı cümlenin eski okuması sırada bekliyorsa çıkar; sıra dolduysa en eski bekleyen atlanır.
+        waiting.removeAll { TextMatch.isRevision(source, of: $0.source) }
+        waiting.append(request)
+        if waiting.count > Self.maxWaiting { waiting.removeFirst(waiting.count - Self.maxWaiting) }
+        // Süren çeviri bu cümlenin yarım okumasınınsa (daktilo efekti) beklenmez: bırakılır, tamamı hemen çevrilir.
+        if !current.superseded, current.session == session, TextMatch.isGrowth(source, of: current.source) {
+            current.superseded = true
+            work?.cancel()
+        }
+    }
+
+    /// Satır az önce gösterilenin uzamış ya da düzelmiş okuması mı (TV yerine koyar, üstüne yığmaz).
+    private func revisesShown(_ source: String) -> Bool {
+        guard let shown = lastPair?.source else { return false }
+        return TextMatch.isRevision(source, of: shown)
     }
 
     /// Paketteki Türkçe hemen gösterilir; süren çevirinin sonucu (eski satır) artık gösterilmez.
     private func showPacked(_ request: Request, _ packed: PackMatch) {
-        pending = nil
+        waiting.removeAll()
         packHits += 1
         let source = request.source
         let translated = packed.text
@@ -171,7 +195,7 @@ final class SubtitlePipeline {
         remember(request.number, source, shouldSend ? translated : nil)
         guard shouldSend else { return }
         lastShown = request.number
-        server.sendSubtitle(translated, durationMs: 15000, box: request.box)
+        server.sendSubtitle(translated, durationMs: 15000, box: request.box, replaces: revisesShown(source))
         lastPair = (source, translated)
         lastBox = request.box
         lastOrigin = "paket"
@@ -184,13 +208,13 @@ final class SubtitlePipeline {
         if let pair = pairs.last(where: { $0.source == source }) {
             lineOnScreen = pair.number
             guard let translation = pair.translation else { return }
-            server.sendSubtitle(translation, durationMs: 15000, box: box)
+            server.sendSubtitle(translation, durationMs: 15000, box: box, replaces: revisesShown(source))
             lastPair = (source, translation)
             lastBox = box
             return
         }
         // Çevirisi henüz gelmediyse istek sürüyordur; satır yeniden ekranda sayılır.
-        for case let request? in [inFlight, pending] where request.source == source && request.session == session {
+        for request in requests where request.source == source && request.session == session && !request.superseded {
             request.leftAt = nil
             lineOnScreen = request.number
             return
@@ -203,13 +227,10 @@ final class SubtitlePipeline {
     private func runPump() async {
         while let request = inFlight {
             await translate(request)
-            var next = pending
-            pending = nil
             // Ekrandan çoktan kalkmış satır çevrilmez; çevirisi zaten gösterilmeyecekti.
-            if let candidate = next, candidate.session != session || candidate.leftAt.map({ now() - $0 > Self.lateResultMs }) == true {
-                next = nil
-            }
-            inFlight = next
+            let time = now()
+            waiting.removeAll { $0.session != session || $0.leftAt.map { time - $0 > Self.lateResultMs } == true }
+            inFlight = waiting.isEmpty ? nil : waiting.removeFirst()
         }
     }
 
@@ -236,20 +257,22 @@ final class SubtitlePipeline {
             onTranslationResult?(nil)
             let shouldSend = stabilizer.shouldSend(source: source, translation: translated)
             remember(request.number, source, shouldSend ? translated : nil)
-            guard request.number > lastShown, shouldSend else { return }
+            guard request.number > lastShown, shouldSend, !request.superseded else { return }
             let onScreen = request.number == lineOnScreen
             // Satır ekrandan çoktan kalktıysa çevirisi sonraki sahnenin üstüne düşmesin.
             if !onScreen, let left = request.leftAt, now() - left > Self.lateResultMs { return }
             lastShown = request.number
             // Satır hâlâ ekrandaysa kalkınca silinir; kalktıysa okunacak kadar gösterilir.
-            server.sendSubtitle(translated, durationMs: onScreen ? 15000 : Self.readingTime(for: translated), box: request.box)
+            server.sendSubtitle(translated, durationMs: onScreen ? 15000 : Self.readingTime(for: translated), box: request.box,
+                                replaces: revisesShown(source))
             lastPair = (source, translated)
             lastBox = request.box
             lastOrigin = "motor"
             onPair?(source, translated)
             if let onSpeech { onSpeech(translator.spokenLines(for: source)) }
         } catch {
-            guard request.session == session else { return }
+            // Yerine uzamış okuması gelen satırın bırakılan çevirisi hata sayılmaz.
+            guard request.session == session, !request.superseded else { return }
             // Dil paketi eksikse ya da geçici bir hata olduysa satır ekranda kaldıkça (saniyede en çok bir kez) yeniden denenir.
             lastError = error as? TranslatorError
             onTranslationResult?(lastError)
@@ -279,7 +302,7 @@ final class SubtitlePipeline {
     func reset() {
         session += 1
         lineOnScreen = nil
-        pending = nil
+        waiting.removeAll()
         // Apple'ın çevirisi görev iptaline uyar; süren çeviri beklenmeden bırakılır.
         work?.cancel()
         pairs.removeAll()

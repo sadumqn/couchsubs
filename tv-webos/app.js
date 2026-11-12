@@ -6,7 +6,7 @@
   'use strict';
 
   // TV uygulamasının sürümü: appinfo.json, tv-tizen/config.xml ve tv-android/app/build.gradle ile aynı tutulur.
-  var APP_VERSION = '0.9.13';
+  var APP_VERSION = '0.9.14';
   var t = window.t;
   var config = window.COUCHSUBS_CONFIG || {};
   var platform = window.COUCHSUBS_PLATFORM;
@@ -155,12 +155,15 @@
   }
 
   // paragraphs: görev paneli gibi başlık ve maddeli yazılar satır satır, sola yaslı gösterilir.
-  function showSubtitle(text, duration, box, paragraphs) {
+  // replaces: bilgisayar bu satırı öncekinin uzamış ya da düzelmiş okuması saydı (bkz. replacesCurrent).
+  function showSubtitle(text, duration, box, paragraphs, replaces) {
     var now = Date.now();
     var current = $('subtitle-text').textContent;
     // Önceki satır kısa göründüyse yeni satırın üstünde kalır. Aynı cümlenin başka bir okunuşu (ya da yeniden gelen
     // satır) ikinci çeviri gibi durmasın diye üste çıkmaz; görev paneli gibi çok satırlı yazılar da üst üste binmez.
-    if ($('subtitle').className !== 'hidden' && current && now - shownAt < STACK_WITHIN_MS &&
+    if (replacesCurrent(replaces, paragraphs)) {
+      // Üstteki daha eski satırlar olduğu gibi kalır.
+    } else if ($('subtitle').className !== 'hidden' && current && now - shownAt < STACK_WITHIN_MS &&
         !paragraphs && !shownParagraphs && !sameLine(current, text)) {
       showPrevious(current);
     } else {
@@ -213,6 +216,12 @@
     if (left <= 0 || $('subtitle').className === 'hidden') return hideSubtitle('clear');
     clearTimeout(hideTimer);
     hideTimer = setTimeout(function () { hideSubtitle('clear-held'); }, left);
+  }
+
+  // Bilgisayar, daktilo efektinde büyüyen ya da belirirken yarım okunan cümlenin her okunuşunu ayrı çevirir; bunlar
+  // üst üste yığılınca aynı cümlenin iki üç çevirisi görünüyordu. "replace" ile gelen satır öncekinin yerine geçer.
+  function replacesCurrent(replaces, paragraphs) {
+    return replaces === true && !paragraphs && $('subtitle').className !== 'hidden' && !!$('subtitle-text').textContent;
   }
 
   // Önceki satır üste çıkar. Orada hâlâ görünen bir satır varsa o da bir üst sıraya (iki önceki) kayar; en çok üç satır.
@@ -487,7 +496,7 @@
     onEvent('subtitle', function (data) {
       diag.subtitles++;
       renderDiag();
-      if (data.text) showSubtitle(data.text, data.duration, data.box, data.paragraphs === true);
+      if (data.text) showSubtitle(data.text, data.duration, data.box, data.paragraphs === true, data.replace === true);
     });
     onEvent('clear', onClear);
     onEvent('screen', function (data) { showScreen(data.items, data.duration); });
@@ -523,14 +532,168 @@
   // --- Türkçe dublaj ---
   // Bilgisayar her cümleyi seslendirip adresini gönderir; TV oyunun sesiyle birlikte çalar. Bilgisayar sıradakini
   // bu ses bitince gönderir; yine de üst üste gelirse eskisi kesilir.
+  //
+  // Ses Web Audio ile çalınır (katkı: Kadir Eker). <audio> öğesi TV'nin donanım medya oynatıcısını kullanır;
+  // Samsung'da (TVWindow) ve LG'de (ext://hdmi) bu oynatıcı HDMI görüntüsüyle aynı yolu paylaştığından seslendirme
+  // başlayınca oyun ekranı kararıyordu. Web Audio yalnız ses çıkışını kullanır. AudioContext olmayan ya da açılamayan,
+  // sesi başlatmayan (askıda kalan) TV'de eski <audio> yoluna dönülür. Android TV sayfası <audio> ile çalar: HDMI'yi
+  // TvView gösterir, karışmaz; platform.js de dublajı uygulama arka plandayken <audio> üzerinden susturur.
+  //
+  // Her cümlenin kaynağı bitince ayrılır; AudioContext bir süre boş kalınca kapatılır, sıradaki cümlede yeniden açılır.
+  // <audio> yolunda her cümlenin oynatıcısı bitince, kesilince ya da hata verince bırakılır (src boşaltılıp load()).
+  // Samsung'da duraklatılmış ya da bitmiş ama bırakılmamış oynatıcı sesi tutuyor, HDMI'deki oyunun ve PS5'in sesi
+  // dublaj kapatılsa da uygulama kapanana dek gelmiyordu; açık kalan ses çıkışı aynı sorunu yapmasın.
 
-  // Her cümlenin oynatıcısı bitince, kesilince ya da hata verince bırakılır (src boşaltılıp load()). Samsung'da
-  // duraklatılmış ya da bitmiş ama bırakılmamış oynatıcı sesi tutuyor, HDMI'deki oyunun ve PS5'in sesi dublaj
-  // kapatılsa da uygulama kapanana dek gelmiyordu.
-  var speech = null;
+  var SPEECH_FETCH_TIMEOUT_MS = 15000;
+  var AUDIO_RESUME_WAIT_MS = 1500;
+  var AUDIO_IDLE_MS = 10000;
+  var speech = null; // çalan <audio>
+  var speechSource = null; // çalan AudioBufferSourceNode
+  var speechRequest = null;
+  var speechToken = 0; // her yeni cümle ya da durdurma artırır; geç inen/çözülen eski ses çalınmaz
+  var pendingToken = 0; // indirilip çözülmekte olan cümlenin numarası
+  var audioContext = null;
+  var audioIdleTimer = null;
+  var webAudioFailed = false;
+
+  function webAudio() {
+    if (webAudioFailed || platform.speechElement) return null;
+    if (audioContext) return audioContext;
+    var Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) return null;
+    try { audioContext = new Context(); } catch (e) { audioContext = null; }
+    return audioContext;
+  }
 
   function playSpeech(url) {
     stopSpeech();
+    clearTimeout(audioIdleTimer);
+    var token = speechToken;
+    var context = webAudio();
+    if (!context) {
+      playSpeechElement(url);
+      return;
+    }
+    pendingToken = token;
+    var request = new XMLHttpRequest();
+    speechRequest = request;
+    var failed = function () {
+      if (speechRequest === request) speechRequest = null;
+      if (token !== speechToken) return;
+      pendingToken = 0;
+      idleAudio();
+    };
+    request.onload = function () {
+      if (speechRequest === request) speechRequest = null;
+      if (token !== speechToken) return;
+      if (request.status !== 200 || !request.response) return failed();
+      decodeSpeech(context, request.response, function (buffer) {
+        if (token !== speechToken) return;
+        pendingToken = 0;
+        startSource(context, buffer, url, token);
+      }, failed);
+    };
+    request.onerror = failed;
+    request.ontimeout = failed;
+    try {
+      request.open('GET', url, true);
+      request.responseType = 'arraybuffer';
+      request.timeout = SPEECH_FETCH_TIMEOUT_MS;
+      request.send();
+    } catch (e) {
+      failed();
+    }
+  }
+
+  // Eski WebKit'te decodeAudioData söz (Promise) döndürmez; yenisinde hem geri çağrı hem söz çalışır, biri sayılır.
+  function decodeSpeech(context, data, onDecoded, onFailed) {
+    var settled = false;
+    var ok = function (buffer) {
+      if (settled) return;
+      settled = true;
+      onDecoded(buffer);
+    };
+    var fail = function () {
+      if (settled) return;
+      settled = true;
+      onFailed();
+    };
+    try {
+      var promise = context.decodeAudioData(data, ok, fail);
+      if (promise && promise.then) promise.then(ok, fail);
+    } catch (e) {
+      fail();
+    }
+  }
+
+  function startSource(context, buffer, url, token) {
+    var source = null;
+    try {
+      source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      source.onended = function () { releaseSource(source); };
+      speechSource = source;
+      source.start(0);
+    } catch (e) {
+      if (source) releaseSource(source);
+      fallBackToElement(url);
+      return;
+    }
+    if (context.state !== 'suspended' || !context.resume) return;
+    // TV otomatik oynatmaya izin vermedi ya da ses çıkışını açmadı: kısa sürede başlamazsa <audio>'ya dönülür.
+    try {
+      var resumed = context.resume();
+      if (resumed && resumed.then) resumed.then(null, function () { /* aşağıdaki bekleme karar verir */ });
+    } catch (e) { /* yok */ }
+    setTimeout(function () {
+      if (token !== speechToken || speechSource !== source || context.state !== 'suspended') return;
+      releaseSource(source);
+      fallBackToElement(url);
+    }, AUDIO_RESUME_WAIT_MS);
+  }
+
+  function fallBackToElement(url) {
+    webAudioFailed = true;
+    closeAudio();
+    playSpeechElement(url);
+  }
+
+  function releaseSource(source) {
+    if (speechSource === source) speechSource = null;
+    source.onended = null;
+    try { source.disconnect(); } catch (e) { /* yok */ }
+    idleAudio();
+  }
+
+  function idleAudio() {
+    clearTimeout(audioIdleTimer);
+    if (!audioContext) return;
+    audioIdleTimer = setTimeout(function () {
+      if (speechSource || pendingToken === speechToken) return;
+      closeAudio();
+    }, AUDIO_IDLE_MS);
+  }
+
+  function closeAudio() {
+    clearTimeout(audioIdleTimer);
+    var context = audioContext;
+    if (!context) return;
+    try {
+      var result = null;
+      if (context.close) {
+        audioContext = null;
+        result = context.close();
+      } else if (context.suspend) {
+        result = context.suspend();
+      }
+      if (result && result.then) result.then(null, function () { /* yok */ });
+    } catch (e) {
+      audioContext = null;
+    }
+  }
+
+  function playSpeechElement(url) {
     var audio = null;
     try {
       audio = new Audio(url);
@@ -557,7 +720,19 @@
   }
 
   function stopSpeech() {
+    speechToken++;
+    if (speechRequest) {
+      var request = speechRequest;
+      speechRequest = null;
+      try { request.abort(); } catch (e) { /* yok */ }
+    }
+    if (speechSource) {
+      var source = speechSource;
+      try { source.stop(0); } catch (e) { /* yok */ }
+      releaseSource(source);
+    }
     if (speech) releaseSpeech(speech);
+    idleAudio();
   }
 
   // --- Bilgisayarı ağda bulma ---
