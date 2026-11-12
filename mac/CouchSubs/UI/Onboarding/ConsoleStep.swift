@@ -21,7 +21,7 @@ struct ConsoleStep: View {
     private var host: String { selected ?? manualHost.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
-        StepLayout(symbol: "gamecontroller.fill", title: "Connect your PS5",
+        StepLayout(title: "Connect your PS5",
                    message: "Turn on the PS5. As the second user, open Settings › System › Remote Play › Pair Device and enter the 8-digit code shown there.") {
             VStack(alignment: .leading, spacing: Theme.space("l")) {
                 if let console = model.console {

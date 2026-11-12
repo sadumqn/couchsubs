@@ -5,7 +5,7 @@
              xmlns:c="clr-namespace:CouchSubs.App.Controls"
              xmlns:t="clr-namespace:CouchSubs.App.Theme"
              xmlns:v="clr-namespace:CouchSubs.App.Views">
-    <c:StepLayout Glyph="{x:Static c:Glyphs.Controller}" Title="{t:T 'Connect your PS5'}"
+    <c:StepLayout Title="{t:T 'Connect your PS5'}"
                   Message="{t:T 'Turn on the PS5. As the second user, open Settings › System › Remote Play › Pair Device and enter the 8-digit code shown there.'}">
         <StackPanel>
             <TextBlock x:Name="Done" Style="{StaticResource DoneText}" Margin="0,0,0,16" />

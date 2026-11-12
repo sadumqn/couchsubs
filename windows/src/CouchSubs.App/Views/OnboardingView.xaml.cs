@@ -79,7 +79,7 @@ public partial class OnboardingView : UserControl
         _ => "Better translation (free)",
     };
 
-    /// <summary>Soldaki adım listesi: tamamlananlar yeşil ✓, şimdiki sarı ve vurgulu, sıradakiler numaralı ve soluk.</summary>
+    /// <summary>Soldaki adım listesi: tamamlananlar yeşil ✓, şimdiki sarı daire ve nötr zemin, sıradakiler numaralı ve soluk.</summary>
     private void ShowSteps()
     {
         StepList.Children.Clear();
@@ -90,7 +90,7 @@ public partial class OnboardingView : UserControl
             var (done, now) = (index < current, index == current);
             var mark = new TextBlock
             {
-                Text = done ? Glyphs.Check : (index + 1).ToString(), FontWeight = FontWeights.Bold,
+                Text = done ? Glyphs.Check : (index + 1).ToString(), FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.NoWrap,
             };
             if (done) mark.Style = (Style)FindResource("GlyphText");
@@ -98,7 +98,6 @@ public partial class OnboardingView : UserControl
             mark.SetResourceReference(TextBlock.ForegroundProperty, done || now ? "onAccentBrush" : "textSecondaryBrush");
             var dot = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Child = mark, VerticalAlignment = VerticalAlignment.Center };
             dot.SetResourceReference(Border.BackgroundProperty, done ? "successBrush" : now ? "accentBrush" : "borderBrush");
-            if (now) dot.SetResourceReference(EffectProperty, "glow.primary");
             var label = new TextBlock { Text = Localizer.Current[StepTitle(step)], Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             label.SetResourceReference(TextBlock.ForegroundProperty, done || now ? "textPrimaryBrush" : "textSecondaryBrush");
             if (now) label.FontWeight = FontWeights.SemiBold;
@@ -109,14 +108,9 @@ public partial class OnboardingView : UserControl
             var row = new Border
             {
                 Child = content, Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 0, 4), MinHeight = 44,
-                BorderThickness = new Thickness(1), BorderBrush = Brushes.Transparent,
             };
             row.SetResourceReference(Border.CornerRadiusProperty, "radius.control");
-            if (now)
-            {
-                row.SetResourceReference(Border.BackgroundProperty, "accentSoftBrush");
-                row.SetResourceReference(Border.BorderBrushProperty, "glow.activeBorderBrush");
-            }
+            if (now) row.SetResourceReference(Border.BackgroundProperty, "surface2Brush");
             System.Windows.Automation.AutomationProperties.SetName(row, $"{index + 1}. {label.Text}");
             StepList.Children.Add(row);
         }

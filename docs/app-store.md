@@ -57,7 +57,7 @@ imzalı, Sparkle pakete girmiş mi.
 
 `CouchSubsAppStore` hedefi DMG sürümüyle aynı kaynakları derler. Farklar:
 
-- **Sparkle yok.** Paket hedefe bağlanmaz; `CouchSubsApp.swift`'te güncelleyici ve "Check for Updates…" menüsü
+- **Sparkle yok.** Paket hedefe bağlanmaz; `CouchSubsApp.swift`'te güncelleyici ve "Check for updates…" menüsü
   `#if !APP_STORE` içinde. Info.plist'te `SU*` anahtarları yok (`mac/AppStore/Info.plist`).
 - **Yetkiler** (`mac/AppStore/CouchSubs.entitlements`): `app-sandbox`, `network.client` (PS5, PSN girişi, TV, çeviri
   hizmetleri, paketler, dublaj modeli indirme), `network.server` (8787'deki altyazı sunucusu: TV uygulaması ve OBS;

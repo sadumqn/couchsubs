@@ -18,7 +18,7 @@ struct PSNLoginStep: View {
     @State private var manualError: String?
 
     var body: some View {
-        StepLayout(symbol: "person.crop.circle.badge.checkmark", title: "Sign in with the second account",
+        StepLayout(title: "Sign in with the second account",
                    message: "Sign in to PlayStation Network with the second account you just created. Your password goes directly to Sony; CouchSubs only keeps the account ID.") {
             VStack(alignment: .leading, spacing: Theme.space("m")) {
                 if model.accountId != nil {

@@ -68,15 +68,17 @@ public class DesignTokensTests
         AssertContrast("textSecondary", "surface2", 4.5);
     }
 
+    /// <summary>Onaylı sadeleştirme: tek köşe ölçeği (16/12/8/6 ve hap), tek yazı ölçeği (13/15/17/22/28),
+    /// kalınlık en çok yarı kalın; parıltı tokenı yok.</summary>
     [Fact]
-    public void GlowsUseValidColors()
+    public void ScalesAreTheApprovedOnes()
     {
-        Assert.NotEmpty(tokens.Glow);
-        foreach (var (name, glow) in tokens.Glow)
-        {
-            Assert.True(DesignTokens.Rgb(glow.Color) is not null, name);
-            Assert.InRange(glow.Opacity, 0, 1);
-        }
+        Assert.Equal(new SortedSet<double> { 6, 8, 12, 16, 999 }, new SortedSet<double>(tokens.Radius.Values));
+        Assert.All(tokens.Font.Values, font => Assert.Contains(font.Size, new[] { 13.0, 15, 17, 22, 28 }));
+        Assert.All(tokens.Font.Values, font => Assert.Contains(font.Weight, new[] { "regular", "medium", "semibold" }));
+        using var stream = typeof(DesignTokens).Assembly.GetManifestResourceStream("tokens.json")!;
+        using var json = System.Text.Json.JsonDocument.Parse(stream);
+        Assert.False(json.RootElement.TryGetProperty("glow", out _));
     }
 
     [Fact]

@@ -86,7 +86,7 @@ struct HomeScreen: View {
                          value: model.console.map { $0.name.isEmpty ? "PS5" : $0.name } ?? String(localized: "Not set up"), live: model.console != nil)
                 Button { path.append(.target) } label: {
                     StatTile(symbol: model.settings.output == .computer ? "iphone" : "tv", tint: .accent, label: "Subtitles",
-                             value: targetName, emphasis: .active)
+                             value: targetName)
                 }
                 .buttonStyle(.plain)
                 .tourTarget(.target)
@@ -121,12 +121,12 @@ struct HomeScreen: View {
         }
     }
 
-    /// Oyun paketleri karosu (mor: paketlerin rengi); herkese ücretsiz.
+    /// Oyun paketleri karosu (yalnız paket simgesi mor); herkese ücretsiz.
     private var packsTile: some View {
         Button { path.append(.packs) } label: {
-            Tile(emphasis: .pro) {
+            Tile {
                 HStack(spacing: Mobile.Space.gap) {
-                    MobileTileIcon(symbol: "bolt.fill", tint: .pro)
+                    MobileTileIcon(symbol: "shippingbox", tint: .pro)
                     VStack(alignment: .leading, spacing: Mobile.Space.hair) {
                         Text("Instant subtitles with ready packs").font(Mobile.TypeScale.headline)
                         Text(model.installedPacks.isEmpty ? String(localized: "GTA V, RDR2, Mafia and 3 more games")
@@ -134,7 +134,8 @@ struct HomeScreen: View {
                             .font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                     }
                     Spacer()
-                    MobilePill(text: String(localized: "Free"), kind: .pro)
+                    MobilePill(text: String(localized: "Free"))
+                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Mobile.Palette.tertiary)
                 }
             }
         }
@@ -170,26 +171,25 @@ struct RunningScreen: View {
             HStack(spacing: Mobile.Space.inline) {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     MobilePill(text: String(format: String(localized: "Translating · %@"), elapsed(at: context.date)),
-                         kind: model.sessionState == .streaming ? .ok : .accent, dot: model.sessionState == .streaming)
+                         live: model.sessionState == .streaming)
                 }
                 if model.packsActive { MobilePill(text: String(localized: "Ready translation"), kind: .pro) }
             }
             if model.sessionState != .streaming {
                 MobileNote(text: model.ps5StatusText, tone: Mobile.Palette.secondary)
             }
-            Tile(emphasis: .active) {
-                ScanLine()
+            Tile {
                 Text("Now").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                 if let current = model.recentLines.first {
                     Text(verbatim: current.translation)
                         .font(Mobile.TypeScale.subtitle(landscape: false, scale: scale))
-                        .shadow(color: Mobile.Palette.accent.opacity(0.35), radius: 9)
+                        .foregroundStyle(Mobile.Palette.accent)
                         .fixedSize(horizontal: false, vertical: true)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     HStack {
-                        Text(verbatim: current.source).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
+                        Text(verbatim: current.source).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.tertiary)
                         Spacer()
-                        if current.fromPack { MobilePill(text: String(localized: "ready translation"), kind: .pro, compact: true) }
+                        if current.fromPack { Text("ready translation").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.pro) }
                     }
                 } else {
                     Text("Subtitles will appear here while you play.").font(Mobile.TypeScale.body).foregroundStyle(Mobile.Palette.secondary)
@@ -202,11 +202,15 @@ struct RunningScreen: View {
                         if index > 0 { RowDivider() }
                         HStack(alignment: .top, spacing: Mobile.Space.gap) {
                             VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                                Text(verbatim: line.translation).font(Mobile.TypeScale.headline)
-                                Text(verbatim: line.source).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
+                                Text(verbatim: line.translation).font(Mobile.TypeScale.headline.weight(.regular))
+                                    .foregroundStyle(Mobile.Palette.secondary)
+                                Text(verbatim: line.source).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.tertiary)
                             }
                             Spacer()
-                            MobilePill(text: line.fromPack ? String(localized: "ready") : engineName, kind: line.fromPack ? .pro : .neutral, compact: true)
+                            // Kaynak işareti: düz yazı ("hazır" mor, motor adı üçüncül), hap değil.
+                            Text(verbatim: line.fromPack ? String(localized: "ready") : engineName)
+                                .font(Mobile.TypeScale.caption)
+                                .foregroundStyle(line.fromPack ? Mobile.Palette.pro : Mobile.Palette.tertiary)
                         }
                         .padding(.vertical, Mobile.Space.gap)
                     }
@@ -254,25 +258,6 @@ struct RunningScreen: View {
     }
 }
 
-/// Canlı altyazı karosunun üst kenarında soldan sağa akan ince amber çizgi (azaltılmış harekette yok).
-struct ScanLine: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var offset: CGFloat = -0.6
-
-    var body: some View {
-        GeometryReader { proxy in
-            if !reduceMotion {
-                LinearGradient(colors: [.clear, Mobile.Palette.accent, .clear], startPoint: .leading, endPoint: .trailing)
-                    .frame(width: proxy.size.width * 0.6, height: 2)
-                    .offset(x: proxy.size.width * (0.2 + offset))
-                    .onAppear { withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) { offset = 0.6 } }
-            }
-        }
-        .frame(height: 2)
-        .accessibilityHidden(true)
-    }
-}
-
 // MARK: - 10 Yatay altyazı ekranı
 
 struct SubtitleScreen: View {
@@ -287,8 +272,9 @@ struct SubtitleScreen: View {
                 ForEach(Array(model.phoneLines.enumerated()), id: \.element.id) { index, line in
                     Text(verbatim: line.text)
                         .font(Mobile.TypeScale.subtitle(landscape: true, scale: scale))
-                        .foregroundStyle(textColor)
-                        .opacity(line.fading ? 0.4 : index < model.phoneLines.count - 1 ? 0.6 : 1)
+                        // Önceki satır soldurulmaz, sabit gri olur (#7C7A76).
+                        .foregroundStyle(index < model.phoneLines.count - 1 ? Color(hex: 0x7C7A76) : textColor)
+                        .opacity(line.fading ? 0.4 : 1)
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.5)
                 }
@@ -297,11 +283,11 @@ struct SubtitleScreen: View {
             .padding(.bottom, Mobile.Space.screen * 2)
             Text("The screen stays on · brightness is lowered automatically")
                 .font(Mobile.TypeScale.caption)
-                .foregroundStyle(Mobile.Palette.secondary.opacity(0.6))
+                .foregroundStyle(Mobile.Palette.tertiary)
                 .padding(.bottom, Mobile.Space.inline)
         }
         .overlay(alignment: .topLeading) {
-            MobilePill(text: statusText, kind: model.sessionState == .streaming ? .ok : .accent, dot: model.sessionState == .streaming)
+            MobilePill(text: statusText, live: model.sessionState == .streaming)
                 .padding(Mobile.Space.screen)
         }
         .overlay(alignment: .topTrailing) {
@@ -373,8 +359,8 @@ struct CoachTour: View {
             let target = TourTarget(rawValue: step) ?? .start
             let rect = anchors[target].map { proxy[$0].insetBy(dx: -6, dy: -6) }
             ZStack(alignment: .topLeading) {
-                // %70 karartma, vurgulanan öğenin çevresinde 16 yarıçaplı delik.
-                Color.black.opacity(0.7)
+                // %72 karartma, vurgulanan öğenin çevresinde delik ve düz amber halka (parıltı yok).
+                Color.black.opacity(0.72)
                     .reverseMask {
                         if let rect {
                             RoundedRectangle(cornerRadius: Mobile.Radius.control).frame(width: rect.width, height: rect.height)
@@ -384,7 +370,6 @@ struct CoachTour: View {
                 if let rect {
                     RoundedRectangle(cornerRadius: Mobile.Radius.control)
                         .strokeBorder(Mobile.Palette.accent, lineWidth: 2)
-                        .shadow(color: Mobile.Palette.accentGlow, radius: 14)
                         .frame(width: rect.width, height: rect.height)
                         .position(x: rect.midX, y: rect.midY)
                 }
@@ -407,7 +392,8 @@ struct CoachTour: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: Mobile.Space.gap) {
             HStack {
-                MobilePill(text: "\(step + 1) / \(steps.count)", kind: .accent)
+                Text(verbatim: "\(step + 1) / \(steps.count)").font(Mobile.TypeScale.caption).monospacedDigit()
+                    .foregroundStyle(Mobile.Palette.secondary)
                 Spacer()
                 Button("Skip", action: onFinish).buttonStyle(.mobileGhost)
             }

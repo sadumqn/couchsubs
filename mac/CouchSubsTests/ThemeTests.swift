@@ -52,12 +52,15 @@ final class ThemeTests: XCTestCase {
         assertContrast("textSecondary", on: "surface2", atLeast: 4.5)
     }
 
-    func testGlowsAreDefined() {
-        for name in ["primary", "primaryDrop", "activeTile", "activeBorder", "pro", "backgroundAccent", "backgroundPro"] {
-            let glow = tokens.glow[name]
-            XCTAssertNotNil(glow.flatMap { DesignTokens.rgb($0.color) }, name)
-            XCTAssertLessThanOrEqual(glow?.opacity ?? 1, 0.6, "parıltı metnin okunmasını bozmasın: \(name)")
-        }
+    /// Onaylı sadeleştirme: tek köşe ölçeği (16/12/8/6 ve hap), tek yazı ölçeği (13/15/17/22/28), kalınlık en çok
+    /// yarı kalın; parıltı tokenı yok.
+    func testScalesAreTheApprovedOnes() throws {
+        XCTAssertEqual(Set(tokens.radius.values), [16, 12, 8, 6, 999])
+        XCTAssertTrue(Set(tokens.font.values.map(\.size)).isSubset(of: [13, 15, 17, 22, 28]))
+        XCTAssertTrue(tokens.font.values.allSatisfy { ["regular", "medium", "semibold"].contains($0.weight) })
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "tokens", withExtension: "json"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertNil(json["glow"])
     }
 
     func testButtonTextIsReadable() {

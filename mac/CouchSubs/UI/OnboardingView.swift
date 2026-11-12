@@ -120,26 +120,26 @@ private struct StepRow: View {
         }
         .padding(.horizontal, Theme.space("s"))
         .padding(.vertical, Theme.space("s"))
-        .background(isCurrent ? Color.csSurface2 : Color.clear, in: RoundedRectangle(cornerRadius: Theme.radius("inner"), style: .continuous))
+        .background(isCurrent ? Color.csSurface2 : Color.clear, in: RoundedRectangle(cornerRadius: Theme.radius("control"), style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 
+    /// Bitti: yeşil daire ve onay; şimdi: sarı daire; sonra: nötr daire. Parıltı yok.
     @ViewBuilder private var marker: some View {
-        let size: CGFloat = 26
+        let size: CGFloat = 28
         if isDone {
             Image(systemName: "checkmark")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color.csSuccess)
+                .font(.csCaption.weight(.semibold))
+                .foregroundStyle(Color.csSurface)
                 .frame(width: size, height: size)
-                .background(Circle().fill(Color.csSuccessSoft))
+                .background(Circle().fill(Color.csSuccess))
         } else {
             Text("\(step.rawValue + 1)")
                 .font(.csCaption.monospacedDigit().weight(.semibold))
                 .foregroundStyle(isCurrent ? Color.csOnAccent : Color.csSecondary)
                 .frame(width: size, height: size)
                 .background(Circle().fill(isCurrent ? Color.csAccent : Color.csSurface2))
-                .glow("primary", enabled: isCurrent)
         }
     }
 

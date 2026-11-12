@@ -4,25 +4,47 @@ import CouchSubsCore
 import RemotePlay
 import SwiftUI
 
-/// Ana ekran (bento): solda başlat/durdur, durum karoları ve uyarılar; sağda paket notu ve canlı altyazı.
+/// Ana ekran: solda başlat/durdur, durum karoları ve uyarılar; sağda paket notu ve canlı altyazı.
+/// Sütunlar hiçbir genişlikte üst üste binmez: sol sütun en çok `mainColumn`, sağ sütun en az `liveColumnMin`
+/// genişliğindedir; ikisi sığmazsa (pencere sistem tarafından daraltıldıysa) sütunlar alt alta dizilir.
 struct MainView: View {
     @EnvironmentObject private var model: AppModel
+
+    /// Sol sütunun en dar hâli (iki durum karosu yan yana okunur kalır).
+    static let controlsColumnMin: CGFloat = 340
+    /// Canlı altyazı sütununun en dar hâli.
+    static let liveColumnMin: CGFloat = 320
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.space("gap")) {
             MainHeader()
-            HStack(alignment: .top, spacing: Theme.space("gap")) {
-                ScrollView {
-                    MainControls()
-                        // Karoların parıltısı kırpılmasın.
-                        .padding(Theme.space("m"))
-                }
-                .scrollIndicators(.never)
-                .frame(width: Theme.size("mainColumn") + 2 * Theme.space("m"))
-                .padding(-Theme.space("m"))
-                VStack(alignment: .leading, spacing: Theme.space("gap")) {
-                    PackInUseTile()
-                    LiveSubtitlesTile()
+            GeometryReader { geometry in
+                let gap = Theme.space("gap")
+                let available = geometry.size.width
+                if available >= Self.controlsColumnMin + gap + Self.liveColumnMin {
+                    HStack(alignment: .top, spacing: gap) {
+                        ScrollView {
+                            MainControls()
+                                .padding(.vertical, Theme.space("m"))
+                        }
+                        .scrollIndicators(.never)
+                        .padding(.vertical, -Theme.space("m"))
+                        .frame(width: min(Theme.size("mainColumn"), available - gap - Self.liveColumnMin))
+                        VStack(alignment: .leading, spacing: gap) {
+                            PackInUseTile()
+                            LiveSubtitlesTile()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: gap) {
+                            MainControls()
+                            PackInUseTile()
+                            LiveSubtitlesTile().frame(minHeight: Self.liveColumnMin)
+                        }
+                    }
+                    .scrollIndicators(.never)
                 }
             }
         }
@@ -186,19 +208,19 @@ private struct PackInUseTile: View {
     var body: some View {
         if active {
             HStack(spacing: Theme.space("m")) {
-                TileIcon(symbol: "bolt.fill", tint: .csPro, background: .csProSoft)
+                TileIcon(symbol: "shippingbox", tint: .csPro)
                 Text(verbatim: String(format: String(localized: "Game packs are on · %lld games translated in advance"), model.installedPacks.count))
                     .font(.csBody)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tile(.pro)
+            .tile()
         }
     }
 }
 
-/// Son altyazı büyük, öncekiler altında soluk; çeviri sürerken karo parlar ve üst kenarında tarama ışığı akar.
+/// Son altyazı büyük ve altyazı sarısında, öncekiler altında ikincil renkte; çeviri sürerken sağ üstte canlı nokta.
 private struct LiveSubtitlesTile: View {
     @EnvironmentObject private var model: AppModel
 
@@ -218,8 +240,7 @@ private struct LiveSubtitlesTile: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .overlay(alignment: .top) { if model.isRunning { ScanLight() } }
-        .tile(model.isRunning ? .active : .plain)
+        .tile()
     }
 }
 
@@ -231,7 +252,7 @@ private struct CurrentLine: View {
         VStack(alignment: .leading, spacing: Theme.space("hair")) {
             Text(verbatim: translation)
                 .font(.system(size: 28, weight: .semibold))
-                .shadow(color: Color.csAccent.opacity(0.35), radius: 9)
+                .foregroundStyle(Color.csAccentText)
                 .fixedSize(horizontal: false, vertical: true)
             Text(verbatim: source)
                 .font(.csCaption)
@@ -242,7 +263,7 @@ private struct CurrentLine: View {
     }
 }
 
-/// Kaçırılan satır buradan yeniden okunur (en yenisi üstte, eskiler giderek soluk).
+/// Kaçırılan satır buradan yeniden okunur (en yenisi üstte).
 private struct SubtitleHistoryList: View {
     @EnvironmentObject private var model: AppModel
 
@@ -251,10 +272,10 @@ private struct SubtitleHistoryList: View {
         if !entries.isEmpty {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Theme.space("m")) {
-                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    ForEach(entries, id: \.id) { entry in
                         VStack(alignment: .leading, spacing: Theme.space("m")) {
                             Divider().overlay(Color.csBorder)
-                            HistoryRow(entry: entry).opacity(index == 0 ? 0.75 : 0.6)
+                            HistoryRow(entry: entry)
                         }
                     }
                 }
@@ -273,6 +294,7 @@ private struct HistoryRow: View {
         VStack(alignment: .leading, spacing: Theme.space("hair")) {
             Text(verbatim: entry.translation)
                 .font(.csHeadline.weight(.regular))
+                .foregroundStyle(Color.csSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(verbatim: entry.source)
                 .font(.csCaption)
@@ -280,30 +302,5 @@ private struct HistoryRow: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .textSelection(.enabled)
-    }
-}
-
-/// Canlı altyazı karosunun üst kenarında soldan sağa akan ince sarı çizgi (azaltılmış harekette durur).
-private struct ScanLight: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var moving = false
-
-    var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            Capsule()
-                .fill(LinearGradient(colors: [.clear, .csAccent, .clear], startPoint: .leading, endPoint: .trailing))
-                .frame(width: width * 0.6, height: 2)
-                .offset(x: moving ? width * 0.5 : -width * 0.1)
-        }
-        .frame(height: 2)
-        .padding(.horizontal, Theme.space("xl"))
-        .offset(y: -1)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) { moving = true }
-        }
     }
 }
