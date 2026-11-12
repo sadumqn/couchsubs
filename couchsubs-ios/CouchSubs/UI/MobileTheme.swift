@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Mobil tasarım sistemi (bento): TASARIM-MOBIL.md'deki tokenlar ve bileşenler (Android ile ortak belge; onaylı tuval
-// "CouchSubs Mobil ve Windows Tasarımı"). Mobilde bu belge design/tokens.json'un üstüne geçer. Ekranlar sabit değer
-// kullanmaz; ölçü, renk ve efektler buradan gelir.
+// Mobil tasarım sistemi: TASARIM-MOBIL.md'deki tokenlar ve bileşenler (Android ile ortak belge; onaylı tuval
+// "CouchSubs Mobil ve Windows Tasarımı", AI Design Check ile sadeleştirildi). Köşe ve yazı ölçeği design/tokens.json ile
+// aynıdır (16/12/8/6, 13/15/17/22/28). Düz yüzey: parıltı, degrade, hale yok. Ekranlar sabit değer kullanmaz.
 
 import SwiftUI
 import UIKit
@@ -16,9 +16,10 @@ enum Mobile {
     }
 
     enum Radius {
-        static let tile: CGFloat = 24
-        static let control: CGFloat = 16
-        static let inner: CGFloat = 12
+        static let tile: CGFloat = 16
+        static let control: CGFloat = 12
+        static let inner: CGFloat = 8
+        static let tag: CGFloat = 6
         static let pill: CGFloat = 999
     }
 
@@ -28,31 +29,36 @@ enum Mobile {
         static let icon: CGFloat = 44
         static let field: CGFloat = 52
         static let row: CGFloat = 52
-        static let iconBadge: CGFloat = 36
+        static let tag: CGFloat = 24
     }
 
+    /// Basamaklar: deep → bg → surface → surface2 → raised; katmanlar %8 ince çizgiyle ayrılır.
     enum Palette {
+        static let deep = Color(hex: 0x0E0F11)
         static let bg = Color(hex: 0x141518)
         static let surface = Color(hex: 0x1C1E23)
         static let surface2 = Color(hex: 0x25282F)
-        static let border = Color.white.opacity(0.07)
+        /// İnce çizgi (%8): karo ve alan çerçevesi, ayraç.
+        static let border = Color(.sRGB, red: 0xF3 / 255, green: 0xEE / 255, blue: 0xE4 / 255, opacity: 0.08)
+        /// `raised`: seçili segment, kapalı anahtar, boş adım, sayfa noktası.
         static let borderStrong = Color(hex: 0x30333A)
         static let text = Color(hex: 0xF3EEE4)
         static let secondary = Color(hex: 0xA9A59C)
+        static let tertiary = Color(hex: 0x94908A)
         static let accent = Color(hex: 0xF5B83D)
         static let accentHi = Color(hex: 0xFFCF6B)
         static let onAccent = Color(hex: 0x17181B)
-        static let accentGlow = Color(hex: 0xF5B83D).opacity(0.45)
         static let pro = Color(hex: 0xA78BFA)
-        static let proGlow = Color(hex: 0xA78BFA).opacity(0.45)
+        static let proSoft = Color(hex: 0x322F45)
         static let success = Color(hex: 0x62C990)
         static let warning = Color(hex: 0xF2A55A)
         static let danger = Color(hex: 0xF28B82)
+        static let dangerSoft = Color(hex: 0x2F2325)
     }
 
     /// Yalnız bu beş arayüz boyu (altyazı içeriği hariç).
     enum TypeScale {
-        static let display = Font.system(size: 32, weight: .bold)
+        static let display = Font.system(size: 28, weight: .semibold)
         static let title = Font.system(size: 22, weight: .semibold).monospacedDigit()
         static let headline = Font.system(size: 17, weight: .semibold)
         static let body = Font.system(size: 15, weight: .regular)
@@ -73,7 +79,7 @@ extension Color {
 // MARK: - Düğmeler (§5)
 
 struct MobileButtonStyle: ButtonStyle {
-    enum Kind { case primary, pro, secondary, ghost, destructive, apple }
+    enum Kind { case primary, secondary, ghost, destructive }
     var kind: Kind = .primary
     @Environment(\.isEnabled) private var isEnabled
 
@@ -84,18 +90,14 @@ struct MobileButtonStyle: ButtonStyle {
             .labelStyle(.titleAndIcon)
             .foregroundStyle(foreground)
             .frame(maxWidth: kind == .ghost ? nil : .infinity, minHeight: kind == .ghost ? Mobile.Control.buttonSmall : Mobile.Control.button)
-            .padding(.horizontal, kind == .ghost ? Mobile.Space.hair : Mobile.Space.screen)
-            .background { background }
+            .padding(.horizontal, kind == .ghost ? Mobile.Space.gap : Mobile.Space.screen)
+            .background { background(pressed: pressed) }
             .overlay {
-                switch kind {
-                case .secondary: RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.borderStrong)
-                case .destructive: RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.danger.opacity(0.5))
-                default: EmptyView()
+                if kind == .secondary {
+                    RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.border)
                 }
             }
-            .shadow(color: isEnabled ? glow.opacity(pressed ? 0.5 : 1) : .clear, radius: 12)
-            .shadow(color: isEnabled ? glow.opacity(pressed ? 0.25 : 0.55) : .clear, radius: 12, y: 8)
-            .scaleEffect(pressed ? 0.96 : 1)
+            .scaleEffect(pressed ? 0.97 : 1)
             .opacity(isEnabled ? 1 : 0.4)
             .contentShape(RoundedRectangle(cornerRadius: Mobile.Radius.control))
             .animation(.easeOut(duration: 0.12), value: pressed)
@@ -103,38 +105,27 @@ struct MobileButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         switch kind {
-        case .primary, .pro: Mobile.Palette.onAccent
+        case .primary: Mobile.Palette.onAccent
         case .secondary: Mobile.Palette.text
         case .ghost: Mobile.Palette.accent
         case .destructive: Mobile.Palette.danger
-        case .apple: .black
         }
     }
 
-    @ViewBuilder private var background: some View {
+    /// Düz dolgu, gölge yok; basılı birincil düğme biraz açık sarı.
+    @ViewBuilder private func background(pressed: Bool) -> some View {
         let shape = RoundedRectangle(cornerRadius: Mobile.Radius.control)
         switch kind {
-        case .primary: shape.fill(LinearGradient(colors: [Mobile.Palette.accentHi, Mobile.Palette.accent], startPoint: .top, endPoint: .bottom))
-        case .pro: shape.fill(LinearGradient(colors: [Mobile.Palette.pro, Mobile.Palette.accent], startPoint: .leading, endPoint: .trailing))
+        case .primary: shape.fill(pressed ? Mobile.Palette.accentHi : Mobile.Palette.accent)
         case .secondary: shape.fill(Mobile.Palette.surface2)
         case .ghost: Color.clear
-        case .destructive: shape.fill(Mobile.Palette.danger.opacity(0.12))
-        case .apple: shape.fill(Color.white)
-        }
-    }
-
-    private var glow: Color {
-        switch kind {
-        case .primary: Mobile.Palette.accentGlow
-        case .pro: Mobile.Palette.proGlow
-        default: .clear
+        case .destructive: shape.fill(Mobile.Palette.dangerSoft)
         }
     }
 }
 
 extension ButtonStyle where Self == MobileButtonStyle {
     static var mobilePrimary: MobileButtonStyle { MobileButtonStyle(kind: .primary) }
-    static var mobilePro: MobileButtonStyle { MobileButtonStyle(kind: .pro) }
     static var mobileSecondary: MobileButtonStyle { MobileButtonStyle(kind: .secondary) }
     static var mobileGhost: MobileButtonStyle { MobileButtonStyle(kind: .ghost) }
     static var mobileDestructive: MobileButtonStyle { MobileButtonStyle(kind: .destructive) }
@@ -149,7 +140,7 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Mobile.Palette.text)
                 .frame(width: Mobile.Control.icon, height: Mobile.Control.icon)
                 .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: Mobile.Radius.control))
@@ -160,27 +151,24 @@ struct IconButton: View {
     }
 }
 
-/// Profil düğmesi: baş harfler, Pro'da mor halka.
+/// Profil (Cihazlarım) düğmesi: simge düğmesiyle aynı görünüm; baş harf varsa simgenin yerine.
 struct AvatarButton: View {
     let initials: String
-    var pro = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Group {
                 if initials.isEmpty {
-                    Image(systemName: "person.fill").font(.system(size: 16, weight: .semibold))
+                    Image(systemName: "person").font(.system(size: 17, weight: .semibold))
                 } else {
-                    Text(verbatim: initials).font(Mobile.TypeScale.caption.weight(.bold))
+                    Text(verbatim: initials).font(Mobile.TypeScale.caption.weight(.semibold))
                 }
             }
-            .foregroundStyle(Mobile.Palette.onAccent)
+            .foregroundStyle(Mobile.Palette.text)
             .frame(width: Mobile.Control.icon, height: Mobile.Control.icon)
-            .background(LinearGradient(colors: [Mobile.Palette.accentHi, Mobile.Palette.accent], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: Circle())
-            .overlay(Circle().strokeBorder(pro ? Mobile.Palette.pro.opacity(0.7) : .clear, lineWidth: 2).padding(-2))
-            .shadow(color: pro ? Mobile.Palette.proGlow : .clear, radius: 8)
+            .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: Mobile.Radius.control))
+            .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.border))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Profile"))
@@ -189,10 +177,10 @@ struct AvatarButton: View {
 
 // MARK: - Karolar (§6, §7)
 
-/// Karonun vurgusu: etkin (amber) ya da Pro (mor→amber).
-enum TileEmphasis { case none, active, pro }
+/// Karonun vurgusu: seçili (1 pt amber çerçeve). Parıltı, degrade ve renkli çerçeve yok.
+enum TileEmphasis { case none, selected }
 
-/// Bento karosu: yüzey, üstten hafif beyaz degrade, ince çerçeve; etkin ya da Pro ise parıltı.
+/// Karo: düz yüzey, %8 ince çerçeve, köşe 16.
 struct Tile<Content: View>: View {
     var emphasis: TileEmphasis = .none
     var spacing: CGFloat = Mobile.Space.inline
@@ -203,55 +191,53 @@ struct Tile<Content: View>: View {
         VStack(alignment: .leading, spacing: spacing) { content }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Mobile.Space.tile)
-            .background {
-                switch emphasis {
-                case .pro:
-                    shape.fill(LinearGradient(colors: [Mobile.Palette.pro.opacity(0.10), Mobile.Palette.surface], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.7)))
-                default:
-                    shape.fill(Mobile.Palette.surface)
-                        .overlay(shape.fill(LinearGradient(colors: [.white.opacity(0.04), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.6))))
-                }
-            }
-            .overlay {
-                switch emphasis {
-                case .none: shape.strokeBorder(Mobile.Palette.border)
-                case .active: shape.strokeBorder(Mobile.Palette.accent.opacity(0.55))
-                case .pro: shape.strokeBorder(LinearGradient(colors: [Mobile.Palette.pro, Mobile.Palette.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-                }
-            }
-            .shadow(color: emphasis == .active ? Mobile.Palette.accent.opacity(0.35) : emphasis == .pro ? Mobile.Palette.proGlow : .clear, radius: 14)
+            .background(Mobile.Palette.surface, in: shape)
+            .overlay(shape.strokeBorder(emphasis == .selected ? Mobile.Palette.accent : Mobile.Palette.border))
     }
 }
 
-/// Kare karo: üstte simge, altta etiket + büyük değer (ana ekran, cihazlar).
+/// Değer karosu: üstte etiket satırı (simge + etiket [+ durum noktası]), altında `title` değer. Kare zorlanmaz.
 struct StatTile: View {
     let symbol: String
     var tint: MobileTileIcon.Tint = .neutral
     let label: LocalizedStringKey
     let value: String
-    var emphasis: TileEmphasis = .none
     var live = false
 
     var body: some View {
-        Tile(emphasis: emphasis) {
-            VStack(alignment: .leading, spacing: Mobile.Space.inline) {
-                HStack {
-                    MobileTileIcon(symbol: symbol, tint: tint)
-                    Spacer()
-                    if live { MobileLiveDot() }
-                }
+        Tile {
+            HStack(spacing: Mobile.Space.inline) {
+                MobileTileIcon(symbol: symbol, tint: tint)
+                Text(label).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                 Spacer(minLength: 0)
-                VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                    Text(label).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                    Text(verbatim: value).font(Mobile.TypeScale.title).lineLimit(1).minimumScaleFactor(0.6)
-                }
+                if live { MobileLiveDot(pulses: false) }
             }
+            Text(verbatim: value).font(Mobile.TypeScale.title).lineLimit(1).minimumScaleFactor(0.6)
         }
-        .aspectRatio(1, contentMode: .fit)
     }
 }
 
-/// 36'lık simge rozeti.
+/// Bilgi karosu: üstte simge + `headline` başlık, altında `caption` açıklama (simge kutusu yok).
+struct InfoTile: View {
+    let symbol: String
+    let title: LocalizedStringKey
+    let caption: LocalizedStringKey
+    var emphasis: TileEmphasis = .none
+
+    var body: some View {
+        Tile(emphasis: emphasis) {
+            HStack(spacing: Mobile.Space.inline) {
+                MobileTileIcon(symbol: symbol)
+                Text(title).font(Mobile.TypeScale.headline).fixedSize(horizontal: false, vertical: true)
+            }
+            Text(caption).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// Karodaki simge: kutusuz, 18 pt, ikincil renkte; paket simgesi mor, hata kırmızı.
 struct MobileTileIcon: View {
     enum Tint { case neutral, ok, accent, pro, danger }
     let symbol: String
@@ -259,30 +245,17 @@ struct MobileTileIcon: View {
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: 17, weight: .semibold))
+            .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(color)
-            .frame(width: Mobile.Control.iconBadge, height: Mobile.Control.iconBadge)
-            .background(background, in: RoundedRectangle(cornerRadius: Mobile.Radius.inner))
+            .frame(width: 18, height: 18)
             .accessibilityHidden(true)
     }
 
     private var color: Color {
         switch tint {
-        case .neutral: Mobile.Palette.text
-        case .ok: Mobile.Palette.success
-        case .accent: Mobile.Palette.accent
+        case .neutral, .ok, .accent: Mobile.Palette.secondary
         case .pro: Mobile.Palette.pro
         case .danger: Mobile.Palette.danger
-        }
-    }
-
-    private var background: Color {
-        switch tint {
-        case .neutral: Mobile.Palette.surface2
-        case .ok: Mobile.Palette.success.opacity(0.14)
-        case .accent: Mobile.Palette.accent.opacity(0.14)
-        case .pro: Mobile.Palette.pro.opacity(0.16)
-        case .danger: Mobile.Palette.danger.opacity(0.14)
         }
     }
 }
@@ -294,54 +267,48 @@ struct GameMonogram: View {
 
     var body: some View {
         Text(verbatim: code)
-            .font(Mobile.TypeScale.caption.weight(.bold))
-            .foregroundStyle(Mobile.Palette.pro)
+            .font(Mobile.TypeScale.caption.weight(.semibold))
+            .foregroundStyle(Mobile.Palette.text)
             .frame(width: size, height: size)
-            .background(Mobile.Palette.pro.opacity(0.16), in: RoundedRectangle(cornerRadius: Mobile.Radius.inner))
+            .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: Mobile.Radius.inner))
     }
 }
 
-/// Durum hapı.
+/// Etiket ya da durum. Etiket: 24 yükseklik, köşe 6, nötr zemin (paket için mor yazı ve `proSoft`).
+/// Durum (`dot`): 8 pt nokta ve kelime, zeminsiz; `live` ise nokta atar (yalnız canlı çeviride).
 struct MobilePill: View {
     enum Kind { case neutral, ok, accent, pro }
     let text: String
     var kind: Kind = .neutral
     var dot = false
+    var live = false
     var compact = false
 
     var body: some View {
-        HStack(spacing: Mobile.Space.inline) {
-            if dot { MobileLiveDot() }
-            Text(verbatim: text).font(Mobile.TypeScale.caption.weight(.semibold)).lineLimit(1)
-        }
-        .foregroundStyle(color)
-        .padding(.horizontal, Mobile.Space.gap)
-        .frame(height: compact ? 24 : 28)
-        .background(background, in: Capsule())
-    }
-
-    private var color: Color {
-        switch kind {
-        case .neutral: Mobile.Palette.secondary
-        case .ok: Mobile.Palette.success
-        case .accent: Mobile.Palette.accent
-        case .pro: Mobile.Palette.pro
-        }
-    }
-
-    private var background: Color {
-        switch kind {
-        case .neutral: Mobile.Palette.surface2
-        case .ok: Mobile.Palette.success.opacity(0.14)
-        case .accent: Mobile.Palette.accent.opacity(0.14)
-        case .pro: Mobile.Palette.pro.opacity(0.16)
+        if dot || live {
+            HStack(spacing: Mobile.Space.inline) {
+                MobileLiveDot(pulses: live)
+                Text(verbatim: text).font(Mobile.TypeScale.caption).monospacedDigit().lineLimit(1)
+            }
+            .foregroundStyle(Mobile.Palette.text)
+        } else {
+            Text(verbatim: text)
+                .font(Mobile.TypeScale.caption)
+                .monospacedDigit()
+                .lineLimit(1)
+                .foregroundStyle(kind == .pro ? Mobile.Palette.pro : Mobile.Palette.secondary)
+                .padding(.horizontal, Mobile.Space.inline)
+                .frame(height: Mobile.Control.tag)
+                .background(kind == .pro ? Mobile.Palette.proSoft : Mobile.Palette.surface2,
+                            in: RoundedRectangle(cornerRadius: Mobile.Radius.tag))
         }
     }
 }
 
-/// Canlı nokta: 8 pt yeşil, 1,6 sn'de bir genişleyip sönen halka (azaltılmış harekette sabit).
+/// Durum noktası: 8 pt yeşil. `pulses` ise 2 sn'de bir genişleyip sönen halka (azaltılmış harekette sabit).
 struct MobileLiveDot: View {
     var color: Color = Mobile.Palette.success
+    var pulses = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
 
@@ -350,17 +317,17 @@ struct MobileLiveDot: View {
             .fill(color)
             .frame(width: 8, height: 8)
             .overlay {
-                if !reduceMotion {
+                if pulses && !reduceMotion {
                     Circle()
                         .stroke(color, lineWidth: 2)
-                        .frame(width: 20, height: 20)
-                        .scaleEffect(pulse ? 1.2 : 0.4)
-                        .opacity(pulse ? 0 : 0.8)
+                        .frame(width: 16, height: 16)
+                        .scaleEffect(pulse ? 1.2 : 0.5)
+                        .opacity(pulse ? 0 : 0.7)
                 }
             }
             .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
+                guard pulses, !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 2).repeatForever(autoreverses: false)) { pulse = true }
             }
             .accessibilityHidden(true)
     }
@@ -375,9 +342,8 @@ struct PageDots: View {
         HStack(spacing: Mobile.Space.inline) {
             ForEach(0..<count, id: \.self) { index in
                 Capsule()
-                    .fill(index == current ? Mobile.Palette.accent : Mobile.Palette.borderStrong)
+                    .fill(index == current ? Mobile.Palette.text : Mobile.Palette.borderStrong)
                     .frame(width: index == current ? 24 : 8, height: 8)
-                    .shadow(color: index == current ? Mobile.Palette.accent.opacity(0.6) : .clear, radius: 5)
             }
         }
         .animation(.easeOut(duration: 0.2), value: current)
@@ -385,7 +351,7 @@ struct PageDots: View {
     }
 }
 
-/// Segmentli seçim (kayıt/giriş, çeviri motoru).
+/// Segmentli seçim (çeviri motoru): seçili öğe `raised` zemin ve yarı kalın; çerçeve ve parıltı yok.
 struct SegmentedTabs<Value: Hashable>: View {
     let options: KeyValuePairs<Value, LocalizedStringKey>
     @Binding var selection: Value
@@ -396,15 +362,12 @@ struct SegmentedTabs<Value: Hashable>: View {
                 let selected = option.key == selection
                 Button { selection = option.key } label: {
                     Text(option.value)
-                        .font(Mobile.TypeScale.body.weight(.semibold))
+                        .font(Mobile.TypeScale.body.weight(selected ? .semibold : .medium))
                         .foregroundStyle(selected ? Mobile.Palette.text : Mobile.Palette.secondary)
                         .frame(maxWidth: .infinity, minHeight: 36)
                         .background {
                             if selected {
-                                RoundedRectangle(cornerRadius: Mobile.Radius.inner)
-                                    .fill(Mobile.Palette.surface)
-                                    .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.inner).strokeBorder(Mobile.Palette.accent.opacity(0.45)))
-                                    .shadow(color: Mobile.Palette.accent.opacity(0.5), radius: 8)
+                                RoundedRectangle(cornerRadius: Mobile.Radius.inner).fill(Mobile.Palette.borderStrong)
                             }
                         }
                         .contentShape(Rectangle())
@@ -427,7 +390,7 @@ struct MobileFieldStyle: TextFieldStyle {
             .padding(.horizontal, Mobile.Space.tile)
             .frame(minHeight: Mobile.Control.field)
             .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: Mobile.Radius.control))
-            .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.borderStrong))
+            .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.border))
     }
 }
 
@@ -456,29 +419,22 @@ extension ListRow where Trailing == AnyView {
     /// Gidilecek bir ekranı olan satır (sağda ok).
     init(symbol: String, tint: MobileTileIcon.Tint = .neutral, title: LocalizedStringKey, detail: String? = nil) {
         self.init(symbol: symbol, tint: tint, title: title, detail: detail) {
-            AnyView(Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Mobile.Palette.secondary))
+            AnyView(Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Mobile.Palette.tertiary))
         }
     }
 }
 
 /// Satırlar arası 1 px ayraç.
 struct RowDivider: View {
-    var body: some View { Rectangle().fill(Mobile.Palette.borderStrong).frame(height: 1) }
+    var body: some View { Rectangle().fill(Mobile.Palette.border).frame(height: 1) }
 }
 
 // MARK: - Ekran iskeleti
 
-/// Ekran zemini: sağ üstte amber, sol altta mor hareketsiz ışık (§7).
+/// Ekran zemini: düz `bg` (hale ve ışık yok).
 struct MobileBackground: View {
     var body: some View {
-        ZStack {
-            Mobile.Palette.bg
-            RadialGradient(colors: [Mobile.Palette.accent.opacity(0.16), .clear], center: UnitPoint(x: 0.88, y: -0.06),
-                           startRadius: 0, endRadius: 360)
-            RadialGradient(colors: [Mobile.Palette.pro.opacity(0.12), .clear], center: UnitPoint(x: -0.12, y: 1.06),
-                           startRadius: 0, endRadius: 340)
-        }
-        .ignoresSafeArea()
+        Mobile.Palette.bg.ignoresSafeArea()
     }
 }
 
@@ -519,7 +475,7 @@ struct ScreenTitle: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Mobile.Space.hair) {
             if let caption { Text(caption).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary) }
-            Text(title).font(Mobile.TypeScale.display).tracking(-0.4).fixedSize(horizontal: false, vertical: true)
+            Text(title).font(Mobile.TypeScale.display).fixedSize(horizontal: false, vertical: true)
             if let message {
                 Text(message).font(Mobile.TypeScale.body).foregroundStyle(Mobile.Palette.secondary).fixedSize(horizontal: false, vertical: true)
             }

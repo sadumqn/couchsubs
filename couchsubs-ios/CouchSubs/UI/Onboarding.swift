@@ -39,11 +39,11 @@ struct WelcomeFlow: View {
     private var pageOne: some View {
         VStack(alignment: .leading, spacing: Mobile.Space.gap) {
             Spacer(minLength: 0)
-            Tile(emphasis: .active) {
+            Tile {
                 Text(verbatim: "Are you listening to me?").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                 Text("Are you listening to me?").font(Mobile.TypeScale.headline)
                 HStack(spacing: Mobile.Space.inline) {
-                    MobilePill(text: String(localized: "PS5 connected"), kind: .ok, dot: true)
+                    MobilePill(text: String(localized: "PS5 connected"), dot: true)
                     MobilePill(text: String(localized: "Ready translation"), kind: .pro)
                 }
             }
@@ -56,7 +56,7 @@ struct WelcomeFlow: View {
         VStack(alignment: .leading, spacing: Mobile.Space.gap) {
             Spacer(minLength: 0)
             BentoGrid {
-                Tile(emphasis: .pro) {
+                Tile {
                     HStack(spacing: Mobile.Space.gap) {
                         GameMonogram(code: "GTA")
                         VStack(alignment: .leading, spacing: Mobile.Space.hair) {
@@ -78,26 +78,10 @@ struct WelcomeFlow: View {
         VStack(alignment: .leading, spacing: Mobile.Space.gap) {
             Spacer(minLength: 0)
             BentoGrid {
-                Tile(emphasis: .active) {
-                    MobileTileIcon(symbol: "tv", tint: .accent)
-                    Text("On the TV").font(Mobile.TypeScale.headline)
-                    Text("Over the game").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                }
-                Tile {
-                    MobileTileIcon(symbol: "iphone")
-                    Text("On the phone").font(Mobile.TypeScale.headline)
-                    Text("Next to the TV").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                }
-                Tile {
-                    HStack(spacing: Mobile.Space.gap) {
-                        MobileTileIcon(symbol: "wifi", tint: .ok)
-                        VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                            Text("The same Wi-Fi is enough").font(Mobile.TypeScale.headline)
-                            Text("Keep the PS5, TV and phone on the same network").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                        }
-                    }
-                }
-                .bentoWide()
+                InfoTile(symbol: "tv", title: "On the TV", caption: "Over the game")
+                InfoTile(symbol: "iphone", title: "On the phone", caption: "Next to the TV")
+                InfoTile(symbol: "wifi", title: "The same Wi-Fi is enough", caption: "Keep the PS5, TV and phone on the same network")
+                    .bentoWide()
             }
             ScreenTitle(title: "On the screen you want",
                         message: "Show the subtitles on the TV over the game, or in large text on your phone. Setup takes a few minutes.")
@@ -153,20 +137,12 @@ struct PSNScreen: View {
             ScreenTitle(caption: "Setup · Step 1/3", title: "Second PSN account",
                         message: "The phone connects to the PS5 with Remote Play. Sign in with a free second PSN account, separate from the one you play with.")
             BentoGrid {
-                featureTile("person.badge.plus", .accent, "Free account", "No PS Plus needed")
-                featureTile("gamecontroller", .ok, "You play", "With your own account, on the TV")
-                Tile {
-                    HStack(spacing: Mobile.Space.gap) {
-                        MobileTileIcon(symbol: "lock.shield")
-                        VStack(alignment: .leading, spacing: Mobile.Space.hair) {
-                            Text("We don't keep your password").font(Mobile.TypeScale.headline)
-                            Text("You sign in on Sony's page").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                        }
-                    }
-                }
-                .bentoWide()
+                InfoTile(symbol: "person.badge.plus", title: "Free account", caption: "No PS Plus needed")
+                InfoTile(symbol: "gamecontroller", title: "You play", caption: "With your own account, on the TV")
+                InfoTile(symbol: "lock.shield", title: "We don't keep your password", caption: "You sign in on Sony's page")
+                    .bentoWide()
             }
-            if model.accountId != nil { MobilePill(text: String(localized: "Signed in"), kind: .ok, dot: true) }
+            if model.accountId != nil { MobilePill(text: String(localized: "Signed in"), dot: true) }
             if working { ProgressView().tint(Mobile.Palette.accent) }
             if let error { MobileNote(text: error) }
         } bottom: {
@@ -207,16 +183,6 @@ struct PSNScreen: View {
             .presentationDetents([.medium])
             .sheetBackground(Mobile.Palette.surface)
         }
-    }
-
-    private func featureTile(_ symbol: String, _ tint: MobileTileIcon.Tint, _ title: LocalizedStringKey, _ caption: LocalizedStringKey) -> some View {
-        Tile {
-            MobileTileIcon(symbol: symbol, tint: tint)
-            Spacer(minLength: Mobile.Space.inline)
-            Text(title).font(Mobile.TypeScale.headline)
-            Text(caption).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-        }
-        .aspectRatio(1, contentMode: .fit)
     }
 
     private func received(_ url: URL) {
@@ -260,9 +226,9 @@ struct PS5PairScreen: View {
         } content: {
             ScreenTitle(caption: "Setup · Step 2/3", title: "Pair the PS5",
                         message: "On the PS5, with the second account, choose Settings › System › Remote Play › Pair Device and type the code on the screen.")
-            Tile(emphasis: host.isEmpty ? .none : .active) {
+            Tile {
                 HStack(spacing: Mobile.Space.gap) {
-                    MobileTileIcon(symbol: "gamecontroller.fill", tint: host.isEmpty ? .neutral : .ok)
+                    MobileTileIcon(symbol: "gamecontroller.fill")
                     VStack(alignment: .leading, spacing: Mobile.Space.hair) {
                         if let found = consoles.first, manualHost.isEmpty {
                             Text(String(format: String(localized: "%@ found"), found.name)).font(Mobile.TypeScale.headline)
@@ -276,7 +242,7 @@ struct PS5PairScreen: View {
                         }
                     }
                     Spacer()
-                    if searching { ProgressView().tint(Mobile.Palette.accent) } else if !host.isEmpty { MobileLiveDot() }
+                    if searching { ProgressView().tint(Mobile.Palette.accent) } else if !host.isEmpty { MobileLiveDot(pulses: false) }
                 }
             }
             Tile {
@@ -296,7 +262,8 @@ struct PS5PairScreen: View {
                                 .frame(maxWidth: .infinity, minHeight: Mobile.Control.field)
                                 .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: Mobile.Radius.inner))
                                 .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.inner)
-                                    .strokeBorder(index == digits.count && codeFocused ? Mobile.Palette.accent : Mobile.Palette.borderStrong))
+                                    .strokeBorder(index == digits.count && codeFocused ? Mobile.Palette.accent : Mobile.Palette.border,
+                                                  lineWidth: index == digits.count && codeFocused ? 2 : 1))
                         }
                     }
                     .allowsHitTesting(false)
@@ -381,9 +348,9 @@ struct TargetScreen: View {
         } content: {
             ScreenTitle(caption: setup ? "Setup · Step 3/3" : nil, title: "Where are the subtitles?",
                         message: "You can change this later on the home screen.")
-            Tile(emphasis: model.settings.output.showsOnTV && model.hasTV ? .active : .none) {
+            Tile(emphasis: model.settings.output.showsOnTV && model.hasTV ? .selected : .none) {
                 HStack(spacing: Mobile.Space.gap) {
-                    MobileTileIcon(symbol: "tv", tint: .accent)
+                    MobileTileIcon(symbol: "tv")
                     Text("On the TV, over the game").font(Mobile.TypeScale.headline)
                     Spacer()
                     if searching { ProgressView().tint(Mobile.Palette.accent) }
@@ -398,23 +365,12 @@ struct TargetScreen: View {
             }
             BentoGrid {
                 Button { model.settings.output = .computer } label: {
-                    Tile(emphasis: model.settings.output == .computer ? .active : .none) {
-                        MobileTileIcon(symbol: "iphone", tint: model.settings.output == .computer ? .accent : .neutral)
-                        Spacer(minLength: Mobile.Space.inline)
-                        Text("On this phone").font(Mobile.TypeScale.headline)
-                        Text("No TV, or the app is not installed").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                    }
-                    .aspectRatio(1, contentMode: .fit)
+                    InfoTile(symbol: "iphone", title: "On this phone", caption: "No TV, or the app is not installed",
+                             emphasis: model.settings.output == .computer ? .selected : .none)
                 }
                 .buttonStyle(.plain)
                 Button { showManual = true } label: {
-                    Tile {
-                        MobileTileIcon(symbol: "questionmark")
-                        Spacer(minLength: Mobile.Space.inline)
-                        Text("My TV is not listed").font(Mobile.TypeScale.headline)
-                        Text("Supported TVs").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
-                    }
-                    .aspectRatio(1, contentMode: .fit)
+                    InfoTile(symbol: "questionmark.circle", title: "My TV is not listed", caption: "Supported TVs")
                 }
                 .buttonStyle(.plain)
             }
@@ -452,7 +408,7 @@ struct TargetScreen: View {
             if working == tv {
                 ProgressView().tint(Mobile.Palette.accent)
             } else if ready == true {
-                MobilePill(text: String(localized: "Ready"), kind: .ok, dot: true)
+                MobilePill(text: String(localized: "Ready"), dot: true)
             } else if ready == false {
                 MobilePill(text: String(localized: "Install with a computer"))
             }

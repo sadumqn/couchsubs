@@ -11,12 +11,12 @@ struct PacksScreen: View {
     var body: some View {
         MobileScreen {
             BackHeader(title: "Game packs") {
-                MobilePill(text: String(localized: "Free"), kind: .pro)
+                MobilePill(text: String(localized: "Free"))
             }
         } content: {
             Text("The pack is chosen by itself when the game opens. Lines not in the pack are translated with the engine you chose.")
                 .font(Mobile.TypeScale.body).foregroundStyle(Mobile.Palette.secondary)
-            Tile(emphasis: .pro) {
+            Tile {
                 Toggle(isOn: $model.settings.gamePacks) {
                     VStack(alignment: .leading, spacing: Mobile.Space.hair) {
                         Text("Use the ready Turkish translations of game packs").font(Mobile.TypeScale.headline)
@@ -24,7 +24,7 @@ struct PacksScreen: View {
                             .font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                     }
                 }
-                .tint(Mobile.Palette.pro)
+                .tint(Mobile.Palette.accent)
             }
             switch app.packStatus {
             case .downloading:
@@ -43,12 +43,11 @@ struct PacksScreen: View {
                         Text(verbatim: pack.title).font(Mobile.TypeScale.headline).lineLimit(2)
                         Text(Self.linesText(pack.entries)).font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)
                     }
-                    .aspectRatio(1, contentMode: .fit)
                 }
             }
             Tile {
                 HStack(spacing: Mobile.Space.gap) {
-                    MobileTileIcon(symbol: "sparkles")
+                    MobileTileIcon(symbol: "arrow.down.circle")
                     VStack(alignment: .leading, spacing: Mobile.Space.hair) {
                         Text("New games are coming").font(Mobile.TypeScale.headline)
                         Text("New packs arrive by themselves, free").font(Mobile.TypeScale.caption).foregroundStyle(Mobile.Palette.secondary)

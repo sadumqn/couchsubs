@@ -125,7 +125,9 @@ struct SettingsScreen: View {
                         if model.hasKey(engine) {
                             Text(String(format: String(localized: "%@ key"), engine.displayName)).font(Mobile.TypeScale.headline.weight(.regular))
                             Spacer()
-                            MobilePill(text: String(localized: "saved"), kind: .ok, compact: true)
+                            Label(String(localized: "saved"), systemImage: "checkmark")
+                                .font(Mobile.TypeScale.caption)
+                                .foregroundStyle(Mobile.Palette.success)
                             Button { model.removeKey(engine) } label: { Image(systemName: "xmark.circle.fill") }
                                 .foregroundStyle(Mobile.Palette.secondary)
                                 .accessibilityLabel(Text("Remove key"))
@@ -142,7 +144,7 @@ struct SettingsScreen: View {
                     .padding(.horizontal, Mobile.Space.tile)
                     .frame(minHeight: Mobile.Control.field)
                     .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: Mobile.Radius.control))
-                    .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.borderStrong))
+                    .overlay(RoundedRectangle(cornerRadius: Mobile.Radius.control).strokeBorder(Mobile.Palette.border))
                     if checking { ProgressView().tint(Mobile.Palette.accent) }
                     if let keyResult { MobileNote(text: keyResult) }
                 }
