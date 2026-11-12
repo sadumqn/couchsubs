@@ -172,6 +172,7 @@ struct PSNScreen: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showLogin = false } } }
             }
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showWhy) {
             VStack(alignment: .leading, spacing: Mobile.Space.gap) {
@@ -181,6 +182,7 @@ struct PSNScreen: View {
             }
             .padding(Mobile.Space.screen)
             .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
             .sheetBackground(Mobile.Palette.surface)
         }
     }
@@ -303,6 +305,7 @@ struct PS5PairScreen: View {
             }
             .padding(Mobile.Space.screen)
             .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
             .sheetBackground(Mobile.Palette.surface)
         }
     }
@@ -447,6 +450,7 @@ struct TargetScreen: View {
         }
         .padding(Mobile.Space.screen)
         .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .sheetBackground(Mobile.Palette.surface)
     }
 
