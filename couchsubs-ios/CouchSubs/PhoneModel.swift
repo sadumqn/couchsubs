@@ -505,8 +505,9 @@ final class PhoneModel: ObservableObject {
         guard settings.output.showsOnComputer else { return }
         let now = clock()
         switch event {
-        case .subtitle(let text, let durationMs, let paragraphs):
-            stack.show(text, durationMs: durationMs, paragraphs: paragraphs, now: now)
+        case .subtitle(let text, let durationMs, let paragraphs, let replaces):
+            // Aynı cümlenin uzamış ya da düzelmiş okuması öncekinin yerine geçer (Mac'teki pencere ve TV gibi).
+            stack.show(text, durationMs: durationMs, paragraphs: paragraphs, replaces: replaces, now: now)
         case .clear:
             stack.clear(now: now)
         }
