@@ -161,7 +161,7 @@
                 <StackPanel>
                     <Grid Margin="0,0,0,8">
                         <TextBlock Text="{t:T 'Game packs'}" Style="{StaticResource DisplayText}" />
-                        <Border x:Name="PacksPill" Style="{StaticResource SuccessPill}" HorizontalAlignment="Right" Visibility="Collapsed">
+                        <Border x:Name="PacksPill" Style="{StaticResource Pill}" HorizontalAlignment="Right" Visibility="Collapsed">
                             <TextBlock x:Name="PacksPillText" VerticalAlignment="Center" />
                         </Border>
                     </Grid>

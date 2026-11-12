@@ -100,10 +100,10 @@ public partial class SettingsWindow : Window
     /// <summary>Bir paketin karosu: adın baş harflerinden rozet, ad ve satır sayısı.</summary>
     private FrameworkElement PackTile(string title, string lines)
     {
-        var badge = new Border { Style = (Style)FindResource("AccentIcon"), Width = 52, Height = 52, Margin = new Thickness(0, 0, 16, 0) };
+        var badge = new Border { Style = (Style)FindResource("GameMonogram"), Margin = new Thickness(0, 0, 16, 0) };
         var initials = new TextBlock
         {
-            Text = Initials(title), FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center,
+            Text = Initials(title), FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.NoWrap,
         };
         initials.SetResourceReference(TextBlock.FontSizeProperty, "captionFontSize");

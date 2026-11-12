@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- Ana ekran (bento): solda başlat/durdur ve durum karoları, sağda paket karosu ve canlı altyazı. -->
+<!-- Ana ekran: solda başlat/durdur ve durum karoları, sağda paket karosu ve canlı altyazı. -->
 <UserControl x:Class="CouchSubs.App.Views.MainView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -19,7 +19,7 @@
             </StackPanel>
             <Button HorizontalAlignment="Right" Padding="16,0" ToolTip="{t:T 'Settings'}" Click="OnSettings">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{x:Static c:Glyphs.Settings}" Style="{StaticResource GlyphText}" FontSize="16" Margin="0,0,8,0" />
+                    <TextBlock Text="{x:Static c:Glyphs.Settings}" Style="{StaticResource GlyphText}" FontSize="20" Margin="0,0,8,0" />
                     <TextBlock Text="{t:T 'Settings'}" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
@@ -35,7 +35,7 @@
             <ScrollViewer Width="{DynamicResource size.mainColumn}" VerticalScrollBarVisibility="Auto" Focusable="False" Margin="0,0,16,0">
                 <StackPanel Margin="0,0,0,8">
                     <!-- Yeni sürüm -->
-                    <c:Card x:Name="UpdateCard" Kind="Active" Margin="0,0,0,16" Visibility="Collapsed">
+                    <c:Card x:Name="UpdateCard" Margin="0,0,0,16" Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock x:Name="UpdateTitle" FontWeight="SemiBold" Foreground="{DynamicResource accentTextBrush}" TextWrapping="Wrap" />
                             <ProgressBar x:Name="UpdateBar" Minimum="0" Maximum="1" Margin="0,12,0,0" Visibility="Collapsed" />
@@ -48,7 +48,7 @@
                     <!-- Başlat / Durdur -->
                     <Button x:Name="Toggle" HorizontalAlignment="Stretch" MinHeight="{DynamicResource size.primaryActionHeight}" Click="OnToggle">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="ToggleGlyph" Style="{StaticResource GlyphText}" FontSize="18" Margin="0,0,10,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                            <TextBlock x:Name="ToggleGlyph" Style="{StaticResource GlyphText}" FontSize="20" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                             <TextBlock x:Name="ToggleText" FontSize="{DynamicResource headlineFontSize}" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </StackPanel>
                     </Button>
@@ -175,30 +175,21 @@
 
             <!-- Sağ: oyun paketi ve canlı altyazı -->
             <DockPanel Grid.Column="1">
-                <c:Card x:Name="PackTile" DockPanel.Dock="Top" Kind="Pro" Margin="0,0,0,16" Visibility="Collapsed">
+                <c:Card x:Name="PackTile" DockPanel.Dock="Top" Margin="0,0,0,16" Visibility="Collapsed">
                     <DockPanel>
                         <Border Style="{StaticResource ProIcon}" Margin="0,0,12,0" VerticalAlignment="Center">
-                            <TextBlock Text="{x:Static c:Glyphs.Bolt}" Style="{StaticResource GlyphText}" FontSize="18" HorizontalAlignment="Center" />
+                            <TextBlock Text="{x:Static c:Glyphs.Package}" Style="{StaticResource GlyphText}" FontSize="18" HorizontalAlignment="Center" />
                         </Border>
                         <TextBlock x:Name="PackText" VerticalAlignment="Center" />
                     </DockPanel>
                 </c:Card>
 
-                <!-- Canlı altyazı: çeviri sürerken parlar -->
+                <!-- Canlı altyazı: son satır büyük ve altyazı sarısında (karo parlamaz) -->
                 <c:Card Title="{t:T 'Live subtitles'}" VerticalAlignment="Stretch">
-                    <c:Card.Style>
-                        <Style TargetType="c:Card" BasedOn="{StaticResource {x:Type c:Card}}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                    <Setter Property="Kind" Value="Active" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </c:Card.Style>
                     <StackPanel>
                         <TextBlock Text="{t:T 'Subtitles will appear here while you play.'}" Style="{StaticResource HintText}"
                                    Visibility="{Binding LastTranslation, Converter={StaticResource VisibleIf}, ConverterParameter=invert}" />
-                        <TextBlock Text="{Binding LastTranslation}" Style="{StaticResource LiveText}" Margin="0,4,0,0"
+                        <TextBlock Text="{Binding LastTranslation}" Style="{StaticResource LiveText}" Foreground="{DynamicResource accentTextBrush}" Margin="0,4,0,0"
                                    Visibility="{Binding LastTranslation, Converter={StaticResource VisibleIf}}" />
                         <TextBlock Text="{Binding LastSource}" Style="{StaticResource CaptionText}" Margin="0,8,0,0"
                                    Visibility="{Binding LastTranslation, Converter={StaticResource VisibleIf}}" />

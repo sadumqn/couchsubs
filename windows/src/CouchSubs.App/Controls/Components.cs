@@ -9,24 +9,22 @@ namespace CouchSubs.App.Controls;
 // Ortak bileşenler (docs/TASARIM.md). Görünümleri Theme/Styles.xaml'daki şablonlarda; ölçü ve renkler
 // tokens.json'dan gelen kaynaklardan. Mac'teki bileşenlerle aynı adları taşır.
 
-/// <summary>Sihirbaz adımlarının ortak düzeni: simge rozeti, başlık, açıklama, içerik.</summary>
+/// <summary>Sihirbaz adımlarının ortak düzeni: başlık, açıklama, içerik (simge rozeti yok).</summary>
 public class StepLayout : ContentControl
 {
-    public static readonly DependencyProperty GlyphProperty = DependencyProperty.Register(nameof(Glyph), typeof(string), typeof(StepLayout));
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(StepLayout));
     public static readonly DependencyProperty MessageProperty = DependencyProperty.Register(nameof(Message), typeof(string), typeof(StepLayout));
 
     static StepLayout() => DefaultStyleKeyProperty.OverrideMetadata(typeof(StepLayout), new FrameworkPropertyMetadata(typeof(StepLayout)));
 
-    public string Glyph { get => (string)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string Message { get => (string)GetValue(MessageProperty); set => SetValue(MessageProperty, value); }
 }
 
-/// <summary>Karonun görünümü: sıradan, etkin (sarı çerçeve ve parıltı) ya da Pro/paket (mor→sarı çerçeve, mor parıltı).</summary>
-public enum TileKind { Normal, Active, Pro }
+/// <summary>Karonun görünümü: sıradan ya da etkin (seçili seçenek: 1 px sarı çerçeve). Parıltı ve degrade yok.</summary>
+public enum TileKind { Normal, Active }
 
-/// <summary>Başlıklı ya da başlıksız içerik kartı (bento karo).</summary>
+/// <summary>Başlıklı ya da başlıksız içerik kartı (karo).</summary>
 public class Card : ContentControl
 {
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(Card));
@@ -51,7 +49,7 @@ public class NumberedRow : Control
     public string Text { get => (string)GetValue(TextProperty); set => SetValue(TextProperty, value); }
 }
 
-/// <summary>Durum karosunun içi: simge ve renkli durum noktası, altında ad ve değer.</summary>
+/// <summary>Durum karosunun içi: üstte simge, ad ve durum noktası; altında değer.</summary>
 public class StatusRow : Control
 {
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(StatusRow));
@@ -89,6 +87,6 @@ public static class Glyphs
     public const string Globe = "\uE774";
     /// <summary>Segoe Fluent Icons "KeyboardClassic" (U+E765); kısayol karosu.</summary>
     public const string Keyboard = "\uE765";
-    /// <summary>Segoe Fluent Icons "Lightning" (U+E945); oyun paketi karosu.</summary>
-    public const string Bolt = "\uE945";
+    /// <summary>Segoe Fluent Icons "Package" (U+E7B8); oyun paketi karosu.</summary>
+    public const string Package = "\uE7B8";
 }
