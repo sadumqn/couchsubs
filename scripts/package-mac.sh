@@ -21,7 +21,9 @@ if (( ${#MAC_SLICE} == 0 )) || ! lipo "${MAC_SLICE[1]}" -verify_arch arm64 x86_6
 ./scripts/package-tizen.sh
 # Android TV APK'sı verilirse (CI: tv-android iş akışının çıktısı) uygulamaya gömülür.
 [[ -n "$ANDROID_APK" ]] && ./scripts/bundle-android-apk.sh "$ANDROID_APK"
-# Yardımcılar da evrensel olmalı (önceden yalnız Apple Silicon için hazırlanmış olabilir).
+# Kaynağı değiştiyse (ya da damgasız eski bir derlemeyse) yeniden derlenir: dist'te kalan eski yardımcı pakete girmesin.
+./scripts/build-tv-helper.sh --if-changed
+# Yardımcılar da evrensel olmalı (önceden ya da CI'da yalnız Apple Silicon için hazırlanmış olabilir).
 universal() { [[ -x "$1" ]] && lipo "$1" -verify_arch arm64 x86_64; }
 universal dist/tv-helper/couchsubs-tv-helper || ./scripts/build-tv-helper.sh
 universal dist/tts/pocket-tts || ./scripts/fetch-pocket-tts.sh mac

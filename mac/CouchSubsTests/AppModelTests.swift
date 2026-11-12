@@ -160,6 +160,60 @@ final class AppModelTests: XCTestCase {
         store.save(LGTV(name: "LG TV", host: "192.168.1.153"), for: StoreKey.tv)
         store.save("tv-key", for: StoreKey.tvKey)
         XCTAssertEqual(AppModel(services: FakeServices(), store: store, defaults: .isolated()).step, .done)
+        XCTAssertEqual(store.load(Bool.self, for: StoreKey.setupComplete), true, "Eski kurulum bir kez 'bitti' diye kaydedilir")
+    }
+
+    /// Sihirbazda PS5'e kadar gelinmiş bir kurulum (hesap ve konsol kayıtlı).
+    private func wizardUpToTV(_ store: MemoryStore, _ defaults: UserDefaults) -> AppModel {
+        let model = AppModel(services: FakeServices(), store: store, defaults: defaults)
+        XCTAssertEqual(model.step, .welcome)
+        let accountId = Data(repeating: 1, count: 8)
+        model.accountId = accountId
+        model.console = console
+        store.save(accountId, for: StoreKey.accountId)
+        store.save(console, for: StoreKey.console)
+        model.step = .tv
+        return model
+    }
+
+    /// Samsung: TV eşleşti, uygulama kurulurken CouchSubs kapatıldı. Yeniden açılınca kurulum bitmiş sayılmaz, TV
+    /// adımından sürer.
+    func testInterruptedTVInstallIsNotComplete() async throws {
+        let store = MemoryStore()
+        let defaults = UserDefaults.isolated()
+        let model = wizardUpToTV(store, defaults)
+        try await model.pair(LGTV(name: "Samsung", host: "192.168.1.20", brand: .samsung))
+        XCTAssertTrue(model.hasTV)
+        let reopened = AppModel(services: FakeServices(), store: store, defaults: defaults)
+        XCTAssertEqual(reopened.step, .tv)
+        XCTAssertTrue(reopened.hasTV, "Eşleşme kaybolmaz; TV adımında uygulama kurulumu sürer")
+        XCTAssertNotEqual(store.load(Bool.self, for: StoreKey.setupComplete), true)
+    }
+
+    func testFinishedTVSetupIsComplete() async throws {
+        let store = MemoryStore()
+        let defaults = UserDefaults.isolated()
+        let model = wizardUpToTV(store, defaults)
+        try await model.pair(LGTV(name: "Samsung", host: "192.168.1.20", brand: .samsung))
+        model.advance()
+        model.advance()
+        model.advance()
+        XCTAssertEqual(model.step, .done)
+        XCTAssertEqual(AppModel(services: FakeServices(), store: store, defaults: defaults).step, .done)
+    }
+
+    /// "TV'm yok, bilgisayar ekranında göster" de kurulumu bitirir.
+    func testComputerScreenChoiceCompletesSetup() {
+        let store = MemoryStore()
+        let defaults = UserDefaults.isolated()
+        let model = wizardUpToTV(store, defaults)
+        model.useComputerScreen()
+        // Yarıda kapatılırsa yine TV adımından sürer.
+        XCTAssertEqual(AppModel(services: FakeServices(), store: store, defaults: defaults).step, .tv)
+        model.advance()
+        model.advance()
+        XCTAssertEqual(model.step, .done)
+        XCTAssertEqual(AppModel(services: FakeServices(), store: store, defaults: defaults).step, .done)
     }
 
     func testPsnStepNeedsAccountId() {
@@ -634,6 +688,20 @@ final class TVAppInstallTests: XCTestCase {
         // Boş alan yalnız TV öyle dediğinde suçlanır.
         XCTAssertFalse(TVAppCard.message(for: .installFailed, brand: .lg, reason: "Invalid package").contains("free space"))
         XCTAssertTrue(TVAppCard.message(for: .installFailed, brand: .lg, reason: "Invalid package").hasSuffix("Invalid package"))
+    }
+
+    /// Samsung kısa basışta tam kapanmaz: "yeniden başlatın" diyen hatada güç tuşunun basılı tutulacağı yazar. Kurulum
+    /// sırasında bağlantı koparsa HDMI-CEC (Anynet+) ve otomatik kaynak değiştirme anlatılır.
+    func testSamsungFailureExplainsRestartAndSourceSwitching() {
+        // Bilgisayarın diline göre İngilizce ya da Türkçe gelir; ipucu metni de aynı dilde aranır.
+        let restart = String(localized: "To restart a Samsung TV fully, hold the power button on the remote for about 2 seconds until it turns off; a short press only puts it on standby.")
+        let unreachable = TVAppCard.message(for: .unreachable, brand: .samsung, reason: nil)
+        XCTAssertTrue(unreachable.contains(restart))
+        XCTAssertFalse(unreachable.contains("Anynet+"))
+        let dropped = TVAppCard.message(for: .connectionLost, brand: .samsung, reason: nil)
+        XCTAssertTrue(dropped.contains("Anynet+ (HDMI-CEC)"))
+        XCTAssertFalse(dropped.contains(restart))
+        XCTAssertFalse(TVAppCard.message(for: .unreachable, brand: .lg, reason: nil).contains(restart))
     }
 
     func testOlderAppIsUpdatedWithoutAsking() async throws {

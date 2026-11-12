@@ -96,11 +96,26 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         // Listede olmayan model varsayılana döndüyse ayar hemen kaydedilir.
         if (settings != loaded) settingsStore.Save(settings);
         var paired = tv is not null && store.Load<string>(StoreKeys.TvKey) is not null;
-        var ready = accountId is not null && console is not null && (paired || store.Load<bool>(StoreKeys.SetupComplete));
-        step = ready ? OnboardingStep.Done : OnboardingStep.Welcome;
+        var ready = SetupIsComplete(store, accountId is not null && console is not null, paired);
+        // Yarım kalan kurulum (ör. TV uygulaması kurulurken kapatıldı) PS5 kayıtlıysa TV adımından sürer.
+        step = ready ? OnboardingStep.Done : accountId is not null && console is not null ? OnboardingStep.Tv : OnboardingStep.Welcome;
         AttachServer();
         StartPacksAndPool();
         services.Translation.EngineFailure += OnEngineFailure;
+    }
+
+    /// <summary>
+    /// Kurulum bitmiş mi. "Bitti" yalnız sihirbazın sonuna gelinince kaydedilir (TV adımı başarıyla geçildi ya da
+    /// "TV'm yok" seçildi). Sihirbaz başlarken false yazılır: Samsung'da TV eşleşip uygulama kurulurken CouchSubs
+    /// kapatılırsa eşleşme kayıtlı olsa da kurulum bitmiş sayılmaz. Hiç kayıt yoksa (beta.25'ten önce kurulmuş)
+    /// eskisi gibi eşleşmiş TV yeter ve "bitti" kaydedilir.
+    /// </summary>
+    internal static bool SetupIsComplete(IAppStore store, bool consoleReady, bool paired)
+    {
+        var saved = store.Load<bool?>(StoreKeys.SetupComplete);
+        var ready = consoleReady && (saved ?? paired);
+        if (saved is null) store.Save(StoreKeys.SetupComplete, ready);
+        return ready;
     }
 
     /// <summary>Ücretsiz çeviri motoru açılamadı (arka planda, ısınma sırasında da olabilir): ana ekran uyarısı çıksın.</summary>
@@ -777,7 +792,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (toTv)
             {
                 server.SendStyle(settings.Style);
-                server.SendSubtitle(result.Translation, milliseconds, result.Box, result.Structured);
+                server.SendSubtitle(result.Translation, milliseconds, result.Box, paragraphs: result.Structured);
             }
             post(() =>
             {
