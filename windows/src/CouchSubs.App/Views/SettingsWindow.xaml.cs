@@ -35,6 +35,10 @@ public partial class SettingsWindow : Window
         ShowPlacement(settings.Style.Placement);
         BackgroundOpacity.Value = settings.Style.Background;
         Bold.IsChecked = settings.Style.Bold;
+        StackPrevious.IsChecked = settings.Style.StackPrevious;
+        MisreadWait.Value = settings.MisreadWaitMs / 1000.0;
+        PartialWait.Value = settings.PartialWaitMs / 1000.0;
+        ShowWaits();
         TextColor.SelectedItem = TextColor.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.Style.TextColor.ToString());
         DisplayMode.SelectedItem = DisplayMode.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.Style.DisplayMode.ToString());
         // Yalnız çeviri modeli olan diller listelenir; tek dil varsa seçim gösterilmez.
@@ -423,6 +427,36 @@ public partial class SettingsWindow : Window
 
     private void OnBold(object sender, RoutedEventArgs e) =>
         Update(s => s with { Style = s.Style with { Bold = Bold.IsChecked == true } });
+
+    private void OnMisreadWait(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        ShowWaits();
+        Update(s => s with { MisreadWaitMs = (int)Math.Round(e.NewValue * 1000) });
+    }
+
+    private void OnPartialWait(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        ShowWaits();
+        Update(s => s with { PartialWaitMs = (int)Math.Round(e.NewValue * 1000) });
+    }
+
+    private void OnWaitDefaults(object sender, RoutedEventArgs e)
+    {
+        MisreadWait.Value = SubtitlePipeline.PackWaitMs / 1000.0;
+        PartialWait.Value = SubtitlePipeline.CleanWaitMs / 1000.0;
+    }
+
+    /// <summary>Kaydırıcıların yanındaki süre ("0,8 sn").</summary>
+    private void ShowWaits()
+    {
+        if (MisreadWaitValue is null || PartialWaitValue is null) return;
+        var unit = Localizer.Current["sec"];
+        MisreadWaitValue.Text = $"{MisreadWait.Value.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture)} {unit}";
+        PartialWaitValue.Text = $"{PartialWait.Value.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture)} {unit}";
+    }
+
+    private void OnStackPrevious(object sender, RoutedEventArgs e) =>
+        Update(s => s with { Style = s.Style with { StackPrevious = StackPrevious.IsChecked == true } });
 
     private void OnTextColor(object sender, SelectionChangedEventArgs e)
     {
