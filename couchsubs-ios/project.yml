@@ -52,6 +52,8 @@ targets:
       - path: ../mac/CouchSubs/UI/Theme.swift
       - path: ../mac/CouchSubs/UI/Components.swift
       - path: ../mac/CouchSubs/UI/LoginWebView.swift
+      # Altyazı bölgesinin canlı önizlemesi (sürüklenen çerçeve).
+      - path: ../mac/CouchSubs/UI/RegionPreview.swift
       # Ekran metinleri Mac uygulamasıyla aynı katalogda (Türkçe).
       - path: ../mac/CouchSubs/Resources/Localizable.xcstrings
         buildPhase: resources

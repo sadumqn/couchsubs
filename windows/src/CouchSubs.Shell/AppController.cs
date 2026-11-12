@@ -77,6 +77,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private string? dubbingError;
     private IReadOnlyList<GamePackLibrary.Info> installedPacks = [];
     private Timer? poolTimer;
+    private string metricsText = "";
+    /// <summary>Çevrilen satırların geçmişi (arayüz iş parçacığında değişir).</summary>
+    private readonly SubtitleHistory history;
+    /// <summary>Geçmiş dosyaya sırayla yazılır; yazmalar üst üste binmez.</summary>
+    private Task historySave = Task.CompletedTask;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -102,6 +107,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         AttachServer();
         StartPacksAndPool();
         services.Translation.EngineFailure += OnEngineFailure;
+        history = services.HistoryFile is { } file ? SubtitleHistory.Load(file) : new SubtitleHistory();
     }
 
     /// <summary>
@@ -173,6 +179,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public bool CanStart => console is not null && accountId is not null && (ShowsOnComputer || HasTv);
     public string LastSource { get => lastSource; private set => Set(ref lastSource, value); }
     public string LastTranslation { get => lastTranslation; private set => Set(ref lastTranslation, value); }
+    /// <summary>TV'ye giden son satırın ölçümleri tek satırda ("OCR 40 ms · Çeviri 300 ms · Gecikme 520 ms"); satır gelene kadar boş.</summary>
+    public string MetricsText { get => metricsText; private set => Set(ref metricsText, value); }
+    /// <summary>Çevrilen satırlar, en yenisi başta (bu ve önceki oturumlar). Değişince bu özellik bildirilir.</summary>
+    public IReadOnlyList<SubtitleHistory.Entry> History => [.. history.Entries];
     public TranslatorStatus TranslatorStatus { get => translatorStatus; private set => Set(ref translatorStatus, value); }
     /// <summary>Çevrimiçi çeviri (DeepL ya da yapay zekâ) şu an çeviremiyor; o satırlar cihaz üstü modelle çevriliyor.</summary>
     public OnlineKeyState? OnlineIssue { get => onlineIssue; private set => Set(ref onlineIssue, value); }
@@ -759,6 +769,16 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
+    /// Ana ekrandaki "TV'de dene": çeviri başlamadıysa altyazı sunucusu da açılır (TV uygulaması ona bağlanabilsin),
+    /// sonra deneme altyazısı gönderilir. Port açılamazsa yalnız bilgisayar ekranındaki pencereye gider.
+    /// </summary>
+    public async Task SendTestSubtitleAsync()
+    {
+        try { await StartServerAsync(); } catch (SocketException) { }
+        SendTestSubtitle();
+    }
+
+    /// <summary>
     /// Num 0: canlı altyazı çevirisini duraklatır ya da sürdürür. Alan çevirirken sürekli çeviri de TV'de görünüp
     /// karışmasın diye kullanılır. TV'de kısa bir bildirim çıkar. Çeviri sürmüyorsa bir şey yapmaz.
     /// </summary>
@@ -961,6 +981,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             try { await StartServerAsync(); } catch { /* port açılamadıysa TV durumu "bekleniyor" kalır */ }
             server.SendStyle(settings.Style);
             SubtitlesPaused = false;
+            MetricsText = "";
             MakePipeline();
             if (settings.Dubbing.Enabled && DubbingInstalled) MakeDubber()?.Prepare();
             SubtitleLog.Write($"oturum başladı: {settings.SourceLanguage}→{settings.TargetLanguage}, "
@@ -1187,14 +1208,17 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         OcrMissing = reader is null || !services.HasOcrLanguage(settings.SourceLanguage);
         if (reader is null) return;
         var built = new SubtitlePipeline(reader, MakeTranslator(), server, new ReadScheduler());
+        built.MetricsReady += metrics => post(() => MetricsText = metrics.Summary(text));
         built.PairShown += (source, translation) =>
         {
             var box = built.LastBox;
+            var origin = built.LastOrigin == "paket" ? LineOrigin.Pack : LineOrigin.Engine;
             post(() =>
             {
                 LastSource = source;
                 LastTranslation = translation;
                 if (box is not null) lastSubtitleBox = box;
+                AddToHistory(source, translation, origin);
             });
         };
         // Model bu arada inmiş olabilir; her çeviri sonucu durumu günceller.
@@ -1207,6 +1231,42 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         ApplyWaits(built);
         OnlineIssue = null;
         pipeline = built;
+    }
+
+    // --- Geçmiş ---
+
+    /// <summary>Gösterilen satır geçmişe eklenir (arayüz iş parçacığında) ve dosyaya yazılır.</summary>
+    private void AddToHistory(string source, string translation, LineOrigin origin)
+    {
+        if (!history.Add(source, translation, origin)) return;
+        Changed(nameof(History));
+        SaveHistory();
+    }
+
+    /// <summary>Geçmişi siler (dosyadaki de boşalır).</summary>
+    public void ClearHistory()
+    {
+        history.Clear();
+        Changed(nameof(History));
+        SaveHistory();
+    }
+
+    /// <summary>Bekleyen geçmiş yazmalarının bitmesini bekler (testler ve kapanış için).</summary>
+    public Task WaitForHistoryAsync() => historySave;
+
+    /// <summary>
+    /// Geçmişin kopyası arayüzü bekletmeden, önceki yazmanın ardından dosyaya yazılır. Yazılamazsa (dosya kilitli) bir
+    /// sonraki satırda yeniden denenir.
+    /// </summary>
+    private void SaveHistory()
+    {
+        if (services.HistoryFile is not { } file) return;
+        var copy = history.Copy();
+        historySave = historySave.ContinueWith(_ =>
+        {
+            try { copy.Save(file); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
     }
 
     private ITextTranslator MakeTranslator()
@@ -1397,6 +1457,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     /// </summary>
     private async void HandleFrame(Frame frame)
     {
+        // Gecikme karenin geldiği andan ölçülür (hattın varsayılan saatiyle aynı saat).
+        var arrived = Environment.TickCount64;
         try
         {
             post(() => LastFrame = frame);
@@ -1407,7 +1469,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (current is null || Interlocked.Exchange(ref processing, 1) == 1) return;
             try
             {
-                await current.ProcessAsync(frame, settings.Region);
+                await current.ProcessAsync(frame, settings.Region, arrived);
             }
             finally
             {

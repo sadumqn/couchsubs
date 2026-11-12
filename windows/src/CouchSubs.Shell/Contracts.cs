@@ -132,6 +132,12 @@ public static class TranslationEngines
 public sealed record UserSettings
 {
     public CropRegion Region { get; init; } = new();
+    private readonly AreaPreset? areaPreset;
+    /// <summary>
+    /// Altyazı bölgesinin hazır seçimi (alt, üst, tam ekran ya da özel). Eski ayar dosyalarında yoktur; o zaman
+    /// <see cref="Region"/>'dan çıkarılır.
+    /// </summary>
+    public AreaPreset AreaPreset { get => areaPreset ?? AreaPresets.Matching(Region); init => areaPreset = value; }
     /// <summary>Ek bölge 1 (ör. sağ üstteki görev paneli); null ise kapalı. Num 1 tuşuyla bir kez okunup çevrilir.</summary>
     public CropRegion? ExtraRegion1 { get; init; }
     /// <summary>Ek bölge 2 (ör. sağ alttaki bilgi kutusu); null ise kapalı. Num 2 tuşuyla bir kez okunup çevrilir.</summary>
@@ -217,6 +223,13 @@ public sealed record UserSettings
     /// <summary>Listede olmayan kayıtlı modeller (eski ayar ya da listeden çıkarılan model) varsayılana döner.</summary>
     public UserSettings WithCuratedModels() => Enum.GetValues<AiProvider>()
         .Aggregate(this, (settings, provider) => settings.WithModel(provider, provider.Model(settings.ModelFor(provider)).Id));
+
+    /// <summary>Hazır seçimi uygular: bölge seçimin bölgesi olur (Özel'de kayıtlı bölge kalır).</summary>
+    public UserSettings WithAreaPreset(AreaPreset preset) =>
+        this with { AreaPreset = preset, Region = preset.Region() ?? Region };
+
+    /// <summary>Bölge elle değişti (kaydırıcı ya da çerçeve): seçim Özel olur.</summary>
+    public UserSettings WithCustomRegion(CropRegion region) => this with { AreaPreset = AreaPreset.Custom, Region = region };
 
     /// <summary>Ek bölgenin sayısı; <see cref="ExtraRegion"/> 1..ExtraRegionCount arasında çalışır.</summary>
     public const int ExtraRegionCount = 3;
@@ -357,6 +370,8 @@ public interface IAppServices
     PackMatch? FindInPacks(string text) => null;
     /// <summary>Ortak havuz; testlerde null (hiçbir şey gönderilmez).</summary>
     LinePool? Pool => null;
+    /// <summary>Altyazı geçmişinin dosyası (%LOCALAPPDATA%\CouchSubs\history.json); testlerde null (diske yazılmaz).</summary>
+    string? HistoryFile => null;
 }
 
 /// <param name="Launched">false ise TV uygulaması açılamadı; büyük olasılıkla TV'de kurulu değil.</param>

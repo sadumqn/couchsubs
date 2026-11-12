@@ -365,6 +365,8 @@ struct SegmentedTabs<Value: Hashable>: View {
                     Text(option.value)
                         .font(Mobile.TypeScale.body.weight(selected ? .semibold : .medium))
                         .foregroundStyle(selected ? Mobile.Palette.text : Mobile.Palette.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity, minHeight: 36)
                         .background {
                             if selected {

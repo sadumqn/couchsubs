@@ -45,8 +45,11 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
     /// <summary>Çevrilen satırın daha iyi olmayan yeniden okuması bu süre içinde yeni satır sayılmaz.</summary>
     public const int RereadWithinMs = 4000;
     private const int RememberedPairs = 8;
-    /// <summary>Bekletilen okuma (kaynak, yer, bekletilmeye başlandığı an, en çok bekleme, puanı).</summary>
-    private (string Source, TextBox? Box, long Since, int Wait, int Score)? held;
+    /// <summary>
+    /// Bekletilen okuma (kaynak, yer, bekletilmeye başlandığı an, en çok bekleme, puanı, ilk okunduğu kare). Ölçümlerde
+    /// gecikme satırın ilk okunduğu kareden sayılır; bekleme de gecikmeye girer.
+    /// </summary>
+    private (string Source, TextBox? Box, long Since, int Wait, int Score, ReadInfo? Read)? held;
     /// <summary>Son çevrilen (motora ya da pakete giden) okuma, puanı ve zamanı.</summary>
     private (string Source, int Score, long At)? lastSent;
 
@@ -81,8 +84,15 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
     private bool sawFrame;
     private bool sawText;
     private StabilizerNote? lastNote;
+    /// <summary>Son gerçek okumanın süresi (ms); kare değişmediği için yeniden okunmayınca bu kullanılır.</summary>
+    private int? lastReadMs;
+    /// <summary>Son işlenen karenin okuma bilgisi; o karede doğrulanan satırın isteğine eklenir (ölçümler için).</summary>
+    private ReadInfo? currentRead;
 
     private static long DefaultClock() => Environment.TickCount64;
+
+    /// <summary>Satırın okunduğu kare: geliş anı, okumanın süresi ve yazı tanımanın güveni (0–1).</summary>
+    private readonly record struct ReadInfo(long CapturedAt, int? OcrMs, double? Confidence);
 
     private sealed class Request(int number, string source, TextBox? box, int session)
     {
@@ -94,6 +104,8 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
         public long? LeftAt { get; set; }
         /// <summary>Yerine aynı cümlenin uzamış okuması geldi (daktilo efekti); çevirisi gösterilmez.</summary>
         public bool Superseded { get; set; }
+        /// <summary>Satırın okunduğu kare (ölçümler için).</summary>
+        public ReadInfo Read { get; init; }
     }
 
     /// <summary>Süren ve sırada bekleyen istekler.</summary>
@@ -106,6 +118,10 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
 
     /// <summary>Yeni çeviri gösterilince çağrılır (kaynak, çeviri).</summary>
     public event Action<string, string>? PairShown;
+    /// <summary>TV'ye giden her yeni satırın ölçümleri; <see cref="PairShown"/>'dan hemen önce çağrılır.</summary>
+    public event Action<LineMetrics>? MetricsReady;
+    /// <summary>TV'ye giden son satırın ölçümleri (henüz satır gitmediyse null).</summary>
+    public LineMetrics? LastMetrics { get; private set; }
     /// <summary>TV'ye giden her yeni altyazının seslendirilecek cümleleri (dublaj).</summary>
     public event Action<IReadOnlyList<SpokenLine>>? SpeechReady;
     /// <summary>Her çeviri denemesinden sonra çağrılır (başarılıysa null).</summary>
@@ -137,8 +153,10 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
     private void Write(Request request, string message) => Log?.Invoke($"#{request.Number} {message}");
 
     /// <summary>Okuma çeviriyi beklemez; böylece çeviri sürerken gelen satırlar da yakalanır.</summary>
-    public async Task ProcessAsync(Frame frame, CropRegion region)
+    /// <param name="capturedAt">Karenin geldiği an (aynı saatle); verilmezse şimdi. Gecikme bu andan ölçülür.</param>
+    public async Task ProcessAsync(Frame frame, CropRegion region, long? capturedAt = null)
     {
+        var captured = capturedAt ?? now();
         lock (gate)
         {
             if (!sawFrame)
@@ -148,7 +166,7 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
             }
         }
         // Yazı tanıma uzun sürebilir; çağıranı (arayüzü) bekletmemek için iş parçacığı havuzunda yapılır.
-        var raw = await Task.Run(() =>
+        var (raw, ocrMs) = await Task.Run(() =>
         {
             try
             {
@@ -157,17 +175,20 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
                 lock (gate)
                 {
                     plan = schedule.Plan(RegionCropper.Signature(area));
-                    if (plan.Reuse) return lastReading;
+                    if (plan.Reuse) return (lastReading, lastReadMs);
                 }
+                var readStarted = now();
                 var read = reader.ReadLines(area, plan.Deep);
+                var readMs = (int)Math.Clamp(now() - readStarted, 0, int.MaxValue);
                 lock (gate)
                 {
                     schedule.Record(read.Text);
                     lastReading = read;
+                    lastReadMs = readMs;
                 }
-                return read;
+                return (read, (int?)readMs);
             }
-            catch { return Reading.Empty; }
+            catch { return (Reading.Empty, (int?)null); }
         });
         // Kumanda ipuçları ("R2 Swing") altyazı değildir; çevrilmez, yeri de altyazının yerine katılmaz.
         // Yazı tanımanın uydurduğu sözcük çöpleri ("ou$3e") de çevirmene gitmez.
@@ -184,6 +205,7 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
                 sawText = true;
                 Write($"ilk yazı: oturum başından {now() - sessionStart} ms sonra {SubtitleLog.Excerpt(reading.Text)}");
             }
+            currentRead = new ReadInfo(captured, ocrMs, reading.Confidence);
             var action = stabilizer.Feed(reading.Text);
             // Ekranda duran kötü yeniden okuma her karede not edilir; günlüğe bir kez yazılır.
             if (stabilizer.Note is { } note && note != lastNote)
@@ -220,7 +242,7 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
                         if (score > waiting.Score)
                         {
                             var merged = KeepMissingLines(source, waiting.Source);
-                            held = (merged, box ?? waiting.Box, waiting.Since, wait, ReadingScore(merged));
+                            held = (merged, box ?? waiting.Box, waiting.Since, wait, ReadingScore(merged), waiting.Read);
                         }
                         action = StabilizerAction.None;
                         LineLeft();
@@ -240,7 +262,7 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
                     {
                         // Bekleyen temiz bir satırdı, yerine başka satır geldi: önce o çevrilir.
                         held = null;
-                        flushed = Enqueue(waiting.Source, waiting.Box);
+                        flushed = Enqueue(waiting.Source, waiting.Box, waiting.Read);
                     }
                 }
                 else if (action.Kind != StabilizerKind.None)
@@ -248,14 +270,15 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
                     // Bölge boşaldı ya da eski satır geri geldi: bekleyen temiz satır her zamanki gibi çevrilir; bozuk
                     // okuma ("Bluffe") çevrilmez.
                     held = null;
-                    if (!LooksMisread(waiting.Source)) flushed = Enqueue(waiting.Source, waiting.Box);
+                    if (!LooksMisread(waiting.Source)) flushed = Enqueue(waiting.Source, waiting.Box, waiting.Read);
                     else Write($"bozuk okuma atıldı: {SubtitleLog.Excerpt(waiting.Source)} beklerken kalktı");
                 }
                 else if (reading.Text.Trim().Length >= 3 && PackLookup?.Invoke(reading.Text) is { } packed)
                 {
                     // Aynı satır bu kez düzgün okundu: paketteki Türkçesi gösterilir, bozuk okuma çevrilmez.
                     held = null;
-                    var request = new Request(++lastRequested, reading.Text.Trim(), box ?? waiting.Box, session);
+                    var request = new Request(++lastRequested, reading.Text.Trim(), box ?? waiting.Box, session)
+                        { Read = waiting.Read ?? currentRead ?? new ReadInfo(now(), null, null) };
                     lineOnScreen = request.Number;
                     after = ShowPacked(request, packed);
                 }
@@ -266,12 +289,12 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
                     if (text.Length >= 3 && Related(text, waiting.Source) && ReadingScore(text) > waiting.Score)
                     {
                         var merged = KeepMissingLines(text, waiting.Source);
-                        held = waiting = (merged, box ?? waiting.Box, waiting.Since, waiting.Wait, ReadingScore(merged));
+                        held = waiting = (merged, box ?? waiting.Box, waiting.Since, waiting.Wait, ReadingScore(merged), waiting.Read);
                     }
                     if (now() - waiting.Since >= waiting.Wait)
                     {
                         held = null;
-                        after = Enqueue(waiting.Source, waiting.Box);
+                        after = Enqueue(waiting.Source, waiting.Box, waiting.Read);
                     }
                 }
             }
@@ -315,7 +338,7 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
         }
         var wait = WaitFor(source);
         if (wait <= 0) return Enqueue(source, box);
-        held = (source, box, now(), wait, ReadingScore(source));
+        held = (source, box, now(), wait, ReadingScore(source), currentRead);
         Write($"bekletiliyor (en çok {wait} ms): {SubtitleLog.Excerpt(source)}");
         return null;
     }
@@ -451,9 +474,9 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
     }
 
     /// <returns>Kilit bırakıldıktan sonra çağrılacak olaylar (paketten gelen satır).</returns>
-    private Action? Enqueue(string source, TextBox? box)
+    private Action? Enqueue(string source, TextBox? box, ReadInfo? read = null)
     {
-        var request = new Request(++lastRequested, source, box, session);
+        var request = new Request(++lastRequested, source, box, session) { Read = read ?? currentRead ?? new ReadInfo(now(), null, null) };
         lineOnScreen = request.Number;
         lastSent = (source, ReadingScore(source), now());
         if (PackLookup?.Invoke(source) is { } packed) return ShowPacked(request, packed);
@@ -514,10 +537,15 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
         LastPair = (source, translated);
         LastBox = request.Box;
         LastOrigin = "paket";
+        var read = request.Read;
+        var metrics = LineMetrics.Measure(read.CapturedAt, read.OcrMs, null, now(), read.Confidence, LineOrigin.Pack);
+        LastMetrics = metrics;
+        var measured = MetricsReady;
         var shown = PairShown;
         var speech = SpeechReady;
         return () =>
         {
+            measured?.Invoke(metrics);
             shown?.Invoke(source, translated);
             speech?.Invoke(packed.Spoken);
         };
@@ -653,6 +681,7 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
             return;
         }
 
+        var finished = now();
         var result = $"{probe.Outcome()} {now() - started} ms";
         lock (gate)
         {
@@ -665,6 +694,7 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
         }
         TranslationResult?.Invoke(null);
 
+        LineMetrics metrics;
         lock (gate)
         {
             if (request.Session != session) return;
@@ -691,7 +721,11 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
             LastPair = (source, translated);
             LastBox = request.Box;
             LastOrigin = "motor";
+            var read = request.Read;
+            metrics = LineMetrics.Measure(read.CapturedAt, read.OcrMs, (started, finished), now(), read.Confidence, LineOrigin.Engine);
+            LastMetrics = metrics;
         }
+        MetricsReady?.Invoke(metrics);
         PairShown?.Invoke(source, translated);
         if (SpeechReady is { } speech) speech(translator.SpokenLines(source));
     }
@@ -721,6 +755,8 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
             inFlightCancel?.Cancel();
             pairs.Clear();
             lastReading = Reading.Empty;
+            lastReadMs = null;
+            currentRead = null;
             schedule.Reset();
             if (stabilizer.Reset() == StabilizerAction.Clear) sender.Clear();
         }
