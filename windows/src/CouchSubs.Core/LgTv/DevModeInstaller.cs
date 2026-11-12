@@ -133,7 +133,7 @@ public sealed class DevModeInstaller(IRemoteShell shell, TimeSpan? pollInterval 
         var file = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         try
         {
-            await File.WriteAllBytesAsync(file, key);
+            await WritePrivateAsync(file, key);
             var result = await runner.RunAsync(tools.SshKeygen, ["-q", "-p", "-P", passphrase, "-N", "", "-f", file], null);
             if (result.Status != 0)
             {
@@ -162,6 +162,18 @@ public sealed class DevModeInstaller(IRemoteShell shell, TimeSpan? pollInterval 
         {
             return LegacyPemKey.Decrypt(pem, passphrase.ToUpperInvariant());
         }
+    }
+
+    /// <summary>
+    /// Linux ve macOS'ta ssh-keygen başkalarının okuyabildiği anahtar dosyasını açmaz ("bad permissions") ve bu,
+    /// parola doğruyken "parola yanlış" diye görünürdü; dosya baştan yalnız sahibine açık (0600) oluşturulur.
+    /// </summary>
+    public static async Task WritePrivateAsync(string file, byte[] content)
+    {
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
+        if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        await using var stream = new FileStream(file, options);
+        await stream.WriteAsync(content);
     }
 
     /// <summary>TV'deki sürüm; uygulama kurulu değilse null.</summary>
