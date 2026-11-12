@@ -115,6 +115,27 @@ final class SubtitlePipelineTests: XCTestCase {
         XCTAssertEqual(pipeline.lastPair?.source, "Hold the gate")
     }
 
+    /// Altyazı günlüğü: ilk kare, ilk yazı, her kararlı satır ve akıbeti (motor ya da paket) yazılır.
+    func testLogsEachLineAndItsOutcome() async {
+        let sender = FakeSender()
+        let pipeline = SubtitlePipeline(reader: FakeReader(["Hold the gate.", "Hold the gate.", "Run!", "Run!"]),
+                                        translator: FakeTranslator(), server: sender)
+        var log: [String] = []
+        pipeline.onLog = { log.append($0) }
+        pipeline.packLookup = { $0 == "Run!" ? PackMatch(text: "Koş!", spoken: []) : nil }
+        pipeline.packName = { "mafia" }
+        for _ in 0..<4 { await pipeline.process(frame, region: CropRegion()); await pipeline.waitForTranslations() }
+        pipeline.reset()
+        XCTAssertEqual(sender.sent, ["TR: Hold the gate.", "Koş!"])
+        XCTAssertEqual(log.count, 6, log.joined(separator: "\n"))
+        XCTAssertTrue(log[0].hasPrefix("ilk kare: oturum başından "), log[0])
+        XCTAssertTrue(log[1].hasPrefix("ilk yazı: ") && log[1].hasSuffix("\"Hold the gate.\""), log[1])
+        XCTAssertEqual(log[2], "#1 \"Hold the gate.\" → çeviriye")
+        XCTAssertTrue(log[3].hasPrefix("#1 çeviri:motor ") && log[3].hasSuffix(" ms, gösterildi"), log[3])
+        XCTAssertEqual(log[4], "#2 \"Run!\" → paket:mafia")
+        XCTAssertEqual(log[5], "hat sıfırlandı (paketten 1 satır)")
+    }
+
     func testEachSentLineIsHandedToDubbingOnce() async {
         let sender = FakeSender()
         let translator = SpeakingTranslator()

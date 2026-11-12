@@ -519,6 +519,12 @@ final class AppModel: ObservableObject {
         if !testing {
             RemotePlayLog.enable()
             RemotePlayLog.write("CouchSubs \(AppIdentity.version), macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+            // Altyazı günlüğü (aynı klasörde altyazi.log): okunan satırlar ve akıbetleri, görüntü duraklamaları.
+            SubtitleLog.enable()
+            let stalls = VideoStallTracker()
+            RemotePlayLog.observe { line in
+                if let note = stalls.note(line) { SubtitleLog.write(note) }
+            }
         }
         pool = LinePool(file: poolFile, app: AppIdentity.version, platform: "mac", enabled: curated.sharePool && !testing)
         // Listede olmayan model varsayılana döndüyse ayar hemen kaydedilir.
@@ -588,6 +594,7 @@ final class AppModel: ObservableObject {
         let pool = self.pool
         let active = settings.gamePacks && settings.sourceLanguage == "en" && settings.targetLanguage == "tr"
         pipeline.packLookup = active ? { packs.match($0) } : nil
+        pipeline.packName = { packs.searchScope }
         guard settings.sourceLanguage == "en" else {
             pipeline.onPackMiss = nil
             return
@@ -984,6 +991,8 @@ final class AppModel: ObservableObject {
 
         makePipeline()
         if settings.dubbing.enabled, dubbingModelReady { makeDubber().prepare() }
+        SubtitleLog.write("oturum başladı: CouchSubs \(AppIdentity.version), \(settings.sourceLanguage)→\(settings.targetLanguage), "
+            + "motor: \(onlineTranslationActive ? settings.onlineEngine.rawValue : "ücretsiz"), paketler: \(settings.gamePacks ? "açık" : "kapalı")")
 
         RemotePlayLog.write("Çeviri başladı; PS5'e bağlanılıyor: \(console.name) \(console.host)")
         let session = services.makeStream(console: console, accountId: accountId)
@@ -1125,6 +1134,7 @@ final class AppModel: ObservableObject {
         }
         pipeline.onReadResult = { [weak self] error in self?.noteRead(error) }
         pipeline.onSpeech = { [weak self] lines in self?.speak(lines) }
+        pipeline.onLog = { SubtitleLog.write($0) }
         connectPacks(to: pipeline)
         onlineIssue = nil
         pipeline.warmUp()
@@ -1287,6 +1297,7 @@ final class AppModel: ObservableObject {
         keeper?.stop()
         keeper = nil
         pipeline?.reset()
+        if pipeline != nil { SubtitleLog.write("oturum bitti") }
         pipeline = nil
         activeLanguages = nil
         screenHotkey?.enabled = false
@@ -1310,6 +1321,14 @@ final class AppModel: ObservableObject {
     }
 
     private func sessionStateChanged(_ state: SessionState) {
+        // Altyazı günlüğünde yalnız durumun türü (adres ve ayrıntı remoteplay.log'da).
+        if state != sessionState {
+            switch state {
+            case .connecting: SubtitleLog.write("PS5: bağlanıyor")
+            case .streaming: SubtitleLog.write("PS5: bağlandı")
+            case .disconnected: SubtitleLog.write("PS5: bağlantı yok")
+            }
+        }
         sessionState = state
         // Bağlantı koptuysa TV'de eski altyazı kalmasın.
         if case .disconnected = state {
