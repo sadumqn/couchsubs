@@ -1040,7 +1040,7 @@ requestAnimationFrame(frame);
   // Paketler: yedi oyun kutusu, kaydırdıkça raftan çekilir
   scenes.paketler = (() => {
     const s = baseScene(), cam = new THREE.PerspectiveCamera(30, 4 / 3, 0.1, 50);
-    const names = ['GTA V', 'RDR 2', 'ELDEN RING', 'MAFIA', 'AC SHADOWS', 'DS 2', 'MW 2019'];
+    const names = ['GTA V', 'RDR 2', 'ELDEN RING', 'MAFIA', 'AC SHADOWS', 'DS 2', 'MW 2019', 'SPIDER-MAN 2', 'DEATH STR.'];
     const cases = names.map((n, i) => {
       const spine = canvasTex(64, 512, (g, w, h) => { g.fillStyle = i === 0 ? '#F5B83D' : '#24262c'; g.fillRect(0, 0, w, h); g.save(); g.translate(w / 2 + 9, h / 2); g.rotate(-Math.PI / 2); g.fillStyle = i === 0 ? '#17181B' : '#F3EEE4'; g.font = '700 28px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText(n, 0, 0); g.restore(); });
       const side = std(i === 0 ? 0xD9A030 : 0x2c2e35, 0.5);
@@ -1048,11 +1048,11 @@ requestAnimationFrame(frame);
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.7, 1.35), mats);
       s.add(m); return m;
     });
-    const shelf = rb(2.0, 0.08, 1.7, 0.03, std(0x2a2c33, 0.7)); shelf.position.set(0, -0.89, 0.1); s.add(shelf);
+    const shelf = rb(2.2, 0.08, 1.7, 0.03, std(0x2a2c33, 0.7)); shelf.position.set(0, -0.89, 0.1); s.add(shelf);
     return { s, cam, update(p) {
       const k = Math.min(1, Math.max(0, (p - 0.1) * 1.6));
       cases.forEach((c, i) => {
-        const off = i - 3;
+        const off = i - (names.length - 1) / 2;
         const pull = Math.max(0, Math.min(1, k * 7 - i * 0.8));
         const e = 1 - Math.pow(1 - pull, 3);
         c.position.set(off * 0.19, 0, 0.0 + e * 0.35 * (i === 0 ? 1.4 : 1));
