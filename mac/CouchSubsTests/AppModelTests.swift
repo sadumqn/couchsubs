@@ -235,6 +235,78 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(services.registered?.host, "192.168.1.253")
     }
 
+    /// Eşleşmenin kaydedildiği günlüğe yazılır (kullanıcılar başarıyı fark etmeyip tekrar bağlanıyordu).
+    func testPairingSaveIsLogged() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("couchsubs-log-\(UUID())")
+        let file = folder.appendingPathComponent("remoteplay.log")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = MemoryStore()
+        let model = AppModel(services: FakeServices(), store: store, defaults: .isolated())
+        model.accountId = Data(repeating: 1, count: 8)
+        RemotePlayLog.enable(file: file)
+        defer { RemotePlayLog.disable() }
+        try await model.register(host: "192.168.1.253", pin: "12345678")
+        RemotePlayLog.flush()
+        XCTAssertNotNil(store.load(RegisteredConsole.self, for: StoreKey.console))
+        let text = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertTrue(text.contains("PS5 kaydı kaydedildi (192.168.1.253): PS5-789"), text)
+    }
+
+    /// Eşleşince sonraki adıma kendiliğinden geçilir; kullanıcı bu arada Geri'ye bastıysa ilerlenmez.
+    func testContinueAfterPairingAdvancesOnlyFromConsoleStep() async throws {
+        let model = AppModel(services: FakeServices(), store: MemoryStore(), defaults: .isolated())
+        model.accountId = Data(repeating: 1, count: 8)
+        model.step = .console
+        model.continueAfterPairing()
+        XCTAssertEqual(model.step, .console)
+        try await model.register(host: "192.168.1.253", pin: "12345678")
+        model.back()
+        model.continueAfterPairing()
+        XCTAssertEqual(model.step, .psnLogin)
+        model.step = .console
+        model.continueAfterPairing()
+        XCTAssertEqual(model.step, .tv)
+    }
+
+    /// Sony girişi engellenen kullanıcı hesap kimliğini base64 olarak elle yazar; web girişiyle aynı biçimde saklanır.
+    func testManualAccountIdIsStoredLikeWebLogin() {
+        let store = MemoryStore()
+        let model = AppModel(services: FakeServices(), store: store, defaults: .isolated())
+        model.step = .psnLogin
+        let id = Data([1, 2, 3, 4, 5, 6, 7, 8])
+        XCTAssertTrue(model.useManualAccountId("  \(id.base64EncodedString()) "))
+        XCTAssertEqual(model.accountId, id)
+        XCTAssertTrue(model.canAdvance)
+        XCTAssertEqual(store.load(Data.self, for: StoreKey.accountId), id)
+    }
+
+    func testInvalidManualAccountIdIsRejected() {
+        for value in ["", "AQIDBAUGBw==", "AQIDBAUGBwgJ", "AQIDBAUGBw!=", "1234567890"] {
+            let store = MemoryStore()
+            let model = AppModel(services: FakeServices(), store: store, defaults: .isolated())
+            XCTAssertFalse(model.useManualAccountId(value), value)
+            XCTAssertNil(model.accountId, value)
+            XCTAssertNil(store.load(Data.self, for: StoreKey.accountId), value)
+        }
+    }
+
+    /// Yeni metinler Türkçesiyle ortak metin dosyasında (Windows da aynı dosyayı okur).
+    func testPairingStringsAreTranslated() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("CouchSubs/Resources/Localizable.xcstrings")
+        let root = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any]
+        let strings = root?["strings"] as? [String: Any] ?? [:]
+        let expected = [
+            "PS5 paired: %@ (%@). Press Continue.": "PS5 eşleşti: %@ (%@). Devam'a basın.",
+            "Enter account ID manually": "Hesap kimliğini elle gir",
+        ]
+        for (key, value) in expected {
+            let entry = strings[key] as? [String: Any]
+            let tr = ((entry?["localizations"] as? [String: Any])?["tr"] as? [String: Any])?["stringUnit"] as? [String: Any]
+            XCTAssertEqual(tr?["value"] as? String, value, key)
+        }
+    }
+
     /// PS5 hesabı tanımazsa kullanıcıya kodu hangi kullanıcıdan alacağı söylenmeli.
     func testWrongAccountRegistrationExplainsWhatToDo() async {
         let error = await registrationError(Registration.RegistrationError(.wrongAccount, reason: 0x80108b02))

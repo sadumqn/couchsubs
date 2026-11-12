@@ -177,6 +177,38 @@
         }
       }
     },
+    "Enter account ID manually": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter account ID manually"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesap kimliğini elle gir"
+          }
+        }
+      }
+    },
+    "If Sony's sign-in page does not open (some internet providers block it), enter the second account's PSN account ID in base64 (12 characters, e.g. AbCdEfGhIjk=).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If Sony's sign-in page does not open (some internet providers block it), enter the second account's PSN account ID in base64 (12 characters, e.g. AbCdEfGhIjk=)."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sony'nin giriş sayfası açılmıyorsa (bazı internet sağlayıcıları engelliyor), ikinci hesabın PSN hesap kimliğini base64 olarak yazın (12 karakter, ör. AbCdEfGhIjk=)."
+          }
+        }
+      }
+    },
     "If the TV keeps switching to HDMI 1 or another source while the CouchSubs TV app is open, turn off Anynet+ (HDMI-CEC) and Auto Source Switching on the TV: Settings › All Settings › Connection › External Device Manager.": {
       "localizations": {
         "en": {
@@ -189,6 +221,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "CouchSubs TV uygulaması açıkken TV sürekli HDMI 1'e ya da başka bir kaynağa geçiyorsa TV'de Ayarlar › Tüm Ayarlar › Bağlantı › Harici Cihaz Yöneticisi altında Anynet+ (HDMI-CEC) ve Otomatik Kaynak Değiştirme'yi kapatın."
+          }
+        }
+      }
+    },
+    "PS5 paired: %@ (%@). Press Continue.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 paired: %@ (%@). Press Continue."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PS5 eşleşti: %@ (%@). Devam'a basın."
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydet"
+          }
+        }
+      }
+    },
+    "This is not a valid account ID. It is 12 characters in base64, e.g. AbCdEfGhIjk=.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is not a valid account ID. It is 12 characters in base64, e.g. AbCdEfGhIjk=."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu geçerli bir hesap kimliği değil. Kimlik base64 biçiminde 12 karakterdir, ör. AbCdEfGhIjk=."
           }
         }
       }

@@ -10,19 +10,25 @@ struct OnboardingView: View {
         HStack(alignment: .top, spacing: Theme.space("gap")) {
             StepSidebar()
             VStack(spacing: Theme.space("gap")) {
-                ScrollView {
-                    Group {
-                        switch model.step {
-                        case .welcome: WelcomeStep()
-                        case .secondAccount: SecondAccountStep()
-                        case .psnLogin: PSNLoginStep()
-                        case .console: ConsoleStep()
-                        case .tv: TVStep()
-                        case .test: TestStep()
-                        case .betterTranslation, .done: BetterTranslationStep()
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Group {
+                            switch model.step {
+                            case .welcome: WelcomeStep()
+                            case .secondAccount: SecondAccountStep()
+                            case .psnLogin: PSNLoginStep()
+                            case .console: ConsoleStep()
+                            case .tv: TVStep()
+                            case .test: TestStep()
+                            case .betterTranslation, .done: BetterTranslationStep()
+                            }
                         }
+                        .padding(Theme.space("xl"))
                     }
-                    .padding(Theme.space("xl"))
+                    // Adımlar kendi iletilerini görünür kılabilsin (ör. PS5 eşleşti iletisi kaydırılmış alanda kalmasın).
+                    .environment(\.scrollOnboardingTo, { id in
+                        withAnimation { proxy.scrollTo(id, anchor: .bottom) }
+                    })
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tile(padding: 0)
@@ -31,6 +37,11 @@ struct OnboardingView: View {
         }
         .padding(Theme.space("screen"))
     }
+}
+
+extension EnvironmentValues {
+    /// Sihirbazın kaydırma alanında verilen kimlikli görünüme kaydırır (adımın dışında hiçbir şey yapmaz).
+    @Entry var scrollOnboardingTo: (String) -> Void = { _ in }
 }
 
 /// Geri ve Devam (ya da isteğe bağlı adımda "Şimdilik geç").

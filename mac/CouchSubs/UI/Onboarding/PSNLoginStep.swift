@@ -13,6 +13,9 @@ struct PSNLoginStep: View {
     @State private var redirected = false
     /// Giriş sayfasının son sorunu (açılamadı, Sony'nin HTTP hatası).
     @State private var pageProblem: String?
+    @State private var showManual = false
+    @State private var manualId = ""
+    @State private var manualError: String?
 
     var body: some View {
         StepLayout(symbol: "person.crop.circle.badge.checkmark", title: "Sign in with the second account",
@@ -30,10 +33,39 @@ struct PSNLoginStep: View {
                 .disabled(working)
                 if working { ProgressView().controlSize(.small) }
                 ErrorText(error: error).textSelection(.enabled)
+                manualEntry.padding(.top, Theme.space("s"))
             }
         }
         .sheet(isPresented: $showLogin, onDismiss: sheetClosed) {
             PSNLoginSheet(onRedirect: received, onProblem: { pageProblem = $0 })
+        }
+    }
+
+    /// Sony girişi açılmıyorsa (ör. servis sağlayıcı engelliyor) hesap kimliği elle yazılır.
+    @ViewBuilder private var manualEntry: some View {
+        if showManual {
+            VStack(alignment: .leading, spacing: Theme.space("s")) {
+                HintText(text: "If Sony's sign-in page does not open (some internet providers block it), enter the second account's PSN account ID in base64 (12 characters, e.g. AbCdEfGhIjk=).")
+                HStack(spacing: Theme.space("m")) {
+                    TextField("", text: $manualId)
+                        .textFieldStyle(CSTextFieldStyle())
+                        .frame(maxWidth: 240)
+                        .onSubmit(saveManual)
+                    Button("Save", action: saveManual).buttonStyle(.primary)
+                }
+                ErrorText(error: manualError)
+            }
+        } else {
+            Button("Enter account ID manually") { showManual = true }.buttonStyle(.secondary)
+        }
+    }
+
+    private func saveManual() {
+        if model.useManualAccountId(manualId) {
+            manualError = nil
+            error = nil
+        } else {
+            manualError = String(localized: "This is not a valid account ID. It is 12 characters in base64, e.g. AbCdEfGhIjk=.")
         }
     }
 

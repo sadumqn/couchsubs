@@ -370,6 +370,87 @@ public class AppControllerTests
         Assert.Equal("192.168.1.253", services.Registered?.Host);
     }
 
+    /// Eşleşme açıkça söylenir (kullanıcılar fark etmeyip tekrar Bağlan'a basıyordu) ve kaydedildiği günlüğe yazılır.
+    [Fact]
+    public async Task PairingSuccessIsAnnouncedAndLogged()
+    {
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        void Collect(string line) => lines.Enqueue(line);
+        RemotePlayLog.MessageLogged += Collect;
+        try
+        {
+            var store = new MemoryStore();
+            var controller = Make(store: store);
+            await controller.CompletePsnLoginAsync(new Uri("https://x/?code=x"));
+            controller.Step = OnboardingStep.Console;
+            Assert.Equal("", controller.PairedText);
+            await controller.RegisterAsync("192.168.1.253", "12345678");
+            Assert.Equal("PS5 paired: PS5-789 (192.168.1.253). Press Continue.", controller.PairedText);
+            Assert.NotNull(store.Load<RegisteredConsole>(StoreKeys.Console));
+            Assert.Contains("[couchsubs] PS5 kaydı kaydedildi (192.168.1.253): PS5-789", lines);
+        }
+        finally
+        {
+            RemotePlayLog.MessageLogged -= Collect;
+        }
+    }
+
+    [Fact]
+    public async Task PairingTextIsTurkish()
+    {
+        var controller = new AppController(new FakeServices(), new MemoryStore(), new MemorySettings(), new FakeSleep(), Localizer.ForLanguage("tr"), action => action());
+        await controller.CompletePsnLoginAsync(new Uri("https://x/?code=x"));
+        await controller.RegisterAsync("192.168.1.253", "12345678");
+        Assert.Equal("PS5 eşleşti: PS5-789 (192.168.1.253). Devam'a basın.", controller.PairedText);
+    }
+
+    /// Eşleşince sonraki adıma kendiliğinden geçilir; kullanıcı bu arada Geri'ye bastıysa ilerlenmez.
+    [Fact]
+    public async Task ContinueAfterPairingAdvancesOnlyFromConsoleStep()
+    {
+        var controller = Make();
+        await controller.CompletePsnLoginAsync(new Uri("https://x/?code=x"));
+        controller.Step = OnboardingStep.Console;
+        controller.ContinueAfterPairing();
+        Assert.Equal(OnboardingStep.Console, controller.Step);
+        await controller.RegisterAsync("192.168.1.253", "12345678");
+        controller.Back();
+        controller.ContinueAfterPairing();
+        Assert.Equal(OnboardingStep.PsnLogin, controller.Step);
+        controller.Step = OnboardingStep.Console;
+        controller.ContinueAfterPairing();
+        Assert.Equal(OnboardingStep.Tv, controller.Step);
+    }
+
+    /// Sony girişi engellenen kullanıcı hesap kimliğini base64 olarak elle yazar; web girişiyle aynı biçimde saklanır.
+    [Fact]
+    public void ManualAccountIdIsStoredLikeWebLogin()
+    {
+        var store = new MemoryStore();
+        var controller = Make(store: store);
+        controller.Step = OnboardingStep.PsnLogin;
+        var id = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        Assert.True(controller.UseManualAccountId($"  {Convert.ToBase64String(id)} "));
+        Assert.True(controller.HasAccount);
+        Assert.True(controller.CanAdvance);
+        Assert.Equal(id, store.Load<byte[]>(StoreKeys.AccountId));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("AQIDBAUGBw==")] // 7 bayt
+    [InlineData("AQIDBAUGBwgJ")] // 9 bayt
+    [InlineData("AQIDBAUGBw!=")]
+    [InlineData("1234567890")]
+    public void InvalidManualAccountIdIsRejected(string value)
+    {
+        var store = new MemoryStore();
+        var controller = Make(store: store);
+        Assert.False(controller.UseManualAccountId(value));
+        Assert.False(controller.HasAccount);
+        Assert.Null(store.Load<byte[]>(StoreKeys.AccountId));
+    }
+
     /// PS5 hesabı tanımazsa kullanıcıya kodu hangi kullanıcıdan alacağı söylenmeli.
     [Fact]
     public async Task WrongAccountRegistrationExplainsWhatToDo()
