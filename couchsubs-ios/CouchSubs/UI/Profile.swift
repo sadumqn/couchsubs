@@ -179,6 +179,7 @@ struct SettingsScreen: View {
                     }
                 }
             }
+            AreaTile()
             Tile(spacing: 0) {
                 NavigationLink(value: Route.packs) {
                     ListRow(symbol: "bolt.fill", tint: .pro, title: "Game packs",

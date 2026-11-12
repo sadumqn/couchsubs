@@ -235,7 +235,7 @@
                     </c:Card>
                 </StackPanel>
             </TabItem>
-            <TabItem Header="{t:T 'Subtitle area'}">
+            <TabItem x:Name="AreaTab" Header="{t:T 'Subtitle area'}">
                 <StackPanel>
                     <TextBlock Text="{t:T 'Subtitle area'}" Style="{StaticResource DisplayText}" Margin="0,0,0,16" />
                     <c:Card>
@@ -248,6 +248,40 @@
                                     <RadioButton Content="{t:T 'Area 3'}" GroupName="area" Style="{StaticResource SegmentButton}" Checked="OnArea" Tag="3" />
                                 </StackPanel>
                             </Border>
+                            <!-- Altyazı bölgesinin hazır seçimleri; Özel'de dikey konum ve yükseklik kaydırıcıları -->
+                            <StackPanel x:Name="PresetPanel" Margin="0,0,0,12">
+                                <TextBlock Text="{t:T 'Area preset'}" Margin="0,0,0,8" />
+                                <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="PresetBottom" Content="{t:T 'Bottom area'}" GroupName="preset" Style="{StaticResource SegmentButton}" Checked="OnPreset" Tag="Bottom" />
+                                        <RadioButton x:Name="PresetTop" Content="{t:T 'Top area'}" GroupName="preset" Style="{StaticResource SegmentButton}" Checked="OnPreset" Tag="Top" />
+                                        <RadioButton x:Name="PresetFull" Content="{t:T 'Full screen'}" GroupName="preset" Style="{StaticResource SegmentButton}" Checked="OnPreset" Tag="Full" />
+                                        <RadioButton x:Name="PresetCustom" Content="{t:T 'Custom'}" GroupName="preset" Style="{StaticResource SegmentButton}" Checked="OnPreset" Tag="Custom" />
+                                    </StackPanel>
+                                </Border>
+                                <Grid x:Name="CustomPanel" Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="56" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="8" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="{t:T 'Vertical position'}" VerticalAlignment="Center" />
+                                    <Slider x:Name="VerticalPosition" Grid.Column="1" Minimum="0" Maximum="95" SmallChange="1" LargeChange="5" Margin="12,0"
+                                            IsMoveToPointEnabled="True" ValueChanged="OnVertical" />
+                                    <TextBlock x:Name="VerticalPositionValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                               Typography.NumeralAlignment="Tabular" />
+                                    <TextBlock Grid.Row="2" Text="{t:T 'Height'}" VerticalAlignment="Center" />
+                                    <Slider x:Name="AreaHeight" Grid.Row="2" Grid.Column="1" Minimum="5" Maximum="100" SmallChange="1" LargeChange="5" Margin="12,0"
+                                            IsMoveToPointEnabled="True" ValueChanged="OnVertical" />
+                                    <TextBlock x:Name="AreaHeightValue" Grid.Row="2" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                               Typography.NumeralAlignment="Tabular" />
+                                </Grid>
+                            </StackPanel>
                             <CheckBox x:Name="UseArea" Content="{t:T 'Use this area'}" Foreground="{DynamicResource textPrimaryBrush}" Margin="0,0,0,12"
                                       Visibility="Collapsed" Checked="OnUseArea" Unchecked="OnUseArea" />
                             <StackPanel x:Name="ExtraTargetPanel" Visibility="Collapsed" Margin="0,0,0,12">

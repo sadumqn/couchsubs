@@ -30,16 +30,26 @@ public final class SubtitlePipeline {
         let source: String
         let box: TextBox?
         let session: Int
+        /// Satırı kararlı yapan karenin geldiği an, o okumanın süresi ve güveni (ölçümler için).
+        let read: ReadInfo
         /// Satırın ekrandan kalktığı an (hâlâ ekrandaysa nil).
         var leftAt: Int?
         /// Yerine aynı cümlenin uzamış okuması geldi (daktilo efekti); çevirisi gösterilmez.
         var superseded = false
-        init(number: Int, source: String, box: TextBox?, session: Int) {
+        init(number: Int, source: String, box: TextBox?, session: Int, read: ReadInfo) {
             self.number = number
             self.source = source
             self.box = box
             self.session = session
+            self.read = read
         }
+    }
+
+    /// Bir karenin okunması: karenin geldiği an, yazı tanımanın süresi (ms) ve güveni (0–1).
+    fileprivate struct ReadInfo {
+        var capturedAt: Int
+        var ocrMs: Int?
+        var confidence: Double?
     }
 
     private let reader: TextReader
@@ -66,12 +76,20 @@ public final class SubtitlePipeline {
     private var session = 0
     /// Son okunan satırlar; kare değişmediyse yeniden okunmaz, bunlar kullanılır.
     private var lastReading = Reading.empty
+    /// Son yazı tanımanın süresi (ms); kare değişmeyip okuma yeniden kullanılınca da o okumanın süresi geçerlidir.
+    private var lastReadMs: Int?
+    /// İşlenen karenin okunması (satır kararlı olunca isteğe geçer).
+    private var currentRead = ReadInfo(capturedAt: 0)
 
     public private(set) var lastPair: (source: String, translation: String)?
     /// Son gösterilen çevirinin oyundaki altyazının yeri.
     public private(set) var lastBox: TextBox?
     public private(set) var lastError: TranslatorError?
     public var onPair: ((String, String) -> Void)?
+    /// TV'ye giden her yeni satırın ölçümleri (`onPair`'den hemen önce çağrılır).
+    public var onMetrics: ((LineMetrics) -> Void)?
+    /// Son gösterilen satırın ölçümleri.
+    public private(set) var lastMetrics: LineMetrics?
     /// TV'ye giden her yeni altyazının seslendirilecek cümleleri (dublaj).
     public var onSpeech: (([SpokenLine]) -> Void)?
     /// Her yazı tanıma denemesinden sonra çağrılır (başarılıysa nil). Disk dolunca macOS okumayı hep hata ile bitirir.
@@ -120,7 +138,9 @@ public final class SubtitlePipeline {
     }
 
     /// Okuma çeviriyi beklemez; böylece çeviri sürerken gelen satırlar da yakalanır.
-    public func process(_ frame: CGImage, region: CropRegion) async {
+    /// `capturedAt`: karenin PS5 akışından geldiği an (`clock` ile aynı saat); verilmezse şimdi.
+    public func process(_ frame: CGImage, region: CropRegion, capturedAt: Int? = nil) async {
+        let captured = capturedAt ?? now()
         if !sawFrame {
             sawFrame = true
             log("ilk kare: oturum başından \(now() - sessionStart) ms sonra")
@@ -135,9 +155,11 @@ public final class SubtitlePipeline {
         case .reuse:
             break
         case .read(let deep):
+            let started = now()
             let result = await Task.detached(priority: .userInitiated) {
                 Result { try reader.readLines(area, deep: deep) }
             }.value
+            lastReadMs = now() - started
             lastReading = (try? result.get()) ?? .empty
             onReadResult?(result.failure)
             scheduler.record(lastReading.text)
@@ -147,6 +169,7 @@ public final class SubtitlePipeline {
         // Alandaki menü ve köşe göstergeleri de altyazı değildir; yalnız altyazı bloğu çevrilir ve kutusu ona göre olur.
         let place = TextBox(left: region.left, top: region.top, right: region.right, bottom: region.bottom)
         let reading = lastReading.withoutButtonPrompts().withoutOcrNoise().subtitleBlock(in: place)
+        currentRead = ReadInfo(capturedAt: captured, ocrMs: lastReadMs, confidence: reading.confidence)
         let box = reading.box?.placed(in: place).centeredOnScreen()
         if !sawText, !reading.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             sawText = true
@@ -191,7 +214,7 @@ public final class SubtitlePipeline {
 
     private func enqueue(_ source: String, box: TextBox?) {
         lastRequested += 1
-        let request = Request(number: lastRequested, source: source, box: box, session: session)
+        let request = Request(number: lastRequested, source: source, box: box, session: session, read: currentRead)
         lineOnScreen = request.number
         if let packed = packLookup?(source) {
             showPacked(request, packed)
@@ -243,12 +266,15 @@ public final class SubtitlePipeline {
             log(request, "\(SubtitleLog.excerpt(source)) → \(pack), zaten hedef dilde, gösterilmedi")
             return
         }
+        let metrics = measure(request, translation: nil, origin: .pack)
         log(request, "\(SubtitleLog.excerpt(source)) → \(pack)")
         lastShown = request.number
         server.sendSubtitle(translated, durationMs: 15000, box: request.box, replaces: revisesShown(source))
         lastPair = (source, translated)
         lastBox = request.box
         lastOrigin = "paket"
+        lastMetrics = metrics
+        onMetrics?(metrics)
         onPair?(source, translated)
         onSpeech?(packed.spoken)
     }
@@ -312,7 +338,8 @@ public final class SubtitlePipeline {
             self.work = work
             defer { self.work = nil }
             let translated = try await work.value
-            let result = "\(probe.outcome()) \(now() - started) ms"
+            let finished = now()
+            let result = "\(probe.outcome()) \(finished - started) ms"
             guard request.session == session else {
                 log(request, "\(result), atıldı: oturum bitti")
                 return
@@ -333,6 +360,7 @@ public final class SubtitlePipeline {
                 log(request, "\(result), geç: satır \(now() - left) ms önce kalktı, gösterilmedi")
                 return
             }
+            let metrics = measure(request, translation: (started, finished), origin: .engine)
             log(request, "\(result), gösterildi\(onScreen ? "" : " (satır kalkmıştı)")")
             lastShown = request.number
             // Satır hâlâ ekrandaysa kalkınca silinir; kalktıysa okunacak kadar gösterilir.
@@ -341,6 +369,8 @@ public final class SubtitlePipeline {
             lastPair = (source, translated)
             lastBox = request.box
             lastOrigin = "motor"
+            lastMetrics = metrics
+            onMetrics?(metrics)
             onPair?(source, translated)
             if let onSpeech { onSpeech(translator.spokenLines(for: source)) }
         } catch {
@@ -353,6 +383,12 @@ public final class SubtitlePipeline {
             onTranslationResult?(lastError)
             if request.number == lineOnScreen { stabilizer.forgetSent() }
         }
+    }
+
+    /// Satır şimdi TV'ye gidiyor: okunduğu kareden bu ana kadarki ölçümler.
+    private func measure(_ request: Request, translation: (started: Int, finished: Int)?, origin: LineMetrics.Origin) -> LineMetrics {
+        LineMetrics.measure(capturedAt: request.read.capturedAt, ocrMs: request.read.ocrMs, translation: translation, sentAt: now(),
+                            confidence: request.read.confidence, origin: origin)
     }
 
     private func remember(_ number: Int, _ source: String, _ translation: String?) {
@@ -387,6 +423,7 @@ public final class SubtitlePipeline {
         work?.cancel()
         pairs.removeAll()
         lastReading = .empty
+        lastReadMs = nil
         scheduler.reset()
         if stabilizer.reset() == .clear { server.clear() }
     }
