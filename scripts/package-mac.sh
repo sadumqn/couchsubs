@@ -14,8 +14,10 @@ cd "${0:A:h}/.."
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
 # Eski (yalnız Apple Silicon) Remote Play kütüphanesi varsa evrensel olarak yeniden derlenir.
+# Xcode 27'nin lipo'su -verify_arch'ta tek mimari kabul ediyor (ikisi birden her zaman "yok" diyordu); ayrı ayrı denetlenir.
+universal() { [[ -f "$1" ]] && lipo "$1" -verify_arch arm64 && lipo "$1" -verify_arch x86_64; }
 MAC_SLICE=(third-party/build/CChiaki.xcframework/macos-*/libCChiaki.a(N))
-if (( ${#MAC_SLICE} == 0 )) || ! lipo "${MAC_SLICE[1]}" -verify_arch arm64 x86_64; then ./scripts/build-chiaki-macos.sh; fi
+universal "${MAC_SLICE[1]}" || ./scripts/build-chiaki-macos.sh
 
 ./scripts/package-tv.sh
 ./scripts/package-tizen.sh
@@ -24,7 +26,6 @@ if (( ${#MAC_SLICE} == 0 )) || ! lipo "${MAC_SLICE[1]}" -verify_arch arm64 x86_6
 # Kaynağı değiştiyse (ya da damgasız eski bir derlemeyse) yeniden derlenir: dist'te kalan eski yardımcı pakete girmesin.
 ./scripts/build-tv-helper.sh --if-changed
 # Yardımcılar da evrensel olmalı (önceden ya da CI'da yalnız Apple Silicon için hazırlanmış olabilir).
-universal() { [[ -x "$1" ]] && lipo "$1" -verify_arch arm64 x86_64; }
 universal dist/tv-helper/couchsubs-tv-helper || ./scripts/build-tv-helper.sh
 universal dist/tts/pocket-tts || ./scripts/fetch-pocket-tts.sh mac
 
