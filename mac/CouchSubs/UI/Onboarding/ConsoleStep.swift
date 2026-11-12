@@ -51,12 +51,14 @@ struct ConsoleStep: View {
                 VStack(alignment: .leading, spacing: Theme.space("s")) {
                     Text("8-digit code").font(.csCallout).foregroundStyle(Color.csSecondary)
                     // Kod yazılıp Return'e basılınca bağlanılır (eskiden Return, kapalı "Devam"a gidip hiçbir şey yapmıyordu).
-                    TextField("", text: $pin)
+                    // Yeni kod yazılınca Bağlan yeniden açılır (onChange macOS 13'te farklı olduğu için bağlamada).
+                    TextField("", text: Binding(get: { pin }, set: { value in
+                        pin = value
+                        if !value.isEmpty { paired = false }
+                    }))
                         .textFieldStyle(CSTextFieldStyle(font: .csCode, height: 52))
                         .frame(maxWidth: 240)
                         .onSubmit { Task { await register() } }
-                        // Yeni kod yazılınca Bağlan yeniden açılır.
-                        .onChange(of: pin) { if !pin.isEmpty { paired = false } }
                 }
                 HStack(spacing: Theme.space("m")) {
                     // Düğme çalışırken ve eşleşmeden sonra (kod değişene dek) kapalı; eksik kod ya da adres tıklanınca
