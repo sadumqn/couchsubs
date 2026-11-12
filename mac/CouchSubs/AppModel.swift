@@ -447,8 +447,17 @@ final class AppModel: ObservableObject {
     @Published var tvClients = 0
     @Published var lastSource = ""
     @Published var lastTranslation = ""
-    /// Bu oturumda çevrilen altyazılar; kaçırılan satır ana pencereden yeniden okunur.
+    /// Bu ve önceki oturumlarda çevrilen son 200 altyazı (history.json); kaçırılan satır ana pencereden ve "Geçmiş"ten
+    /// yeniden okunur.
     @Published var history = SubtitleHistory()
+    /// Bu oturumun başladığı an; canlı altyazı alanı yalnız bu oturumun satırlarını gösterir (nil: hepsi).
+    @Published private(set) var sessionStartedAt: Date?
+    /// Son satırın ölçümleri (yazı tanıma, çeviri, gecikme, güven).
+    @Published var lastMetrics: LineMetrics?
+    @Published var showHistory = false
+    /// Geçmişin yazıldığı dosya (testlerde nil: hiçbir şey yazılmaz).
+    private var historyFile: URL?
+    private let historyQueue = DispatchQueue(label: "history.json", qos: .utility)
     @Published var translatorStatus: TranslatorStatus = .ready
     /// Çevrimiçi çeviri (DeepL ya da yapay zekâ) şu an çeviremiyor; o satırlar cihaz üstü çeviriyle çevriliyor.
     @Published var onlineIssue: OnlineKeyState?
@@ -544,6 +553,10 @@ final class AppModel: ObservableObject {
             }
         }
         pool = LinePool(file: poolFile, app: AppIdentity.version, platform: "mac", enabled: curated.sharePool && !testing)
+        if !testing {
+            historyFile = SubtitleHistory.defaultFile
+            history = SubtitleHistory.load(from: SubtitleHistory.defaultFile)
+        }
         // Listede olmayan model varsayılana döndüyse ayar hemen kaydedilir.
         if curated != loaded, let data = try? JSONEncoder().encode(curated) { defaults.set(data, forKey: StoreKey.settings) }
         // Yarım kalan kurulum (ör. TV uygulaması kurulurken kapatıldı) PS5 kayıtlıysa TV adımından sürer.
@@ -972,6 +985,12 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Ana ekrandaki "TV'de test et": sunucu henüz açık değilse açılır, deneme altyazısı gönderilir.
+    func testSubtitle() async {
+        try? await startServer()
+        sendTestSubtitle()
+    }
+
     func sendTestSubtitle() {
         server.sendStyle(settings.style)
         // Oyunda henüz altyazı görülmediyse altyazı bölgesinin altına yakın tipik bir yer kullanılır.
@@ -1007,6 +1026,8 @@ final class AppModel: ObservableObject {
         server.sendStyle(settings.style)
 
         makePipeline()
+        sessionStartedAt = Date()
+        lastMetrics = nil
         if settings.dubbing.enabled, dubbingModelReady { makeDubber().prepare() }
         SubtitleLog.write("oturum başladı: CouchSubs \(AppIdentity.version), \(settings.sourceLanguage)→\(settings.targetLanguage), "
             + "motor: \(onlineTranslationActive ? settings.onlineEngine.rawValue : "ücretsiz"), paketler: \(settings.gamePacks ? "açık" : "kapalı")")
@@ -1015,7 +1036,11 @@ final class AppModel: ObservableObject {
         let session = services.makeStream(console: console, accountId: accountId)
         session.onState = { [weak self] state in Task { @MainActor in self?.sessionStateChanged(state) } }
         session.onConsoleMoved = { [weak self] moved in Task { @MainActor in self?.consoleMoved(moved) } }
-        session.onFrame = { [weak self] frame in Task { @MainActor in await self?.handle(frame) } }
+        session.onFrame = { [weak self] frame in
+            // Karenin geldiği an: canlı altyazı alanındaki gecikme buradan TV'ye gidene kadar ölçülür.
+            let capturedAt = SubtitleStabilizer.uptimeMs()
+            Task { @MainActor in await self?.handle(frame, capturedAt: capturedAt) }
+        }
         session.start()
         self.session = session
 
@@ -1142,9 +1167,10 @@ final class AppModel: ObservableObject {
         pipeline.onPair = { [weak self, weak pipeline] source, translation in
             self?.lastSource = source
             self?.lastTranslation = translation
-            self?.history.add(source: source, translation: translation)
+            self?.addToHistory(source: source, translation: translation, origin: pipeline?.lastOrigin == "paket" ? .pack : .engine)
             if let box = pipeline?.lastBox { self?.lastSubtitleBox = box }
         }
+        pipeline.onMetrics = { [weak self] metrics in self?.lastMetrics = metrics }
         // Dil paketi bu arada indirilmiş olabilir; her çeviri sonucu durumu günceller.
         pipeline.onTranslationResult = { [weak self] error in
             self?.translatorStatus = Self.translatorStatus(after: error)
@@ -1433,13 +1459,38 @@ final class AppModel: ObservableObject {
         store.save(moved, for: StoreKey.console)
     }
 
-    private func handle(_ frame: CGImage) async {
+    private func handle(_ frame: CGImage, capturedAt: Int) async {
         lastFrame = frame
         // Önceki kare hâlâ işleniyorsa bu kare atlanır; okuma kareleri biriktirmez.
         guard !processing, let pipeline else { return }
         processing = true
-        await pipeline.process(frame, region: settings.region)
+        await pipeline.process(frame, region: settings.region, capturedAt: capturedAt)
         processing = false
+    }
+
+    // MARK: - Geçmiş
+
+    private func addToHistory(source: String, translation: String, origin: LineMetrics.Origin) {
+        history.add(source: source, translation: translation, origin: origin)
+        saveHistory()
+    }
+
+    /// "Geçmiş"teki "Temizle": listeyi ve dosyayı boşaltır.
+    func clearHistory() {
+        history.clear()
+        saveHistory()
+    }
+
+    /// Geçmiş arka planda dosyaya yazılır (küçük dosya; sırayla, en son hâli kalır).
+    private func saveHistory() {
+        guard let historyFile else { return }
+        let history = self.history
+        historyQueue.async { try? history.save(to: historyFile) }
+    }
+
+    /// Canlı altyazı alanındaki liste: bu oturumun satırları (oturum başlamadıysa hepsi).
+    var sessionHistory: [SubtitleHistory.Entry] {
+        sessionStartedAt.map { history.entries(since: $0) } ?? history.entries
     }
 
     private func startServer() async throws {

@@ -85,6 +85,32 @@ private final class PipelineClock: @unchecked Sendable {
     func read() -> Int { now }
 }
 
+/// Her okumada saati `readMs` ilerleten okuyucu (ölçüm testleri).
+private struct TimedReader: TextReader {
+    let clock: PipelineClock
+    let readMs: Int
+    let reading: Reading
+    func read(_ image: CGImage) throws -> String { reading.text }
+    func readLines(_ image: CGImage, deep: Bool) throws -> Reading {
+        clock.now += readMs
+        return reading
+    }
+}
+
+/// Her çeviride saati `translateMs` ilerleten çevirmen (ölçüm testleri).
+private final class TimedTranslator: TextTranslator {
+    let clock: PipelineClock
+    let translateMs: Int
+    init(clock: PipelineClock, translateMs: Int) {
+        self.clock = clock
+        self.translateMs = translateMs
+    }
+    func translate(_ text: String) async throws -> String {
+        clock.now += translateMs
+        return "TR: " + text
+    }
+}
+
 private func lines(_ runs: (String, Int)...) -> [String] {
     runs.flatMap { Array(repeating: $0.0, count: $0.1) }
 }
@@ -134,6 +160,39 @@ final class SubtitlePipelineTests: XCTestCase {
         XCTAssertTrue(log[3].hasPrefix("#1 çeviri:motor ") && log[3].hasSuffix(" ms, gösterildi"), log[3])
         XCTAssertEqual(log[4], "#2 \"Run!\" → paket:mafia")
         XCTAssertEqual(log[5], "hat sıfırlandı (paketten 1 satır)")
+    }
+
+    /// Canlı altyazı alanındaki ölçümler gerçek sürelerdir: okuma, çeviri ve karenin gelişinden TV'ye kadar geçen süre.
+    func testSentLineReportsMeasuredTimes() async {
+        let clock = PipelineClock()
+        let reader = TimedReader(clock: clock, readMs: 40, reading: Reading(lines: [TextLine("Hold the gate.", confidence: 0.9)]))
+        let pipeline = SubtitlePipeline(reader: reader, translator: TimedTranslator(clock: clock, translateMs: 300),
+                                        server: FakeSender(), clock: clock.read)
+        var reported: [LineMetrics] = []
+        pipeline.onMetrics = { reported.append($0) }
+        for _ in 0..<3 {
+            await pipeline.process(frame, region: CropRegion(), capturedAt: clock.now)
+            await pipeline.waitForTranslations()
+            clock.now += 50
+        }
+        XCTAssertEqual(reported, [LineMetrics(ocrMs: 40, translationMs: 300, totalMs: 340, confidence: 90, origin: .engine)])
+        XCTAssertEqual(pipeline.lastMetrics, reported.first)
+    }
+
+    func testPackLineReportsNoTranslationTime() async {
+        let clock = PipelineClock()
+        let reader = TimedReader(clock: clock, readMs: 25, reading: Reading(text: "Run!"))
+        let pipeline = SubtitlePipeline(reader: reader, translator: TimedTranslator(clock: clock, translateMs: 300),
+                                        server: FakeSender(), clock: clock.read)
+        pipeline.packLookup = { $0 == "Run!" ? PackMatch(text: "Koş!", spoken: []) : nil }
+        var reported: [LineMetrics] = []
+        pipeline.onMetrics = { reported.append($0) }
+        for _ in 0..<3 {
+            await pipeline.process(frame, region: CropRegion(), capturedAt: clock.now)
+            await pipeline.waitForTranslations()
+            clock.now += 50
+        }
+        XCTAssertEqual(reported, [LineMetrics(ocrMs: 25, translationMs: nil, totalMs: 25, confidence: nil, origin: .pack)])
     }
 
     func testEachSentLineIsHandedToDubbingOnce() async {
