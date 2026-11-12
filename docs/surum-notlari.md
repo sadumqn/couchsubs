@@ -5,6 +5,8 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 **Bu sürümde yeni**
 
 - **Linux sunucusu (Docker):** CouchSubs artık evdeki bir Ubuntu sunucusunda ekransız çalışabiliyor; kurulum ve denetim aynı ağdaki telefondan ya da bilgisayardan açılan tarayıcı paneliyle yapılıyor. Ayrıntılar `linux/README.md`'de. Katkı: [Ceyhun Yılmaz](https://github.com/xZireaeel).
+- **2017–2018 Samsung TV'ler (deneysel):** CouchSubs TV uygulaması artık Tizen 3.0 ve 4.0'lı Samsung TV'lere de kuruluyor (ör. 2017 MU serisi); önceden yalnız 2019 ve sonrası kabul ediliyordu. Bu TV'lerde CouchSubs kurmadan önce TV'ye özel cihaz profilini de gönderiyor. Bir kullanıcı uygulamayı UE43MU7000U'da elle kurup GTA V ve Mafia'da çeviriyi çalıştırdı; CouchSubs'ın kendi kurulumu bu TV'lerde henüz denenmedi, sonucu bildirirseniz çok yardımcı olur. Bulup bildiren: Kugul.
+- **TV uygulaması 0.9.15: TV kendiliğinden HDMI'ya geçince ipucu.** Samsung TV, Anynet+ (HDMI-CEC) ya da Otomatik Kaynak Değiştirme yüzünden CouchSubs açıldıktan hemen sonra (ya da kısa sürede birkaç kez) kendi HDMI girişine geçerse TV uygulaması yeniden açıldığında ne yapılacağını gösteriyor: Ayarlar › Tüm Ayarlar › Bağlantı › Harici Cihaz Yöneticisi'nde Anynet+ (HDMI-CEC) ve Otomatik Kaynak Değiştirme'yi kapatın. TV'deki uygulama kendiliğinden güncellenir.
 
 **beta.31'de gelenler:** Mac'te Samsung TV kurulumundaki "EphemeralKeySet" hatasının düzeltilmesi (Kadir Eker), Mac'te "Çeviriyi durdur"da çökmenin giderilmesi, TV uygulaması 0.9.14 (seslendirme açıkken oyun ekranı kararmıyor; Kadir Eker), aynı cümlenin TV'de üst üste yığılmaması ve hızlı konuşmada satırların kaybolmaması.
 

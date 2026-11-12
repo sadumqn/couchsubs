@@ -3281,18 +3281,18 @@
         }
       }
     },
-    "This Samsung TV is too old for the CouchSubs TV app (2019 models and later are supported).": {
+    "This Samsung TV is too old for the CouchSubs TV app (2017 models and later are supported).": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This Samsung TV is too old for the CouchSubs TV app (2019 models and later are supported)."
+            "value": "This Samsung TV is too old for the CouchSubs TV app (2017 models and later are supported)."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu Samsung TV, CouchSubs TV uygulaması için çok eski (2019 ve sonraki modeller destekleniyor)."
+            "value": "Bu Samsung TV, CouchSubs TV uygulaması için çok eski (2017 ve sonraki modeller destekleniyor)."
           }
         }
       }

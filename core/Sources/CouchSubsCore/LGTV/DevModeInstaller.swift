@@ -21,7 +21,7 @@ public protocol CommandRunning: Sendable {
 /// TV uygulamasını kurarken çıkan sorunlar (LG, Samsung ve Android TV ortak).
 public enum DevModeError: Error, Equatable {
     case unreachable, keyServerOff, wrongPassphrase, keyRefused, installFailed
-    /// Samsung: TV Tizen 5.0'dan (2019) eski.
+    /// Samsung: TV Tizen 3.0'dan (2017) eski.
     case tooOld
     /// Samsung hesabıyla giriş tamamlanmadı.
     case signInFailed

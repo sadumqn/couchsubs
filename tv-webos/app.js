@@ -6,7 +6,7 @@
   'use strict';
 
   // TV uygulamasının sürümü: appinfo.json, tv-tizen/config.xml ve tv-android/app/build.gradle ile aynı tutulur.
-  var APP_VERSION = '0.9.14';
+  var APP_VERSION = '0.9.15';
   var t = window.t;
   var config = window.COUCHSUBS_CONFIG || {};
   var platform = window.COUCHSUBS_PLATFORM;
@@ -852,12 +852,64 @@
     if (!server) $('waiting').className = '';
   }
 
-  // Geri tuşu: önce demo ya da panel kapanır; giriş ekranında TV'nin ana ekranına dönülür.
+  // Geri tuşu: önce ipucu, demo ya da panel kapanır; giriş ekranında TV'nin ana ekranına dönülür.
   function goBack() {
+    if (sourceTipShown()) return hideSourceTip();
     if (demoRunning()) return stopDemo();
     if ($('panel').className !== 'hidden') return hidePanel();
+    leaving = true;
     platform.exit();
   }
+
+  // --- TV kendiliğinden HDMI'ya geçiyor (Samsung) ---
+  // Samsung'da Anynet+ (HDMI-CEC) ya da Otomatik Kaynak Değiştirme açıkken TV, PS5'ten sinyal gelince CouchSubs'ı
+  // arka plana atıp kendi HDMI girişine geçebiliyor: çeviri bir an görünüp kayboluyor. Uygulama açıldıktan ya da öne
+  // geldikten kısa süre sonra arka plana düşerse, ya da kısa sürede birkaç kez düşerse bu not edilir; uygulama yeniden
+  // göründüğünde ipucu gösterilir. Not localStorage'da durur: TV uygulamayı kapatıp sonra yeniden açsa da ipucu çıkar.
+  // Yalnız ipucu menüleri Samsung'a uyan platformda (platform.sourceSwitchTip) çalışır.
+
+  var SOURCE_SWITCH_SOON_MS = 10000;
+  var SOURCE_SWITCH_REPEAT = 3;
+  var SOURCE_SWITCH_WINDOW_MS = 300000;
+  var SOURCE_TIP_MS = 30000;
+  var visibleSince = Date.now();
+  var hiddenTimes = [];
+  var leaving = false; // Geri tuşuyla çıkılıyor: arka plana düşmesi kendiliğinden değil.
+  var sourceTipTimer = null;
+
+  function noteHidden() {
+    if (!platform.sourceSwitchTip || leaving) return;
+    var now = Date.now();
+    hiddenTimes.push(now);
+    while (hiddenTimes.length && now - hiddenTimes[0] > SOURCE_SWITCH_WINDOW_MS) hiddenTimes.shift();
+    if (now - visibleSince < SOURCE_SWITCH_SOON_MS || hiddenTimes.length >= SOURCE_SWITCH_REPEAT) {
+      save('sourceSwitch', now);
+    }
+  }
+
+  function noteVisible() {
+    visibleSince = Date.now();
+    maybeShowSourceTip();
+  }
+
+  function maybeShowSourceTip() {
+    if (!platform.sourceSwitchTip || !load('sourceSwitch')) return;
+    save('sourceSwitch', '');
+    $('source-tip').className = '';
+    clearTimeout(sourceTipTimer);
+    sourceTipTimer = setTimeout(hideSourceTip, SOURCE_TIP_MS);
+  }
+
+  function sourceTipShown() { return $('source-tip').className !== 'hidden'; }
+
+  function hideSourceTip() {
+    clearTimeout(sourceTipTimer);
+    $('source-tip').className = 'hidden';
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) noteHidden(); else noteVisible();
+  });
 
   // --- Panel ve kumanda ---
 
@@ -907,14 +959,17 @@
   var lastOkKey = 0;
   document.addEventListener('click', function () {
     if (Date.now() - lastOkKey < 400) return;
-    if ($('waiting').className !== 'hidden') startDemo();
+    if (sourceTipShown()) hideSourceTip();
+    else if ($('waiting').className !== 'hidden') startDemo();
     else if (!demoRunning()) togglePanel();
   });
 
   document.addEventListener('keydown', function (e) {
     var code = e.keyCode;
     if (code === KEY.OK) lastOkKey = Date.now();
-    if (code === 48) { // 0: elle seçimi unut, konsolu yeniden ara
+    if (code === KEY.OK && sourceTipShown()) {
+      hideSourceTip();
+    } else if (code === 48) { // 0: elle seçimi unut, konsolu yeniden ara
       save('hdmi', '');
       autoSelectConsole(function () {
         setStatus('st-hdmi', hdmiPort + ' (' + t('consoleNotFound') + ')', 'bad');
@@ -959,6 +1014,8 @@
 
   $('app-version').textContent = APP_VERSION;
   renderDiag();
+  // Önceki açılışta TV kendiliğinden kaynağa geçtiyse ipucu şimdi gösterilir.
+  maybeShowSourceTip();
   var initial = parseParams(platform.launchParams());
   var address = initial.server || load('server') || config.server;
   applyParams(initial);

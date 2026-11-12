@@ -171,7 +171,7 @@ struct TVAppCard: View {
             String(localized: "The TV app could not be installed. Try again; if it fails again, send us the reason below.")
         case .installFailed: String(localized: "The TV app could not be installed. Try again.")
         case .notEnoughSpace: String(localized: "The TV is out of free space. Remove an app you do not use from the TV and try again.")
-        case .tooOld: String(localized: "This Samsung TV is too old for the CouchSubs TV app (2019 models and later are supported).")
+        case .tooOld: String(localized: "This Samsung TV is too old for the CouchSubs TV app (2017 models and later are supported).")
         case .signInFailed: String(localized: "Samsung sign-in did not complete. Try again and finish signing in on the page that opens.")
         case .certificateFailed: String(localized: "Samsung did not issue the signing certificate. Try again in a few minutes.")
         case .notApproved: String(localized: "Debugging was not allowed on the TV. Try again and choose Allow on the TV.")
