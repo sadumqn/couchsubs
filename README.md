@@ -131,6 +131,32 @@ yalnız altyazıyı okumak için kullanır. Siz oyunu HDMI'dan, gecikmesiz oynam
   tıklamalar **⌥⌘L**.
 - Çeviri makine çevirisidir; bazı cümleler kusurlu olabilir.
 
+## Yerel yapay zekâ ile çeviri (Ollama, LM Studio)
+
+Çeviriyi kendi bilgisayarınızda çalışan bir yapay zekâ modeline yaptırabilirsiniz: anahtar, kota ve ücret yoktur,
+altyazı metni bilgisayardan çıkmaz. Hız bilgisayarınıza bağlıdır; ekran kartı ya da Apple Silicon olan bir bilgisayarda
+7-8 milyar parametreli bir model (ör. Qwen 2.5 7B) bir altyazıyı genellikle bir iki saniyede çevirir. Model yanıt
+vermezse o satır her zamanki ücretsiz çeviriyle gelir.
+
+**Ollama ile**
+
+1. [ollama.com/download](https://ollama.com/download)'dan Ollama'yı kurup açın.
+2. Terminal'de (Windows'ta PowerShell) modeli indirin: `ollama pull qwen2.5:7b`
+3. CouchSubs'ta **Ayarlar › Çeviri › Çeviri motoru › Yerel model**'i seçin. Sunucu adresi
+   `http://localhost:11434/v1`, model adı `qwen2.5:7b` olarak gelir; **Bağlantıyı dene**'ye basın.
+
+**LM Studio ile**
+
+1. [lmstudio.ai](https://lmstudio.ai)'dan LM Studio'yu kurun, bir model indirip yükleyin (ör. Qwen 2.5 7B Instruct).
+2. **Developer** bölümünden yerel sunucuyu başlatın (varsayılan adres `http://localhost:1234/v1`).
+3. CouchSubs'ta **Yerel model**'i seçin, **LM Studio'yu kullan**'a basın, model adını LM Studio'da göründüğü gibi yazın
+   ve **Bağlantıyı dene**'ye basın.
+
+Başka bir bilgisayardaki ya da OpenAI uyumlu başka bir sunucuyu da adresini yazarak kullanabilirsiniz; sunucu anahtar
+istiyorsa **API anahtarı (isteğe bağlı)** alanına yazın. İlk istek modeli belleğe yüklediği için uzun sürebilir;
+Bağlantıyı dene bunu da bekler. Çeviriler sunucu adresi ve model adıyla ayrı saklanır; modeli değiştirince eski
+modelin çevirileri karışmaz.
+
 ## Gizlilik
 
 CouchSubs hesap şifrenizi görmez (giriş doğrudan Sony'nin sayfasında yapılır), altyazıları ve oyun
@@ -223,6 +249,11 @@ Windows are tested on real hardware.
 TV brand and then installs the TV app by itself (LG: type the on-screen passphrase once; Samsung: sign in with a
 Samsung account once; Android TV: allow debugging on the TV). Guide: [docs/tv-setup.md](docs/tv-setup.md).
 On Windows, if SmartScreen appears, choose **More info › Run anyway**.
+
+**Local AI translation:** in **Settings › Translation** choose **Local model** to translate with a model running on your
+own computer through [Ollama](https://ollama.com) (`ollama pull qwen2.5:7b`, address `http://localhost:11434/v1`) or
+[LM Studio](https://lmstudio.ai) (local server, `http://localhost:1234/v1`). No key, quota or cost, and subtitle text
+stays on your computer; **Test connection** checks the server and the model.
 
 **Shortcuts** (while translating, even with CouchSubs in the background): on Windows **Num 9** or **Ctrl+Shift+9**
 translates the screen; Num 1–3, 5, 0, 7 and 8 also work as Ctrl+Shift+1–3, 5, 0, 7 and 8, so laptops without a numeric

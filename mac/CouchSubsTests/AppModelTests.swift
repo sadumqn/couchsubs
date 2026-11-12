@@ -40,6 +40,12 @@ final class FakeServices: AppServices {
         aiTests.append((provider, key, model))
         return aiResult
     }
+    /// "Bağlantıyı dene"nin sonucu; yerel sunucuya gidilmez.
+    var localTests: [(server: LocalAIServer, key: String)] = []
+    func testLocalAI(server: LocalAIServer, key: String) async -> Result<String, AIFailure> {
+        localTests.append((server, key))
+        return aiResult
+    }
 
     func discoverConsoles() async -> [ConsoleInfo] { consoles }
     var loginError: Error?
@@ -496,6 +502,47 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(model.usesFreeGemini)
         model.advance()
         XCTAssertEqual(model.step, .done)
+    }
+
+    /// Yerel model anahtarsız hazırdır; "Bağlantıyı dene" ayardaki adres ve modelle gider, yazılan anahtarı yalnız sunucu
+    /// kabul ederse saklar; anahtar kaldırılınca yerel model seçili kalır.
+    func testLocalModelNeedsNoKey() async {
+        let services = FakeServices()
+        let store = MemoryStore()
+        let model = AppModel(services: services, store: store, defaults: .isolated())
+        model.settings.translationEngine = .local
+        XCTAssertTrue(model.isReady(.local))
+        XCTAssertTrue(model.onlineTranslationActive)
+        XCTAssertFalse(model.hasKey(.local))
+
+        model.settings.localAIBaseURL = LocalAIServer.lmStudioURL
+        model.settings.localAIModel = " qwen2.5-7b-instruct "
+        let result = await model.testLocalAI()
+        XCTAssertEqual(result, .success("KRATOS: Gidiyoruz."))
+        XCTAssertEqual(services.localTests.first?.server.chatURL.absoluteString, "http://localhost:1234/v1/chat/completions")
+        XCTAssertEqual(services.localTests.first?.server.model, "qwen2.5-7b-instruct")
+        XCTAssertEqual(services.localTests.first?.key, "")
+        XCTAssertNil(store.load(String.self, for: StoreKey.localAIKey))
+
+        services.aiResult = .failure(.invalidKey)
+        _ = await model.testLocalAI(key: "wrong")
+        XCTAssertFalse(model.hasKey(.local))
+        services.aiResult = .success("KRATOS: Gidiyoruz.")
+        _ = await model.testLocalAI(key: " lm-key ")
+        XCTAssertEqual(store.load(String.self, for: StoreKey.localAIKey), "lm-key")
+        XCTAssertEqual(model.settings.translationEngine, .local)
+        _ = await model.testLocalAI()
+        XCTAssertEqual(services.localTests.last?.key, "lm-key")
+
+        model.removeKey(.local)
+        XCTAssertFalse(model.hasKey(.local))
+        XCTAssertEqual(model.settings.translationEngine, .local)
+
+        // Geçersiz adreste yerel model hazır sayılmaz; çeviri ücretsiz motorla sürer.
+        model.settings.localAIBaseURL = "ftp://nowhere"
+        XCTAssertFalse(model.onlineTranslationActive)
+        let invalid = await model.testLocalAI()
+        XCTAssertEqual(invalid, .failure(.unreachable))
     }
 
     /// Yanlış anahtar kaydedilmez, motor değişmez; dakikalık sınıra takılan anahtar geçerlidir ve kaydedilir.

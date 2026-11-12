@@ -22,18 +22,22 @@ public enum StoreKey {
     public static let geminiKey = "geminiKey"
     public static let openAIKey = "openAIKey"
     public static let claudeKey = "claudeKey"
+    /// Yerel model sunucusunun (Ollama, LM Studio) isteğe bağlı anahtarı.
+    public static let localAIKey = "localAIKey"
 }
 
-/// Ayarlardaki çeviri motoru seçimi. Ücretsiz olan cihaz üstü çeviridir; diğerleri kullanıcının kendi anahtarıyla
-/// çalışır (Windows'taki `TranslationEngine` ile aynı).
+/// Ayarlardaki çeviri motoru seçimi. Ücretsiz olan cihaz üstü çeviridir; bulut motorları kullanıcının kendi anahtarıyla
+/// çalışır; yerel model (Ollama, LM Studio) kullanıcının bilgisayarında çalışır, anahtarı isteğe bağlıdır (Windows'taki
+/// `TranslationEngine` ile aynı).
 public enum TranslationEngine: String, Codable, CaseIterable {
-    case free, deepL = "deepl", gemini, openAI = "openai", claude
+    case free, deepL = "deepl", gemini, openAI = "openai", claude, local
 
     public var aiProvider: AIProvider? {
         switch self {
         case .gemini: .gemini
         case .openAI: .openAI
         case .claude: .claude
+        case .local: .local
         case .free, .deepL: nil
         }
     }
@@ -43,11 +47,14 @@ public enum TranslationEngine: String, Codable, CaseIterable {
         case .gemini: self = .gemini
         case .openAI: self = .openAI
         case .claude: self = .claude
+        case .local: self = .local
         }
     }
 
-    /// Hizmetin adı (marka adı; çevrilmez).
-    public var displayName: String { aiProvider?.displayName ?? "DeepL" }
+    /// Hizmetin adı (marka adı; çevrilmez). Yerel modelin adı uygulamanın metin dosyasından çevrilir.
+    public var displayName: String {
+        self == .local ? String(localized: "Local model") : aiProvider?.displayName ?? "DeepL"
+    }
 
     /// Anahtarlık'taki anahtar adı.
     public var storeKey: String? {
@@ -57,6 +64,7 @@ public enum TranslationEngine: String, Codable, CaseIterable {
         case .gemini: StoreKey.geminiKey
         case .openAI: StoreKey.openAIKey
         case .claude: StoreKey.claudeKey
+        case .local: StoreKey.localAIKey
         }
     }
 }
@@ -85,6 +93,10 @@ public struct UserSettings: Codable, Equatable {
     public var geminiModel = AIProvider.gemini.defaultModel.id
     public var openAIModel = AIProvider.openAI.defaultModel.id
     public var claudeModel = AIProvider.claude.defaultModel.id
+    /// Yerel model sunucusunun adresi (Ollama: http://localhost:11434/v1, LM Studio: http://localhost:1234/v1) ve
+    /// kullanıcının yazdığı model adı.
+    public var localAIBaseURL = LocalAIServer.ollamaURL
+    public var localAIModel = LocalAIServer.defaultModel
     /// Altyazı TV'de mi, bilgisayar ekranındaki pencerede mi, ikisinde de mi. Eski kayıtlar TV ile açılır.
     public var output = SubtitleOutput.tv
     /// Bilgisayar ekranındaki altyazı penceresi tıklamaları alttaki pencereye (oyun, PS Remote Play) geçirir.
@@ -111,6 +123,8 @@ public struct UserSettings: Codable, Equatable {
         geminiModel = try values.decodeIfPresent(String.self, forKey: .geminiModel) ?? defaults.geminiModel
         openAIModel = try values.decodeIfPresent(String.self, forKey: .openAIModel) ?? defaults.openAIModel
         claudeModel = try values.decodeIfPresent(String.self, forKey: .claudeModel) ?? defaults.claudeModel
+        localAIBaseURL = try values.decodeIfPresent(String.self, forKey: .localAIBaseURL) ?? defaults.localAIBaseURL
+        localAIModel = try values.decodeIfPresent(String.self, forKey: .localAIModel) ?? defaults.localAIModel
         output = (try? values.decodeIfPresent(SubtitleOutput.self, forKey: .output)) ?? defaults.output
         overlayClickThrough = try values.decodeIfPresent(Bool.self, forKey: .overlayClickThrough) ?? defaults.overlayClickThrough
         gamePacks = try values.decodeIfPresent(Bool.self, forKey: .gamePacks) ?? defaults.gamePacks
@@ -130,6 +144,7 @@ public struct UserSettings: Codable, Equatable {
         case .gemini: geminiModel
         case .openAI: openAIModel
         case .claude: claudeModel
+        case .local: localAIModel
         }
     }
 
@@ -138,7 +153,13 @@ public struct UserSettings: Codable, Equatable {
         case .gemini: geminiModel = id
         case .openAI: openAIModel = id
         case .claude: claudeModel = id
+        case .local: localAIModel = id
         }
+    }
+
+    /// Yerel model sunucusu; adres geçersizse nil.
+    public var localAIServer: LocalAIServer? {
+        LocalAIServer(baseURL: localAIBaseURL, model: AIProvider.local.model(localAIModel).id)
     }
 
     /// Ayarlarda seçili motor: çevrimiçi çeviri kapalıysa ücretsiz olan.

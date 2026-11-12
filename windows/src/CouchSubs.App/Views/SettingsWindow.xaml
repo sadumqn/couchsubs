@@ -112,6 +112,7 @@
                                     <ComboBoxItem Content="Google Gemini" Tag="Gemini" />
                                     <ComboBoxItem Content="OpenAI" Tag="OpenAi" />
                                     <ComboBoxItem Content="Anthropic Claude" Tag="Claude" />
+                                    <ComboBoxItem Content="{t:T 'Local model (Ollama, LM Studio)'}" Tag="Local" />
                                 </ComboBox>
                             </StackPanel>
                             <TextBlock x:Name="EngineHint" Style="{StaticResource HintText}" TextWrapping="Wrap" />
@@ -133,6 +134,33 @@
                                 <StackPanel x:Name="ModelPanel" Orientation="Horizontal" Margin="0,0,0,12">
                                     <TextBlock Text="{t:T 'Model'}" VerticalAlignment="Center" Margin="0,0,16,0" />
                                     <ComboBox x:Name="ModelChoice" MinWidth="240" SelectionChanged="OnModel" />
+                                </StackPanel>
+                                <!-- Yerel model (Ollama, LM Studio): adres ve model adı alandan çıkınca kaydedilir (Mac ile aynı). -->
+                                <StackPanel x:Name="LocalPanel" Margin="0,0,0,12" Visibility="Collapsed">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="{t:T 'Server address'}" VerticalAlignment="Center" Margin="0,0,16,8" />
+                                        <TextBox x:Name="LocalAddress" Grid.Column="1" Margin="0,0,0,8" VerticalContentAlignment="Center"
+                                                 LostFocus="OnLocalChanged" KeyDown="OnLocalKey" />
+                                        <TextBlock Grid.Row="1" Text="{t:T 'Model name'}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                                        <TextBox x:Name="LocalModel" Grid.Row="1" Grid.Column="1" VerticalContentAlignment="Center"
+                                                 LostFocus="OnLocalChanged" KeyDown="OnLocalKey" />
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="{t:T 'Use Ollama'}" Click="OnUseOllama" />
+                                        <Button Content="{t:T 'Use LM Studio'}" Margin="8,0,0,0" Click="OnUseLmStudio" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="LocalAddressError" Style="{StaticResource ErrorText}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
+                                    <TextBlock Style="{StaticResource HintText}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="{t:T 'Type the model name as the server shows it. In Ollama, download it first: ollama pull qwen2.5:7b (downloaded models: ollama list). In LM Studio, load the model and start the local server.'}" />
+                                    <TextBlock x:Name="LocalKeyLabel" Text="{t:T 'API key (optional)'}" Margin="0,12,0,0" />
                                 </StackPanel>
                                 <StackPanel x:Name="NewKey">
                                     <StackPanel Orientation="Horizontal">

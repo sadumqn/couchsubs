@@ -151,7 +151,7 @@ private struct MainWarnings: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.csBody.weight(.semibold))
                     .foregroundStyle(Color.csWarning)
-                Text(verbatim: TranslationCard.describe(issue, engine: model.settings.onlineEngine) + " "
+                Text(verbatim: TranslationCard.describe(issue, engine: model.settings.onlineEngine, server: model.settings.localAIServer) + " "
                      + String(localized: "Meanwhile the free translation is used."))
                     .font(.csCallout)
                     .foregroundStyle(Color.csSecondary)

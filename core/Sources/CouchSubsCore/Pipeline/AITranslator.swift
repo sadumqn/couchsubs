@@ -2,7 +2,8 @@
 
 import Foundation
 
-/// İsteğe bağlı yapay zekâ çevirisi: kullanıcının kendi Gemini, OpenAI ya da Claude anahtarıyla (Windows'taki
+/// İsteğe bağlı yapay zekâ çevirisi: kullanıcının kendi Gemini, OpenAI ya da Claude anahtarıyla ya da bilgisayarındaki
+/// yerel modelle (Ollama, LM Studio) (Windows'taki
 /// `AiTranslator` ile aynı). İstek kurma, bağlam, önbellek ve hata sonrası bekleme `AITranslationCore`'da; hizmete
 /// ulaşılamazsa ya da kota biterse o satır Apple'ın cihaz üstü çevirisiyle çevrilir, oyun altyazısız kalmaz.
 public final class AITranslator: TextTranslator, OnlineTranslating {
@@ -16,9 +17,10 @@ public final class AITranslator: TextTranslator, OnlineTranslating {
         }
     }
 
-    public init(provider: AIProvider, key: String, model: String?, fallback: TextTranslator,
-         session: URLSession = AITranslationCore.makeSession(), cache: TranslationCache = TranslationCache()) {
-        core = AITranslationCore(provider: provider, key: key, model: model, session: session, cache: cache)
+    /// `server`: yerel modelin (Ollama, LM Studio) sunucusu. `session` verilmezse hizmete uygun zaman aşımıyla kurulur.
+    public init(provider: AIProvider, key: String, model: String?, server: LocalAIServer? = nil, fallback: TextTranslator,
+                session: URLSession? = nil, cache: TranslationCache = TranslationCache()) {
+        core = AITranslationCore(provider: provider, key: key, model: model, server: server, session: session, cache: cache)
         self.fallback = fallback
     }
 

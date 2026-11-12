@@ -8448,6 +8448,326 @@
           }
         }
       }
+    },
+    "Local model": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local model"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel model"
+          }
+        }
+      }
+    },
+    "Local model (Ollama, LM Studio)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local model (Ollama, LM Studio)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel model (Ollama, LM Studio)"
+          }
+        }
+      }
+    },
+    "Free, with no quota. An AI model on this computer (Ollama or LM Studio) translates; subtitle text never leaves it. Speed depends on your computer. When the model cannot be reached, the free translation takes over.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free, with no quota. An AI model on this computer (Ollama or LM Studio) translates; subtitle text never leaves it. Speed depends on your computer. When the model cannot be reached, the free translation takes over."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretsiz ve kotasız. Bu bilgisayardaki bir yapay zekâ modeli (Ollama ya da LM Studio) çevirir; altyazı metni bilgisayardan çıkmaz. Hız bilgisayarınıza bağlıdır. Modele ulaşılamazsa ücretsiz çeviri devreye girer."
+          }
+        }
+      }
+    },
+    "The local model server did not accept the API key. Check the key, or remove it if the server does not need one.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local model server did not accept the API key. Check the key, or remove it if the server does not need one."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel model sunucusu API anahtarını kabul etmedi. Anahtarı denetleyin; sunucu anahtar istemiyorsa kaldırın."
+          }
+        }
+      }
+    },
+    "The local model server is busy. Try again in a moment.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local model server is busy. Try again in a moment."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel model sunucusu meşgul. Biraz sonra yeniden deneyin."
+          }
+        }
+      }
+    },
+    "LM Studio does not have the model %@. Download and load it in LM Studio, or check the model name.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LM Studio does not have the model %@. Download and load it in LM Studio, or check the model name."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LM Studio'da %@ modeli yok. Modeli LM Studio'da indirip yükleyin ya da model adını denetleyin."
+          }
+        }
+      }
+    },
+    "The model %1$@ is not on the local server. Download it: ollama pull %1$@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model %1$@ is not on the local server. Download it: ollama pull %1$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ modeli yerel sunucuda yok. Modeli indirin: ollama pull %1$@"
+          }
+        }
+      }
+    },
+    "Ollama is not running: %1$@ could not be reached, or the model did not answer in time. Open Ollama and download the model: ollama pull %2$@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama is not running: %1$@ could not be reached, or the model did not answer in time. Open Ollama and download the model: ollama pull %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama çalışmıyor: %1$@ adresine ulaşılamadı ya da model zamanında yanıt vermedi. Ollama'yı açıp modeli indirin: ollama pull %2$@"
+          }
+        }
+      }
+    },
+    "LM Studio is not running: %@ could not be reached, or the model did not answer in time. Open LM Studio, load the model and start the local server.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LM Studio is not running: %@ could not be reached, or the model did not answer in time. Open LM Studio, load the model and start the local server."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LM Studio çalışmıyor: %@ adresine ulaşılamadı ya da model zamanında yanıt vermedi. LM Studio'yu açın, modeli yükleyip yerel sunucuyu başlatın."
+          }
+        }
+      }
+    },
+    "The local model server at %@ could not be reached, or the model did not answer in time. Check the address and that the server is running.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local model server at %@ could not be reached, or the model did not answer in time. Check the address and that the server is running."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ adresindeki yerel model sunucusuna ulaşılamadı ya da model zamanında yanıt vermedi. Adresi ve sunucunun açık olduğunu denetleyin."
+          }
+        }
+      }
+    },
+    "Ollama or LM Studio, no quota": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama or LM Studio, no quota"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama ya da LM Studio, kotasız"
+          }
+        }
+      }
+    },
+    "Server address": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server address"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu adresi"
+          }
+        }
+      }
+    },
+    "Model name": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model name"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model adı"
+          }
+        }
+      }
+    },
+    "Use Ollama": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Ollama"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama'yı kullan"
+          }
+        }
+      }
+    },
+    "Use LM Studio": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use LM Studio"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LM Studio'yu kullan"
+          }
+        }
+      }
+    },
+    "This address is not valid. Example: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This address is not valid. Example: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu adres geçerli değil. Örnek: %@"
+          }
+        }
+      }
+    },
+    "Type the model name as the server shows it. In Ollama, download it first: ollama pull qwen2.5:7b (downloaded models: ollama list). In LM Studio, load the model and start the local server.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type the model name as the server shows it. In Ollama, download it first: ollama pull qwen2.5:7b (downloaded models: ollama list). In LM Studio, load the model and start the local server."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model adını sunucunun gösterdiği gibi yazın. Ollama'da önce indirin: ollama pull qwen2.5:7b (indirilen modeller: ollama list). LM Studio'da modeli yükleyip yerel sunucuyu başlatın."
+          }
+        }
+      }
+    },
+    "API key (optional)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API key (optional)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API anahtarı (isteğe bağlı)"
+          }
+        }
+      }
+    },
+    "Test connection": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test connection"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantıyı dene"
+          }
+        }
+      }
+    },
+    "Download Ollama": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download Ollama"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama'yı indir"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

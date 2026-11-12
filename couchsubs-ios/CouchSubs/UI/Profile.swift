@@ -203,7 +203,8 @@ struct SettingsScreen: View {
         case .free: .free
         case .deepL: .deepL
         case .gemini: .gemini
-        case .openAI, .claude: .other
+        // Yerel model (Ollama, LM Studio) yalnız Mac ve Windows'ta seçilir; telefonda başka hizmet sayılır.
+        case .openAI, .claude, .local: .other
         }
     }
 

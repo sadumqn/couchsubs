@@ -142,6 +142,18 @@ internal sealed class FakeServices : IAppServices
         AiTranslators.Add((provider, key, model));
         return fallback ?? Translation.Create("en", "tr");
     }
+    public List<(LocalAiServer Server, string Key)> LocalTests { get; } = [];
+    public List<(LocalAiServer Server, string Key)> LocalTranslators { get; } = [];
+    public Task<AiTestResult> TestLocalAiAsync(LocalAiServer server, string key)
+    {
+        LocalTests.Add((server, key));
+        return Task.FromResult(AiTest);
+    }
+    public ITextTranslator? MakeLocalAiTranslator(LocalAiServer server, string key, ITextTranslator? fallback)
+    {
+        LocalTranslators.Add((server, key));
+        return fallback ?? Translation.Create("en", "tr");
+    }
 
     public Task<IReadOnlyList<ConsoleInfo>> DiscoverConsolesAsync() => Task.FromResult<IReadOnlyList<ConsoleInfo>>(Consoles);
     public Exception? LoginError { get; set; }
@@ -955,6 +967,51 @@ public class AppControllerRunTests
         controller.RemoveKey(TranslationEngine.Claude);
         Assert.False(controller.HasKey(TranslationEngine.Claude));
         Assert.Equal(TranslationEngine.Free, controller.Settings.Engine);
+        controller.Dispose();
+    }
+
+    /// Yerel model anahtarsız hazırdır; "Bağlantıyı dene" ayardaki adres ve modelle gider, yazılan anahtarı yalnız sunucu
+    /// kabul ederse saklar; çevirmene sunucu ve anahtar gider; anahtar kaldırılınca yerel model seçili kalır.
+    [Fact]
+    public async Task LocalModelNeedsNoKey()
+    {
+        var services = new FakeServices();
+        var (controller, _, _) = Ready(services);
+        controller.Settings = controller.Settings.WithEngine(TranslationEngine.Local);
+        Assert.True(controller.IsReady(TranslationEngine.Local));
+        Assert.True(controller.OnlineTranslationActive);
+        Assert.False(controller.HasKey(TranslationEngine.Local));
+
+        controller.Settings = controller.Settings with { LocalAiBaseUrl = LocalAiServer.LmStudioUrl, LocalAiModel = " qwen2.5-7b-instruct " };
+        Assert.Equal(OnlineKeyState.Valid, (await controller.TestLocalAiAsync()).State);
+        var (server, key) = Assert.Single(services.LocalTests);
+        Assert.Equal("http://localhost:1234/v1/chat/completions", server.ChatUrl.AbsoluteUri);
+        Assert.Equal("qwen2.5-7b-instruct", server.Model);
+        Assert.Equal("", key);
+        Assert.False(controller.HasKey(TranslationEngine.Local));
+
+        services.AiTest = new AiTestResult(OnlineKeyState.Invalid);
+        await controller.TestLocalAiAsync("wrong");
+        Assert.False(controller.HasKey(TranslationEngine.Local));
+        services.AiTest = new AiTestResult(OnlineKeyState.Valid, "KRATOS: Şimdi gidiyoruz.");
+        await controller.TestLocalAiAsync(" lm-key ");
+        Assert.True(controller.HasKey(TranslationEngine.Local));
+        Assert.Equal(TranslationEngine.Local, controller.Settings.Engine);
+
+        await controller.StartAsync();
+        var made = Assert.Single(services.LocalTranslators);
+        Assert.Equal("local:localhost:1234/qwen2.5-7b-instruct", made.Server.EngineId);
+        Assert.Equal("lm-key", made.Key);
+        Assert.Empty(services.AiTranslators);
+
+        controller.RemoveKey(TranslationEngine.Local);
+        Assert.False(controller.HasKey(TranslationEngine.Local));
+        Assert.Equal(TranslationEngine.Local, controller.Settings.Engine);
+
+        // Geçersiz adreste yerel model hazır sayılmaz; çeviri ücretsiz motorla sürer.
+        controller.Settings = controller.Settings with { LocalAiBaseUrl = "ftp://nowhere" };
+        Assert.False(controller.OnlineTranslationActive);
+        Assert.Equal(OnlineKeyState.Unreachable, (await controller.TestLocalAiAsync()).State);
         controller.Dispose();
     }
 
