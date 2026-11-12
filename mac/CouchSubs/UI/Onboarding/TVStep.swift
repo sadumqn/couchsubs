@@ -4,7 +4,7 @@ import CouchSubsCore
 import SwiftUI
 
 struct TVStep: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @State private var tvs: [LGTV] = []
     @State private var searching = false
     @State private var working = false

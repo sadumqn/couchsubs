@@ -3,176 +3,8 @@
 import AppKit
 import CouchSubsCore
 import Darwin
-import Observation
+import Combine
 import RemotePlay
-
-enum StoreKey {
-    static let accountId = "accountId"
-    static let console = "console"
-    static let tv = "tv"
-    static let tvKey = "tvKey"
-    static let tvDevKey = "tvDevKey"
-    /// Samsung ve Android TV'ye CouchSubs'ın kurduğu sürüm (LG'de sürüm TV'den okunur).
-    static let tvAppVersion = "tvAppVersion"
-    /// LG geliştirici modu süresinin son uzatıldığı an.
-    static let devSessionRenewed = "devSessionRenewed"
-    static let settings = "settings"
-    /// Kurulum sihirbazı bitti. TV'siz kurulumda (altyazı bilgisayar ekranında) ana ekranı bu açar.
-    static let setupComplete = "setupComplete"
-    /// Kullanıcının DeepL anahtarı (isteğe bağlı çevrimiçi çeviri).
-    static let deepLKey = "deepLKey"
-    /// Kullanıcının yapay zekâ anahtarları (isteğe bağlı çevrimiçi çeviri).
-    static let geminiKey = "geminiKey"
-    static let openAIKey = "openAIKey"
-    static let claudeKey = "claudeKey"
-}
-
-/// Ayarlardaki çeviri motoru seçimi. Ücretsiz olan cihaz üstü çeviridir; diğerleri kullanıcının kendi anahtarıyla
-/// çalışır (Windows'taki `TranslationEngine` ile aynı).
-enum TranslationEngine: String, Codable, CaseIterable {
-    case free, deepL = "deepl", gemini, openAI = "openai", claude
-
-    var aiProvider: AIProvider? {
-        switch self {
-        case .gemini: .gemini
-        case .openAI: .openAI
-        case .claude: .claude
-        case .free, .deepL: nil
-        }
-    }
-
-    init(_ provider: AIProvider) {
-        switch provider {
-        case .gemini: self = .gemini
-        case .openAI: self = .openAI
-        case .claude: self = .claude
-        }
-    }
-
-    /// Hizmetin adı (marka adı; çevrilmez).
-    var displayName: String { aiProvider?.displayName ?? "DeepL" }
-
-    /// Anahtarlık'taki anahtar adı.
-    var storeKey: String? {
-        switch self {
-        case .free: nil
-        case .deepL: StoreKey.deepLKey
-        case .gemini: StoreKey.geminiKey
-        case .openAI: StoreKey.openAIKey
-        case .claude: StoreKey.claudeKey
-        }
-    }
-}
-
-/// Altyazının gösterileceği yer (Windows'taki `SubtitleOutput` ile aynı).
-enum SubtitleOutput: String, Codable, CaseIterable {
-    case tv, computer, both
-
-    var showsOnTV: Bool { self != .computer }
-    var showsOnComputer: Bool { self != .tv }
-}
-
-/// Kalıcı ayarlar (Anahtarlık değil, sıradan tercihler).
-struct UserSettings: Codable, Equatable {
-    var region = CropRegion()
-    var style = SubtitleStyle()
-    var sourceLanguage = "en"
-    var targetLanguage = "tr"
-    var dubbing = DubbingSettings()
-    /// Açıksa çeviri `onlineEngine` ile yapılır (anahtarı kayıtlıysa); kapalıysa ya da hizmete ulaşılamazsa Apple'ın
-    /// cihaz üstü çevirisi. Eski sürümlerde yalnız DeepL vardı; o kayıtlar DeepL ile açılır.
-    var onlineTranslation = false
-    /// Seçili çevrimiçi motor (hiçbir zaman `.free` değildir).
-    var onlineEngine = TranslationEngine.deepL
-    /// Seçili yapay zekâ modelleri (listedeki kimlikler; bkz. `AIProvider.models`).
-    var geminiModel = AIProvider.gemini.defaultModel.id
-    var openAIModel = AIProvider.openAI.defaultModel.id
-    var claudeModel = AIProvider.claude.defaultModel.id
-    /// Altyazı TV'de mi, bilgisayar ekranındaki pencerede mi, ikisinde de mi. Eski kayıtlar TV ile açılır.
-    var output = SubtitleOutput.tv
-    /// Bilgisayar ekranındaki altyazı penceresi tıklamaları alttaki pencereye (oyun, PS Remote Play) geçirir.
-    var overlayClickThrough = false
-    /// Oyun paketlerindeki hazır Türkçe çeviriler kullanılır (yalnız İngilizce→Türkçe).
-    var gamePacks = true
-    /// Pakette bulunmayan İngilizce satırlar ortak havuza gönderilir (anonim; bkz. `LinePool`).
-    var sharePool = LinePool.enabledByDefault
-
-    init() {}
-
-    /// Yeni eklenen ayarlar eski kayıtta yoktur; varsayılanla açılır, eski ayarlar kaybolmaz.
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        let defaults = UserSettings()
-        region = try values.decodeIfPresent(CropRegion.self, forKey: .region) ?? defaults.region
-        style = try values.decodeIfPresent(SubtitleStyle.self, forKey: .style) ?? defaults.style
-        sourceLanguage = try values.decodeIfPresent(String.self, forKey: .sourceLanguage) ?? defaults.sourceLanguage
-        targetLanguage = try values.decodeIfPresent(String.self, forKey: .targetLanguage) ?? defaults.targetLanguage
-        dubbing = (try? values.decodeIfPresent(DubbingSettings.self, forKey: .dubbing)) ?? defaults.dubbing
-        onlineTranslation = try values.decodeIfPresent(Bool.self, forKey: .onlineTranslation) ?? defaults.onlineTranslation
-        let engine = (try? values.decodeIfPresent(TranslationEngine.self, forKey: .onlineEngine)) ?? defaults.onlineEngine
-        onlineEngine = engine == .free ? defaults.onlineEngine : engine
-        geminiModel = try values.decodeIfPresent(String.self, forKey: .geminiModel) ?? defaults.geminiModel
-        openAIModel = try values.decodeIfPresent(String.self, forKey: .openAIModel) ?? defaults.openAIModel
-        claudeModel = try values.decodeIfPresent(String.self, forKey: .claudeModel) ?? defaults.claudeModel
-        output = (try? values.decodeIfPresent(SubtitleOutput.self, forKey: .output)) ?? defaults.output
-        overlayClickThrough = try values.decodeIfPresent(Bool.self, forKey: .overlayClickThrough) ?? defaults.overlayClickThrough
-        gamePacks = try values.decodeIfPresent(Bool.self, forKey: .gamePacks) ?? defaults.gamePacks
-        sharePool = try values.decodeIfPresent(Bool.self, forKey: .sharePool) ?? defaults.sharePool
-    }
-
-    /// Listede olmayan kayıtlı modeller (eski ayar ya da listeden çıkarılan model) varsayılana döner.
-    func withCuratedModels() -> UserSettings {
-        var settings = self
-        for provider in AIProvider.allCases { settings.setModel(provider.model(model(for: provider)).id, for: provider) }
-        return settings
-    }
-
-    /// Yapay zekâ hizmetinin seçili model kimliği.
-    func model(for provider: AIProvider) -> String {
-        switch provider {
-        case .gemini: geminiModel
-        case .openAI: openAIModel
-        case .claude: claudeModel
-        }
-    }
-
-    mutating func setModel(_ id: String, for provider: AIProvider) {
-        switch provider {
-        case .gemini: geminiModel = id
-        case .openAI: openAIModel = id
-        case .claude: claudeModel = id
-        }
-    }
-
-    /// Ayarlarda seçili motor: çevrimiçi çeviri kapalıysa ücretsiz olan.
-    var translationEngine: TranslationEngine {
-        get { onlineTranslation ? onlineEngine : .free }
-        set {
-            onlineTranslation = newValue != .free
-            if newValue != .free { onlineEngine = newValue }
-        }
-    }
-}
-
-protocol AppStore: AnyObject {
-    func save<T: Encodable>(_ value: T, for key: String)
-    func load<T: Decodable>(_ type: T.Type, for key: String) -> T?
-    func remove(_ key: String)
-}
-
-final class KeychainStore: AppStore {
-    func save<T: Encodable>(_ value: T, for key: String) { SecureStore.save(value, for: key) }
-    func load<T: Decodable>(_ type: T.Type, for key: String) -> T? { SecureStore.load(type, for: key) }
-    func remove(_ key: String) { SecureStore.remove(key) }
-}
-
-/// Hiçbir şey kalıcı olmaz.
-final class EphemeralStore: AppStore {
-    private var values: [String: Data] = [:]
-    func save<T: Encodable>(_ value: T, for key: String) { values[key] = try? JSONEncoder().encode(value) }
-    func load<T: Decodable>(_ type: T.Type, for key: String) -> T? { values[key].flatMap { try? JSONDecoder().decode(type, from: $0) } }
-    func remove(_ key: String) { values[key] = nil }
-}
 
 /// Dış dünyayla (PS5, PSN, TV) konuşan her şey; testlerde sahtesi kullanılır.
 extension AppServices {
@@ -534,34 +366,33 @@ enum TVAppState: Equatable {
 }
 
 @MainActor
-@Observable
-final class AppModel {
+final class AppModel: ObservableObject {
     enum Step: Int, CaseIterable {
         /// `betterTranslation`: isteğe bağlı ücretsiz Gemini anahtarı; atlanabilir.
         case welcome, secondAccount, psnLogin, console, tv, test, betterTranslation, done
     }
 
-    var step: Step {
+    @Published var step: Step {
         didSet {
             // Sihirbaz bitince ana ekran TV'siz de açılsın.
             if step == .done, oldValue != .done { store.save(true, for: StoreKey.setupComplete) }
         }
     }
-    var accountId: Data?
-    var console: RegisteredConsole?
-    var tv: LGTV?
+    @Published var accountId: Data?
+    @Published var console: RegisteredConsole?
+    @Published var tv: LGTV?
     /// TV'nin eşleşme anahtarı kayıtlı.
-    private var tvKeySaved: Bool
-    var tvApp = TVAppState.unknown
+    @Published private var tvKeySaved: Bool
+    @Published var tvApp = TVAppState.unknown
     /// LG geliştirici modunun kalan süresi (saat); CouchSubs uzattıktan sonra bilinir.
-    var devModeHoursLeft: Int?
+    @Published var devModeHoursLeft: Int?
     /// Son eşleşmede TV uygulaması açılamadı.
-    private var tvAppMissing = false
+    @Published private var tvAppMissing = false
     /// TV uygulaması denetimi sürüyor (bekleme ekranı ve çeviri başlangıcı aynı anda çağırabilir).
-    private var refreshingTVApp = false
+    @Published private var refreshingTVApp = false
     /// Samsung kurulumu ya da sürüm denetimi sürüyor: olaylar (giriş, kurulum adımı) kartı değiştirebilir.
-    private var samsungCheckRunning = false
-    var settings: UserSettings {
+    @Published private var samsungCheckRunning = false
+    @Published var settings: UserSettings {
         didSet {
             // Sıradan tercih; her kaydırıcı hareketinde Anahtarlık'a yazılmasın.
             if let data = try? JSONEncoder().encode(settings) { defaults.set(data, forKey: StoreKey.settings) }
@@ -586,39 +417,45 @@ final class AppModel {
     }
 
     // Çalışma durumu
-    var isRunning = false
-    var isStarting = false
-    var sessionState: SessionState = .disconnected(.stopped)
+    @Published var isRunning = false
+    @Published var isStarting = false
+    @Published var sessionState: SessionState = .disconnected(.stopped)
     /// Çeviri sürerken Mac'in boşta uykuya geçmesi engellenir (kullanıcı TV'de oynuyor, Mac'e dokunmuyor).
     var isPreventingSleep: Bool { sleepActivity != nil }
-    var tvClients = 0
-    var lastSource = ""
-    var lastTranslation = ""
+    @Published var tvClients = 0
+    @Published var lastSource = ""
+    @Published var lastTranslation = ""
     /// Bu oturumda çevrilen altyazılar; kaçırılan satır ana pencereden yeniden okunur.
-    var history = SubtitleHistory()
-    var translatorStatus: TranslatorStatus = .ready
+    @Published var history = SubtitleHistory()
+    @Published var translatorStatus: TranslatorStatus = .ready
     /// Çevrimiçi çeviri (DeepL ya da yapay zekâ) şu an çeviremiyor; o satırlar cihaz üstü çeviriyle çevriliyor.
-    var onlineIssue: OnlineKeyState?
+    @Published var onlineIssue: OnlineKeyState?
     /// Yazı tanıma art arda hata veriyor; değeri diskteki boş yer (GB). macOS, diskte yer kalmayınca okuma modelini
     /// diske yazamaz ve her okumayı hata ile bitirir; altyazı sessizce hiç gelmez.
-    var readingFailedFreeGB: Double?
+    @Published var readingFailedFreeGB: Double?
     private var readFailures = 0
-    var lastFrame: CGImage?
-    var showAbout = false
-    var showSettings = false
+    /// Son PS5 karesi (Ayarlar'daki bölge önizlemesi). Her karede değiştiği için modelin kendi yayınına girmez; yalnız
+    /// önizlemeyi gösteren görünüm `framePreview`'u izler, öbür ekranlar her karede yeniden çizilmez.
+    let framePreview = FramePreview()
+    var lastFrame: CGImage? {
+        get { framePreview.image }
+        set { framePreview.image = newValue }
+    }
+    @Published var showAbout = false
+    @Published var showSettings = false
 
     private let services: AppServices
     private let store: AppStore
     private let defaults: UserDefaults
     /// Çalışan okuma hattının dilleri.
-    private(set) var activeLanguages: (source: String, target: String)?
+    @Published private(set) var activeLanguages: (source: String, target: String)?
     private var server = SubtitleServer(port: AppIdentity.serverPort)
     private var serverStarted = false
     /// Sunucunun gerçekten dinlediği port (8787 doluysa rastgele bir port).
-    private(set) var serverPort: UInt16 = AppIdentity.serverPort
+    @Published private(set) var serverPort: UInt16 = AppIdentity.serverPort
     private var session: StreamControlling?
     private var keeper: KeeperControlling?
-    private var sleepActivity: NSObjectProtocol?
+    @Published private var sleepActivity: NSObjectProtocol?
     private var pipeline: SubtitlePipeline?
     /// Oyundaki altyazının son görüldüğü yer; deneme altyazısı TV'de oraya yerleşir.
     private var lastSubtitleBox: TextBox?
@@ -629,27 +466,27 @@ final class AppModel {
     /// Uygulamayla gelen ve ~/Library/Application Support/CouchSubs/packs klasöründeki paketler.
     let packs = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: GamePackLibrary.userDirectory)
     /// Ayarlarda listelenen paketler (açılışta arka planda yüklenince dolar).
-    var installedPacks: [GamePackLibrary.Info] = []
+    @Published var installedPacks: [GamePackLibrary.Info] = []
     private let pool: LinePool
-    @ObservationIgnored private var poolTimer: Task<Void, Never>?
-    @ObservationIgnored private var terminateObserver: NSObjectProtocol?
+    private var poolTimer: Task<Void, Never>?
+    private var terminateObserver: NSObjectProtocol?
 
     // Dublaj
     private var dubber: Dubber?
     /// Model indiriliyorsa ilerleme (0…1).
-    var dubbingDownload: Double?
-    var dubbingError: String?
-    var dubbingModelReady = DubbingModelStore.isReady
+    @Published var dubbingDownload: Double?
+    @Published var dubbingError: String?
+    @Published var dubbingModelReady = DubbingModelStore.isReady
 
     // Bilgisayar ekranındaki altyazı penceresi (bkz. AppModel+ComputerScreen.swift)
     /// Pencerede şu an görünen satırlar (TV'dekiyle aynı yığın).
-    var overlayLines: [SubtitleStack.Line] = []
+    @Published var overlayLines: [SubtitleStack.Line] = []
     /// Pencerenin yeri ve genişliği ayarlanıyor: örnek yazı görünür, tıklamalar geçmez.
-    var overlayAdjusting = false
-    @ObservationIgnored var overlayStack = SubtitleStack()
-    @ObservationIgnored var overlayTimer: Task<Void, Never>?
+    @Published var overlayAdjusting = false
+    var overlayStack = SubtitleStack()
+    var overlayTimer: Task<Void, Never>?
     /// Yığının saati (saniye); testlerde ileri sarılır.
-    @ObservationIgnored var overlayClock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    var overlayClock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
     init(services: AppServices = LiveServices(), store: AppStore = KeychainStore(), defaults: UserDefaults = .standard) {
         self.services = services
@@ -1175,13 +1012,13 @@ final class AppModel {
     // MARK: - Ekranı çevir
 
     /// ⌥⌘T yalnız çeviri sürerken tutulur.
-    @ObservationIgnored private var screenHotkey: GlobalHotkey?
+    private var screenHotkey: GlobalHotkey?
     /// ⌥⌘L: altyazı penceresinde "Tıklamalar geçsin"i açar/kapatır; çeviri sürerken ve altyazı bilgisayardayken tutulur.
-    @ObservationIgnored var clickThroughHotkey: GlobalHotkey?
+    var clickThroughHotkey: GlobalHotkey?
     /// Süren "ekranı çevir" işi; yeniden basılınca iptal edilir.
-    @ObservationIgnored private var screenTask: Task<Void, Never>?
+    private var screenTask: Task<Void, Never>?
     /// TV'deki ekran çevirilerinin kalkacağı an; bu andan önce yeniden basmak onları kaldırır.
-    @ObservationIgnored private var screenShownUntil = Date.distantPast
+    private var screenShownUntil = Date.distantPast
 
     /// ⌥⌘T: oyunun şu anki karesinin tamamını bir kez okur, her yazı grubunu ayrı çevirip TV'de kendi yerine koyar.
     /// Çeviriler hazırlandıkça TV'ye gider. Çeviri sürerken ya da çeviriler TV'deyken yeniden basmak onları kaldırır.
@@ -1308,7 +1145,7 @@ final class AppModel {
     }
 
     /// Anahtarı kayıtlı motorlar (anahtarların kendisi arayüze hiç dönmez).
-    private var savedKeys: Set<TranslationEngine> = []
+    @Published private var savedKeys: Set<TranslationEngine> = []
 
     func hasKey(_ engine: TranslationEngine) -> Bool { savedKeys.contains(engine) }
 
@@ -1416,7 +1253,8 @@ final class AppModel {
     private func noteRead(_ error: Error?) {
         guard error != nil else {
             readFailures = 0
-            readingFailedFreeGB = nil
+            // Her başarılı okumada yazılmasın: yayınlanan özellik her atamada bütün ekranları yeniden çizdirir.
+            if readingFailedFreeGB != nil { readingFailedFreeGB = nil }
             return
         }
         readFailures += 1
@@ -1517,24 +1355,7 @@ final class AppModel {
         "http://\(Self.localAddress(near: tv.host) ?? "127.0.0.1"):\(serverPort)"
     }
 
-    static func localAddress(near host: String) -> String? {
-        var list: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&list) == 0, let first = list else { return nil }
-        defer { freeifaddrs(list) }
-        let target = inet_addr(host)
-        var fallback: String?
-        for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
-            let entry = pointer.pointee
-            guard Int32(entry.ifa_flags) & IFF_LOOPBACK == 0, entry.ifa_addr?.pointee.sa_family == sa_family_t(AF_INET),
-                  let mask = entry.ifa_netmask else { continue }
-            let address = entry.ifa_addr!.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
-            let netmask = mask.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr }
-            let text = String(cString: inet_ntoa(address))
-            if address.s_addr & netmask == target & netmask { return text }
-            fallback = fallback ?? text
-        }
-        return fallback
-    }
+    static func localAddress(near host: String) -> String? { NetworkAddress.near(host) }
 }
 
 // MARK: - Dublaj
@@ -1610,3 +1431,10 @@ extension AppModel {
         dubbingModelReady = false
     }
 }
+
+/// Son PS5 karesi; yalnız bölge önizlemesi izler.
+@MainActor
+final class FramePreview: ObservableObject {
+    @Published var image: CGImage?
+}
+

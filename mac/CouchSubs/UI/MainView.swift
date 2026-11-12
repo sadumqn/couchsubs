@@ -6,10 +6,9 @@ import SwiftUI
 
 /// Ana ekran (bento): solda başlat/durdur, durum karoları ve uyarılar; sağda paket notu ve canlı altyazı.
 struct MainView: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        @Bindable var model = model
         VStack(alignment: .leading, spacing: Theme.space("gap")) {
             MainHeader()
             HStack(alignment: .top, spacing: Theme.space("gap")) {
@@ -35,7 +34,7 @@ struct MainView: View {
 
 /// Logo, ad ve ayarlar düğmesi.
 private struct MainHeader: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         HStack(spacing: Theme.space("m")) {
@@ -53,7 +52,7 @@ private struct MainHeader: View {
 
 /// Sol sütun: başlat/durdur, PS5 ve TV, altyazının yeri, çeviri motoru, kısayol, uyarılar.
 private struct MainControls: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.space("gap")) {
@@ -82,7 +81,7 @@ private struct MainControls: View {
 }
 
 private struct StartStopButton: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         Button {
@@ -98,7 +97,7 @@ private struct StartStopButton: View {
 }
 
 private struct TVStatusTile: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         if model.hasTV {
@@ -115,7 +114,7 @@ private struct TVStatusTile: View {
 
 /// Dil paketi eksik, çevrimiçi motor çeviremiyor, macOS yazıyı okuyamıyor.
 private struct MainWarnings: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     private var sourceName: String { Locale.current.localizedString(forLanguageCode: model.settings.sourceLanguage) ?? model.settings.sourceLanguage }
     private var targetName: String { Locale.current.localizedString(forLanguageCode: model.settings.targetLanguage) ?? model.settings.targetLanguage }
@@ -138,6 +137,9 @@ private struct MainWarnings: View {
                           systemImage: "exclamationmark.triangle")
                         .font(.csBody.weight(.semibold))
                         .foregroundStyle(Color.csWarning)
+                    if !Translator.isAvailable {
+                        HintText(text: "Apple's free translation needs macOS 26 or later. Game packs, DeepL and AI translation (Settings › Translation) work on this Mac.")
+                    }
                 }
             }
         }
@@ -174,7 +176,7 @@ private struct MainWarnings: View {
 
 /// Hazır Türkçe çevirisi olan oyunlar kullanılıyor (yalnız İngilizce→Türkçede ve ayar açıkken).
 private struct PackInUseTile: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     private var active: Bool {
         model.settings.gamePacks && model.settings.sourceLanguage == "en" && model.settings.targetLanguage == "tr"
@@ -198,7 +200,7 @@ private struct PackInUseTile: View {
 
 /// Son altyazı büyük, öncekiler altında soluk; çeviri sürerken karo parlar ve üst kenarında tarama ışığı akar.
 private struct LiveSubtitlesTile: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.space("gap")) {
@@ -242,7 +244,7 @@ private struct CurrentLine: View {
 
 /// Kaçırılan satır buradan yeniden okunur (en yenisi üstte, eskiler giderek soluk).
 private struct SubtitleHistoryList: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         let entries = Array(model.history.entries.dropFirst())

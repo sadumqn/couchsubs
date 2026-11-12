@@ -7,7 +7,7 @@ import SwiftUI
 /// "Kaydet ve dene" ayarlardaki denemeyi çalıştırır; anahtar kabul edilince Gemini seçilir. Alttaki düğme anahtar yokken
 /// "Şimdilik geç", varken "Devam" olur.
 struct BetterTranslationStep: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @Environment(\.openURL) private var openURL
     @State private var key = ""
     @State private var checking = false

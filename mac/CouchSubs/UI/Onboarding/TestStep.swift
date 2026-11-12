@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct TestStep: View {
-    @Environment(AppModel.self) private var model
+    @EnvironmentObject private var model: AppModel
     @State private var sent = false
 
     /// TV seçilmediyse ("TV'm yok") örnek altyazı bu bilgisayarın ekranında görünür.

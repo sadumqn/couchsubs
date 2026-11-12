@@ -52,7 +52,7 @@ https://github.com/user-attachments/assets/bb8569d8-115d-49c7-a772-da2d9e171c17
 
 | Bilgisayarınız | Tek tıkla indirin |
 |---|---|
-| **Mac** (Apple Silicon, macOS 26+) | **[CouchSubs-macos.dmg](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-macos.dmg)** |
+| **Mac** (macOS 13+, Apple Silicon ve Intel) | **[CouchSubs-macos.dmg](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-macos.dmg)** |
 | **Windows** 10 / 11 (64 bit) | **[CouchSubs-windows-Setup.exe](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-windows-Setup.exe)** |
 
 TV uygulamasını ayrıca indirmeniz gerekmez: bilgisayar uygulaması TV'nize kendisi kurar. Uygulama yeni sürümleri
@@ -96,7 +96,8 @@ yalnız altyazıyı okumak için kullanır. Siz oyunu HDMI'dan, gecikmesiz oynam
 - Ücretsiz **ikinci bir PlayStation Network hesabı** (kendi hesabınızla Remote Play kolunuzu
   kapatırdı; ikinci hesapla oyununuz kesilmez)
 - Bilgisayar, şunlardan biri:
-  - **Mac:** Apple Silicon (M1 ve sonrası), macOS 26 veya üstü
+  - **Mac:** macOS 13 Ventura veya üstü, Apple Silicon (M1 ve sonrası) ya da Intel. Apple'ın ücretsiz çevirisi
+    macOS 26 ister; daha eski macOS'ta oyun paketleri, Gemini (ücretsiz anahtar), DeepL ya da yapay zekâ çevirisi kullanılır
   - **Windows:** Windows 10 (2004) veya 11, 64 bit; ilk açılışta çeviri modeli için yaklaşık 530 MB indirme
 
 ## Kurulum
@@ -140,9 +141,9 @@ görüntüsünü hiçbir sunucuya göndermez. Ayrıntılar: [PRIVACY.md](PRIVACY
 **Mac**
 
 ```bash
-brew install cmake ninja pkg-config protobuf openssl@3 json-c libevent miniupnpc xcodegen
+brew install cmake ninja pkg-config protobuf openssl@3 xcodegen   # OpenSSL, json-c, libevent, miniupnpc kaynaktan derlenir
 git submodule update --init third-party/chiaki-ng
-./scripts/build-chiaki-macos.sh     # libchiaki → third-party/build/CChiaki.xcframework
+./scripts/build-chiaki-macos.sh     # libchiaki (arm64 + x86_64, macOS 13+) → third-party/build/CChiaki.xcframework
 ./scripts/package-mac.sh            # → dist/CouchSubs-<sürüm>-macos.zip
 ```
 
@@ -200,8 +201,9 @@ on your TV on top of the game picture. You keep playing on the TV with your own 
 and translation run on your computer, and subtitles are never sent to the internet.
 
 **You need:** a PS5 and a supported TV on the same network as your computer, a free second
-PlayStation Network account, and either a Mac with Apple Silicon on macOS 26+ or a 64-bit Windows 10 (2004)
-or 11 PC.
+PlayStation Network account, and either a Mac on macOS 13 Ventura or later (Apple Silicon or Intel) or a 64-bit Windows 10 (2004)
+or 11 PC. Apple's free on-device translation needs macOS 26; on older macOS the game packs, Gemini (free key), DeepL or
+AI translation are used.
 
 **TVs:** LG, Samsung (2019 and later; 2017–2018 models experimental) and Android TV / Google TV such as Vestel,
 Arçelik, Beko, Grundig and Philips, all tested on real TVs. CouchSubs installs the TV app on all of them. Mac and
