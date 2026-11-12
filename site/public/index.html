@@ -128,8 +128,8 @@ section.block{padding:clamp(80px, 12vw, 160px) 0; border-top:1px solid var(--lin
 .tabs button{all:unset; cursor:pointer; padding:10px 16px; border-radius:8px; font-weight:500; font-size:15px; color:var(--muted)}
 .tabs button[aria-selected="true"]{background:var(--night-3); color:var(--cream)}
 .tabs button:focus-visible{outline:2px solid var(--amber)}
-.desk{border-radius:16px; overflow:hidden; border:1px solid var(--line-2); background:var(--night-2); aspect-ratio:1200/760; position:relative}
-.desk img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top left; opacity:0; transition:opacity .35s ease}
+.desk{border-radius:16px; overflow:hidden; border:1px solid var(--line-2); background:var(--night-2); aspect-ratio:1200/760; position:relative; transition:aspect-ratio .3s ease}
+.desk img{position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:0; transition:opacity .35s ease}
 .desk img.on{opacity:1}
 .caption{color:var(--muted); font-size:15px; margin:14px 0 0}
 .phones{display:flex; gap:16px; align-items:flex-start}
@@ -434,12 +434,12 @@ footer a{color:var(--cream)}
           <div class="tabs" role="tablist" aria-label="Masaüstü ekranları">
             <button role="tab" aria-selected="true" aria-controls="desk" data-shot="0">Ana ekran</button>
             <button role="tab" aria-selected="false" aria-controls="desk" data-shot="1">Oyun üstünde</button>
-            <button role="tab" aria-selected="false" aria-controls="desk" data-shot="2">Mac, açık</button>
+            <button role="tab" aria-selected="false" aria-controls="desk" data-shot="2">Açık görünüm</button>
           </div>
           <div class="desk" id="desk" role="tabpanel">
             <img class="on" src="img/windows-ana.webp" alt="CouchSubs ana ekranı: PS5 ve TV bağlı, canlı altyazıda Türkçe çeviri ve İngilizce aslı" width="2400" height="1520" loading="lazy">
             <img src="img/windows-pencere.webp" alt="Altyazı penceresi oyun görüntüsünün üstünde, sürükleyip taşınabilir" width="2400" height="1350" loading="lazy">
-            <img src="img/mac-ana.webp" alt="Mac'te açık görünümde CouchSubs ana ekranı" width="2400" height="1504" loading="lazy">
+            <img src="img/windows-ana-acik.webp" alt="Açık görünümde CouchSubs ana ekranı" width="2400" height="1520" loading="lazy">
           </div>
           <p class="caption" id="desk-cap">Canlı altyazı: Türkçesi büyük, İngilizce aslı altında.</p>
         </div>
@@ -655,13 +655,14 @@ footer a{color:var(--cream)}
 
 // Ekran sekmeleri
 (function(){
-  var caps = ['Canlı altyazı: Türkçesi büyük, İngilizce aslı altında.', 'Bilgisayar ekranında altyazı penceresi oyunun üstünde durur; sürükleyip yerini seçersin.', 'Mac\'te açık görünüm. Ayarlar\'dan Koyu, Açık ya da Sistemle aynı seçilir.'];
+  var caps = ['Canlı altyazı: Türkçesi büyük, İngilizce aslı altında.', 'Bilgisayar ekranında altyazı penceresi oyunun üstünde durur; sürükleyip yerini seçersin.', 'Aynı ekran açık görünümde. Ayarlar\'dan Koyu, Açık ya da Sistemle aynı seçilir.'];
   var tabs = document.querySelectorAll('.tabs button'), imgs = document.querySelectorAll('#desk img');
   tabs.forEach(function(t){
     t.addEventListener('click', function(){
       var i = +t.dataset.shot;
       tabs.forEach(function(x){ x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
       imgs.forEach(function(im, k){ im.classList.toggle('on', k === i); });
+      document.getElementById('desk').style.aspectRatio = imgs[i].getAttribute('width') + ' / ' + imgs[i].getAttribute('height');
       document.getElementById('desk-cap').textContent = caps[i];
     });
   });
