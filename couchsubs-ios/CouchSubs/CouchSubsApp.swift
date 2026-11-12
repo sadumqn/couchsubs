@@ -112,8 +112,8 @@ struct RootView: View {
     private func finishWelcome() {
         welcomeSeen = true
         if model.step == .welcome { model.advance() }
-        // İzin akışı tanıtımdan sonra, uygulama öndeyken (Apple'ın izleme izni bağlamsız sorulmasın).
-        Task { await Integrations.requestConsent(meta: AppConfig.facebookAppID != nil, firebase: AppConfig.hasFirebase) }
+        // Meta'nın otomatik olayları karşılamadan sonra açılır (reklam kimliği olmadan; izin formu ya da ATT yok).
+        Integrations.startMeta()
     }
 
     /// Kurulum: PSN girişi → PS5 eşleme → altyazının yeri.
