@@ -155,12 +155,15 @@
   }
 
   // paragraphs: görev paneli gibi başlık ve maddeli yazılar satır satır, sola yaslı gösterilir.
-  function showSubtitle(text, duration, box, paragraphs) {
+  // replaces: bilgisayar bu satırı öncekinin uzamış ya da düzelmiş okuması saydı (bkz. replacesCurrent).
+  function showSubtitle(text, duration, box, paragraphs, replaces) {
     var now = Date.now();
     var current = $('subtitle-text').textContent;
     // Önceki satır kısa göründüyse yeni satırın üstünde kalır. Aynı cümlenin başka bir okunuşu (ya da yeniden gelen
     // satır) ikinci çeviri gibi durmasın diye üste çıkmaz; görev paneli gibi çok satırlı yazılar da üst üste binmez.
-    if ($('subtitle').className !== 'hidden' && current && now - shownAt < STACK_WITHIN_MS &&
+    if (replacesCurrent(replaces, paragraphs)) {
+      // Üstteki daha eski satırlar olduğu gibi kalır.
+    } else if ($('subtitle').className !== 'hidden' && current && now - shownAt < STACK_WITHIN_MS &&
         !paragraphs && !shownParagraphs && !sameLine(current, text)) {
       showPrevious(current);
     } else {
@@ -213,6 +216,12 @@
     if (left <= 0 || $('subtitle').className === 'hidden') return hideSubtitle('clear');
     clearTimeout(hideTimer);
     hideTimer = setTimeout(function () { hideSubtitle('clear-held'); }, left);
+  }
+
+  // Bilgisayar, daktilo efektinde büyüyen ya da belirirken yarım okunan cümlenin her okunuşunu ayrı çevirir; bunlar
+  // üst üste yığılınca aynı cümlenin iki üç çevirisi görünüyordu. "replace" ile gelen satır öncekinin yerine geçer.
+  function replacesCurrent(replaces, paragraphs) {
+    return replaces === true && !paragraphs && $('subtitle').className !== 'hidden' && !!$('subtitle-text').textContent;
   }
 
   // Önceki satır üste çıkar. Orada hâlâ görünen bir satır varsa o da bir üst sıraya (iki önceki) kayar; en çok üç satır.
@@ -487,7 +496,7 @@
     onEvent('subtitle', function (data) {
       diag.subtitles++;
       renderDiag();
-      if (data.text) showSubtitle(data.text, data.duration, data.box, data.paragraphs === true);
+      if (data.text) showSubtitle(data.text, data.duration, data.box, data.paragraphs === true, data.replace === true);
     });
     onEvent('clear', onClear);
     onEvent('screen', function (data) { showScreen(data.items, data.duration); });

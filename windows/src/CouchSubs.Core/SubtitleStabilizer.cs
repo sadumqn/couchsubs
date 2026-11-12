@@ -28,11 +28,18 @@ public sealed class SubtitleStabilizer(double similarity = 0.85, int stableFrame
     public const int RestoreWithinMs = 1500;
     /// <summary>Çevirisi başarısız olan satır en erken bu kadar sonra yeniden denenir.</summary>
     public const int RetryAfterMs = 1000;
+    /// <summary>
+    /// Çöp gibi okunan satır (<see cref="OcrNoise.LooksGarbled"/>) ancak bu kadar süre aynı okununca gider. Altyazılar
+    /// geçişte üst üste solarken yazı tanıma iki satırı karıştırıp birkaç kare aynı çöpü okuyabiliyordu ("- Nat) but, you
+    /// knpw. shit, I m", GTA V, #26); süslü ama gerçekten öyle duran yazı yine çevrilir.
+    /// </summary>
+    public const int GarbledStableMs = 700;
     private const int HistorySize = 5;
 
     private readonly Func<long> now = clock ?? (() => Environment.TickCount64);
     private string candidate = "";
     private int candidateCount;
+    private long candidateSince;
     /// <summary>Ekrandaki (gönderilmiş) satır: sadeleştirilmiş satırlar alt alta, ve ilk okunduğu hali.</summary>
     private string sent = "";
     private string sentRaw = "";
@@ -70,12 +77,19 @@ public sealed class SubtitleStabilizer(double similarity = 0.85, int stableFrame
         {
             candidate = text;
             candidateCount = 1;
+            candidateSince = time;
         }
         // Daktilo efektinde metin büyürken aday değişir; tamamlanıp kararlı olunca gider.
-        // Noktalamayla biten satır zaten tamamdır; hızlı konuşmada beklemeden ilk karede gider.
-        var ready = candidateCount >= stableFrames || EndsSentence(rawText);
+        // Noktalamayla biten satır zaten tamamdır; hızlı konuşmada beklemeden ilk karede gider. Çöp gibi okunan satır
+        // (altyazılar geçişte üst üste solarken karışan okuma) beklemeden gitmez; geçiş süresinden uzun kararlıysa gider.
+        var ready = OcrNoise.LooksGarbled(rawText)
+            ? candidateCount >= stableFrames && time - candidateSince >= GarbledStableMs
+            : candidateCount >= stableFrames || EndsSentence(rawText);
         // Gönderilenin gürültülü yeniden okuması yeni satır değildir; TV'de aynı cümle iki kez görünmesin.
         if (!ready || IsSame(text, sent)) return StabilizerAction.None;
+        // Aynı cümlenin bir iki sözcüğü başka okunmuş, daha iyi olmayan okuması da yeni satır değildir; çevrilseydi TV'de
+        // aynı cümlenin iki üç çevirisi üst üste dururdu. Daha çok sözcük okuyan okuma yeniden çevrilir (TV yerine koyar).
+        if (sentRaw.Length > 0 && TextMatch.IsWorseReread(rawText, sentRaw)) return StabilizerAction.None;
 
         // Az önce kalkan satır geri geldiyse okuma birkaç kare kaçmıştır: çevirisi yeniden gösterilir, yeniden çevrilmez.
         var index = history.FindLastIndex(h => time - h.LeftAt <= RestoreWithinMs && IsSame(text, h.Rows));
