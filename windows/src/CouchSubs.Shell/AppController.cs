@@ -305,7 +305,53 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         ClearFirewallPrompt();
         console = registered;
         store.Save(StoreKeys.Console, registered);
-        Changed(nameof(Console), nameof(CanAdvance), nameof(Ps5StatusText));
+        // Günlükte eşleşmenin kaydedildiği de görünsün (kullanıcılar başarıyı fark etmeyip yeniden bağlanıyordu).
+        RemotePlayLog.Note($"PS5 kaydı kaydedildi ({registered.Host}): {registered.Name}");
+        Changed(nameof(Console), nameof(CanAdvance), nameof(Ps5StatusText), nameof(PairedText));
+    }
+
+    /// <summary>PS5 adımında, eşleşme bitince Bağlan düğmesinin altında gösterilen başarı iletisi; eşleşme yoksa boş.</summary>
+    public string PairedText => console is null
+        ? ""
+        : text.Format("PS5 paired: %@ (%@). Press Continue.", string.IsNullOrEmpty(console.Name) ? "PS5" : console.Name, console.Host);
+
+    /// <summary>
+    /// Eşleşmeden kısa süre sonra kendiliğinden sonraki adıma geçilir. Kullanıcı bu arada Geri'ye bastıysa ya da
+    /// adım değiştiyse hiçbir şey yapılmaz (yalnız PS5 adımından ilerler).
+    /// </summary>
+    public void ContinueAfterPairing()
+    {
+        if (step == OnboardingStep.Console && console is not null) Advance();
+    }
+
+    /// <summary>
+    /// "Hesap kimliğini elle gir": Sony girişi açılamayan kullanıcılar (ör. servis sağlayıcı engelliyor) PSN hesap
+    /// kimliğini base64 olarak (8 bayt, 12 karakter) yazar. Web girişiyle aynı biçimde saklanır. Geçersizse false.
+    /// </summary>
+    public bool UseManualAccountId(string value)
+    {
+        if (ParseAccountId(value) is not { } id) return false;
+        RemotePlayLog.Note("PSN hesap kimliği elle girildi");
+        accountId = id;
+        store.Save(StoreKeys.AccountId, id);
+        Changed(nameof(HasAccount), nameof(CanAdvance));
+        return true;
+    }
+
+    /// <summary>Base64 PSN hesap kimliği: boşluklar atılır, çözülen değer tam 8 bayt olmalı (12 karakter).</summary>
+    public static byte[]? ParseAccountId(string? value)
+    {
+        var trimmed = string.Concat((value ?? "").Where(c => !char.IsWhiteSpace(c)));
+        if (trimmed.Length != 12) return null;
+        try
+        {
+            var bytes = Convert.FromBase64String(trimmed);
+            return bytes.Length == 8 ? bytes : null;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Kullanıcıya gösterilen hata; destek bildirimleri teşhis edilebilsin diye PS5'in kodu da yazılır.</summary>
