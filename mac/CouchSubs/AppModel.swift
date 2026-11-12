@@ -663,6 +663,33 @@ final class AppModel: ObservableObject {
         }
         console = registered
         store.save(registered, for: StoreKey.console)
+        // Günlükte eşleşmenin kaydedildiği de görünsün (kullanıcılar başarıyı fark etmeyip yeniden bağlanıyordu).
+        RemotePlayLog.write("PS5 kaydı kaydedildi (\(registered.host)): \(registered.name)")
+    }
+
+    /// Eşleşmeden kısa süre sonra kendiliğinden sonraki adıma geçilir. Kullanıcı bu arada Geri'ye bastıysa ya da
+    /// adım değiştiyse hiçbir şey yapılmaz (yalnız PS5 adımından ilerler).
+    func continueAfterPairing() {
+        guard step == .console, console != nil else { return }
+        advance()
+    }
+
+    /// "Hesap kimliğini elle gir": Sony girişi açılamayan kullanıcılar (ör. servis sağlayıcı engelliyor) PSN hesap
+    /// kimliğini base64 olarak (8 bayt, 12 karakter) yazar. Web girişiyle aynı biçimde saklanır. Geçersizse false.
+    @discardableResult
+    func useManualAccountId(_ value: String) -> Bool {
+        guard let id = Self.accountId(fromBase64: value) else { return false }
+        RemotePlayLog.write("PSN hesap kimliği elle girildi")
+        accountId = id
+        store.save(id, for: StoreKey.accountId)
+        return true
+    }
+
+    /// Base64 PSN hesap kimliği: boşluklar atılır, çözülen değer tam 8 bayt olmalı (12 karakter).
+    static func accountId(fromBase64 value: String) -> Data? {
+        let trimmed = value.filter { !$0.isWhitespace }
+        guard trimmed.count == 12, let data = Data(base64Encoded: trimmed), data.count == 8 else { return nil }
+        return data
     }
 
     func discoverTVs() async -> [LGTV] { await services.discoverTVs() }
