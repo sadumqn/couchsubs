@@ -178,11 +178,10 @@ struct PSNScreen: View {
             VStack(alignment: .leading, spacing: Mobile.Space.gap) {
                 ScreenTitle(title: "Why a second account?",
                             message: "Remote Play with your own account would take over your controller and stop your game. With a second, free account the PS5 lets the phone watch the picture while you keep playing on the TV. Create it on the PS5 (Add User) or at playstation.com.")
-                Spacer()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Mobile.Space.screen)
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
+            .fittedSheet()
             .sheetBackground(Mobile.Palette.surface)
         }
     }
@@ -301,11 +300,10 @@ struct PS5PairScreen: View {
                     .keyboardType(.decimalPad)
                 Button("Search again") { Task { await search() } }.buttonStyle(.mobileSecondary)
                 Button("Done") { showManual = false }.buttonStyle(.mobilePrimary)
-                Spacer()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Mobile.Space.screen)
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+            .fittedSheet()
             .sheetBackground(Mobile.Palette.surface)
         }
     }
@@ -446,11 +444,10 @@ struct TargetScreen: View {
             }
             .buttonStyle(.mobilePrimary)
             .disabled(manualBrand != .androidTV && manualHost.isEmpty)
-            Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Mobile.Space.screen)
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .fittedSheet()
         .sheetBackground(Mobile.Palette.surface)
     }
 
