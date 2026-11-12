@@ -7,6 +7,7 @@ Developer mode is free and does not harm the TV. The desktop app shows these ste
 |---|---|---|
 | **LG** (webOS 4+) | Tested on a real TV. CouchSubs installs the TV app itself | [LG](#lg-tv) |
 | **Samsung** (Tizen, 2019 and later) | Tested on a real TV (75" Neo QLED). CouchSubs installs it; asks for a Samsung sign-in once | [Samsung](#samsung-tv) |
+| **Samsung** (Tizen 3.0–4.0, 2017–2018) | Experimental: a user installed the app by hand on a UE43MU7000U (2017) and it worked; CouchSubs' own install is not yet tested on these TVs | [Samsung](#samsung-tv) |
 | **Android TV / Google TV** (Vestel, Arçelik, Beko, Grundig, Philips and others) | Tested on a real TV. CouchSubs installs it over the network | [Android TV](#android-tv--google-tv) |
 | **Linux models of Vestel, Arçelik, Beko and Grundig, Philips Saphi and Titan OS** | Not supported: we found no way to install apps on them | |
 

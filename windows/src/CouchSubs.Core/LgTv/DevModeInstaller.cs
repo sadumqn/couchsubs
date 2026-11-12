@@ -20,7 +20,7 @@ public interface ICommandRunner
 public enum DevModeError
 {
     Unreachable, KeyServerOff, WrongPassphrase, KeyRefused, InstallFailed, ToolMissing,
-    /// <summary>Samsung: TV Tizen 5.0'dan (2019) eski.</summary>
+    /// <summary>Samsung: TV Tizen 3.0'dan (2017) eski.</summary>
     TooOld,
     /// <summary>Samsung hesabıyla giriş tamamlanmadı.</summary>
     SignInFailed,
