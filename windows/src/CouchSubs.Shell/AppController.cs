@@ -792,7 +792,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (toTv)
             {
                 server.SendStyle(settings.Style);
-                server.SendSubtitle(result.Translation, milliseconds, result.Box, result.Structured);
+                server.SendSubtitle(result.Translation, milliseconds, result.Box, paragraphs: result.Structured);
             }
             post(() =>
             {
