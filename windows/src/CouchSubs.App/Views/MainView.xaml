@@ -131,7 +131,7 @@
                                     <TextBlock Text="{x:Static c:Glyphs.Globe}" Style="{StaticResource GlyphText}" FontSize="18" HorizontalAlignment="Center" />
                                 </Border>
                                 <TextBlock Text="{t:T 'Translation'}" Style="{StaticResource CaptionText}" />
-                                <TextBlock x:Name="EngineText" Style="{StaticResource HeadlineText}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                <TextBlock x:Name="EngineText" Style="{StaticResource HeadlineText}" Margin="0,4,0,0" TextWrapping="Wrap" />
                             </StackPanel>
                         </c:Card>
                         <c:Card Grid.Row="4" Grid.Column="2">

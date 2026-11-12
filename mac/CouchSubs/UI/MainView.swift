@@ -23,13 +23,7 @@ struct MainView: View {
                 let available = geometry.size.width
                 if available >= Self.controlsColumnMin + gap + Self.liveColumnMin {
                     HStack(alignment: .top, spacing: gap) {
-                        ScrollView {
-                            MainControls()
-                                .padding(.vertical, Theme.space("m"))
-                        }
-                        .scrollIndicators(.never)
-                        .padding(.vertical, -Theme.space("m"))
-                        .frame(width: min(Theme.size("mainColumn"), available - gap - Self.liveColumnMin))
+                        ControlsColumn(width: min(Theme.size("mainColumn"), available - gap - Self.liveColumnMin))
                         VStack(alignment: .leading, spacing: gap) {
                             PackInUseTile()
                             LiveSubtitlesTile()
@@ -43,6 +37,8 @@ struct MainView: View {
                             PackInUseTile()
                             LiveSubtitlesTile().frame(minHeight: Self.liveColumnMin)
                         }
+                        // Kaydırma alanı içeriğe genişlik önermeyebilir; genişlik sabitlenmezse yazılar satıra inmez.
+                        .frame(width: available)
                     }
                     .scrollIndicators(.never)
                 }
@@ -78,8 +74,28 @@ private struct MainHeader: View {
     }
 }
 
+/// Sol sütun, kendi genişliğinde kayan. İçerik genişliği sabitlenir: dikey `ScrollView` içeriğine her düzen
+/// geçişinde kendi genişliğini önermez; pencere içerik boyuna göre yeniden ölçülünce (Ayarlar sayfası açılıp
+/// kapanınca) içerik "ideal" genişliğinde, yazılar tek satırda ölçülebiliyor. `MainControls`'ün ideal genişliği
+/// sütundan geniştir (456–681 pt); sabitlenmezse karolar sütundan taşıp ortalanır: sol kenar boşluğu daralır,
+/// sağda karolar sağ sütuna dayanır ve kenarları kesilir.
+struct ControlsColumn: View {
+    let width: CGFloat
+
+    var body: some View {
+        ScrollView {
+            MainControls()
+                .padding(.vertical, Theme.space("m"))
+                .frame(width: width)
+        }
+        .scrollIndicators(.never)
+        .padding(.vertical, -Theme.space("m"))
+        .frame(width: width)
+    }
+}
+
 /// Sol sütun: başlat/durdur, PS5 ve TV, altyazının yeri, çeviri motoru, kısayol, uyarılar.
-private struct MainControls: View {
+struct MainControls: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
