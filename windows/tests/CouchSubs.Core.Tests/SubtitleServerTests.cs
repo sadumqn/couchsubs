@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+﻿// SPDX-License-Identifier: AGPL-3.0-only
 
 using System.Net;
 using CouchSubs.Core;
@@ -175,6 +175,8 @@ public class SubtitleServerTests
         Assert.Contains("\"bold\":true", data);
         Assert.Contains("\"textColor\":\"yellow\"", data);
         Assert.Contains("\"displayMode\":\"overlay\"", data);
+        // Varsayılan: önceki satırlar üstte kalır (eski davranış); ayar TV'ye gider.
+        Assert.Contains("\"stackPrevious\":true", data);
     }
 
     [Fact]

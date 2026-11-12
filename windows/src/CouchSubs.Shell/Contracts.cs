@@ -109,6 +109,13 @@ public sealed record UserSettings
     /// <summary>Serbest alan çevirisinin (Num 5) sonucu nerede gösterilir.</summary>
     public ResultTarget FreeAreaTarget { get; init; } = ResultTarget.Tv;
     public SubtitleStyle Style { get; init; } = new();
+    /// <summary>
+    /// Gelişmiş: bozuk okunan satırın daha iyi okuma için en çok bekletileceği süre (ms; 0: beklenmez). Eski kayıtlar
+    /// varsayılanla açılır.
+    /// </summary>
+    public int MisreadWaitMs { get; init; } = SubtitlePipeline.PackWaitMs;
+    /// <summary>Gelişmiş: yarım görünen satırın tamamı için en çok bekletileceği süre (ms; 0: beklenmez).</summary>
+    public int PartialWaitMs { get; init; } = SubtitlePipeline.CleanWaitMs;
     public string SourceLanguage { get; init; } = "en";
     public string TargetLanguage { get; init; } = "tr";
     public DubbingSettings Dubbing { get; init; } = new();

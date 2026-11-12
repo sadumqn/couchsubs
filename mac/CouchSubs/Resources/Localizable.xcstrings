@@ -481,6 +481,166 @@
         }
       }
     },
+    "Keep previous lines above in fast dialogue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep previous lines above in fast dialogue"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hızlı konuşmada önceki satırları üstte göster"
+          }
+        }
+      }
+    },
+    "When off, each new line replaces the previous one. Needs TV app 0.9.14 or later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When off, each new line replaces the previous one. Needs TV app 0.9.14 or later."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapalıyken her yeni satır öncekinin yerine geçer. TV uygulaması 0.9.14 ve sonrası gerekir."
+          }
+        }
+      }
+    },
+    "Advanced": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelişmiş"
+          }
+        }
+      }
+    },
+    "These waits only delay lines that were read badly; most lines are shown without waiting. A shorter wait shows those lines sooner but lets more wrong translations through.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These waits only delay lines that were read badly; most lines are shown without waiting. A shorter wait shows those lines sooner but lets more wrong translations through."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu bekleme süreleri yalnız kötü okunan satırları geciktirir; satırların çoğu hiç beklemeden gösterilir. Kısa bekleme o satırları daha erken gösterir ama daha çok yanlış çeviriye yol açar."
+          }
+        }
+      }
+    },
+    "Wait for a misread line": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait for a misread line"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bozuk okunan satır için bekleme"
+          }
+        }
+      }
+    },
+    "When a line is read with words that are not in the dictionary, a better reading is awaited for at most this long. Measured in GTA V, translations from misread lines compared with 0 s: 0.2 s → 77%, 0.4 s → 49%, 0.6 s → 41%, 0.8 s (recommended) → 34%, 1.0 s → 31%.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When a line is read with words that are not in the dictionary, a better reading is awaited for at most this long. Measured in GTA V, translations from misread lines compared with 0 s: 0.2 s → 77%, 0.4 s → 49%, 0.6 s → 41%, 0.8 s (recommended) → 34%, 1.0 s → 31%."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satır sözlükte olmayan sözcüklerle okunursa daha iyi bir okuma için en çok bu kadar beklenir. GTA V'te ölçülen, bozuk okumadan çıkan çeviri sayısı (0 sn'ye göre): 0,2 sn → %77, 0,4 sn → %49, 0,6 sn → %41, 0,8 sn (önerilen) → %34, 1,0 sn → %31."
+          }
+        }
+      }
+    },
+    "Wait for a half-read line": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait for a half-read line"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yarım okunan satır için bekleme"
+          }
+        }
+      }
+    },
+    "When a line looks cut off (no sentence ending, such as a mission text with a colored word), the full line is awaited for at most this long. Its effect is small: at 0 s a few more lines arrive cut off. Recommended: 0.3 s.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When a line looks cut off (no sentence ending, such as a mission text with a colored word), the full line is awaited for at most this long. Its effect is small: at 0 s a few more lines arrive cut off. Recommended: 0.3 s."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satır yarım görünürse (cümle sonu işareti yok; ör. renkli sözcüklü görev yazısı) tamamı için en çok bu kadar beklenir. Etkisi küçüktür: 0 sn'de birkaç satır daha yarım gelir. Önerilen: 0,3 sn."
+          }
+        }
+      }
+    },
+    "Restore defaults": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore defaults"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varsayılanlara dön"
+          }
+        }
+      }
+    },
+    "sec": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "s"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sn"
+          }
+        }
+      }
+    },
     "Bold text": {
       "localizations": {
         "en": {

@@ -205,6 +205,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (old.Output != value.Output) OutputChanged();
             if (old.Dubbing != value.Dubbing) DubbingSettingsChanged(old.Dubbing);
             if (old.GamePacks != value.GamePacks && pipeline is not null) ConnectPacks(pipeline);
+            if ((old.MisreadWaitMs != value.MisreadWaitMs || old.PartialWaitMs != value.PartialWaitMs) && pipeline is not null) ApplyWaits(pipeline);
             if (old.SharePool != value.SharePool) services.Pool?.SetEnabled(value.SharePool);
             var translationChanged = old.OnlineTranslation != value.OnlineTranslation || old.OnlineEngine != value.OnlineEngine
                                      || old.GeminiModel != value.GeminiModel || old.OpenAiModel != value.OpenAiModel
@@ -1108,6 +1109,13 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private void ConnectPacks(SubtitlePipeline target) => target.PackLookup = PacksActive ? services.FindInPacks : null;
 
+    /// <summary>Gelişmiş ayarlardaki bekleme süreleri (0–2 sn).</summary>
+    private void ApplyWaits(SubtitlePipeline target)
+    {
+        target.PackWait = Math.Clamp(settings.MisreadWaitMs, 0, 2000);
+        target.CleanWait = Math.Clamp(settings.PartialWaitMs, 0, 2000);
+    }
+
     /// <summary>Pakette olmayan İngilizce satır havuza önerilir (paketler kapalıysa da yalnız hiçbir pakette olmayanlar).</summary>
     private void OfferToPool(string text)
     {
@@ -1144,6 +1152,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         built.SpeechReady += lines => post(() => Speak(lines));
         built.PackMissed += OfferToPool;
         ConnectPacks(built);
+        ApplyWaits(built);
         OnlineIssue = null;
         pipeline = built;
     }
