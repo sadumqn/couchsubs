@@ -27,7 +27,7 @@ enum SettingsSection: CaseIterable, Identifiable {
         case .appearance: "captions.bubble"
         case .dubbing: "waveform"
         case .translation: "globe"
-        case .packs: "bolt"
+        case .packs: "shippingbox"
         case .language: "character.bubble"
         case .area: "rectangle.dashed"
         case .obs: "dot.radiowaves.left.and.right"
@@ -67,7 +67,7 @@ struct SettingsView: View {
     }
 }
 
-/// Bölüm listesi: seçili satır yüzey-2 zeminli ve sarı simgeli.
+/// Bölüm listesi: seçili satır yüzey-2 zeminli ve yarı kalın (sarı değil).
 private struct SettingsSidebar: View {
     @Binding var section: SettingsSection
 
@@ -100,7 +100,7 @@ struct SidebarRow: View {
             HStack(spacing: Theme.space("m")) {
                 Image(systemName: symbol)
                     .frame(width: 20)
-                    .foregroundStyle(selected ? Color.csAccentText : Color.csSecondary)
+                    .foregroundStyle(selected ? Color.csText : Color.csSecondary)
                 Text(title)
                     .font(selected ? .csBody.weight(.semibold) : .csBody)
                     .foregroundStyle(Color.csText)
@@ -108,7 +108,7 @@ struct SidebarRow: View {
             }
             .padding(.horizontal, Theme.space("m"))
             .frame(minHeight: 40)
-            .background(selected ? Color.csSurface2 : Color.clear, in: RoundedRectangle(cornerRadius: Theme.radius("inner"), style: .continuous))
+            .background(selected ? Color.csSurface2 : Color.clear, in: RoundedRectangle(cornerRadius: Theme.radius("control"), style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -123,7 +123,7 @@ private struct SettingsPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.space("gap")) {
             if section != .packs {
-                Text(section.title).font(.csDisplay).tracking(-0.4)
+                Text(section.title).font(.csDisplay)
             }
             switch section {
             case .appearance:
@@ -308,7 +308,7 @@ private struct GamePacksPage: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Game packs").font(.csDisplay).tracking(-0.4)
+            Text("Game packs").font(.csDisplay)
             Spacer()
             if !model.installedPacks.isEmpty {
                 Pill(text: String(format: String(localized: "Free · %lld games"), model.installedPacks.count), tone: .success)
@@ -349,10 +349,10 @@ private struct PackTile: View {
     var body: some View {
         HStack(alignment: .top, spacing: Theme.space("m")) {
             Text(verbatim: initials)
-                .font(.csCaption.weight(.bold))
-                .foregroundStyle(Color.csPro)
+                .font(.csCaption.weight(.semibold))
+                .foregroundStyle(Color.csText)
                 .frame(width: 48, height: 48)
-                .background(Color.csProSoft, in: RoundedRectangle(cornerRadius: Theme.radius("inner"), style: .continuous))
+                .background(Color.csSurface2, in: RoundedRectangle(cornerRadius: Theme.radius("inner"), style: .continuous))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Theme.space("hair")) {
                 Text(verbatim: pack.title).font(.csHeadline).fixedSize(horizontal: false, vertical: true)
@@ -654,7 +654,7 @@ struct RegionPicker: View {
                     if let frame {
                         Image(decorative: frame, scale: 1).resizable()
                     } else {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.csBackground)
+                        RoundedRectangle(cornerRadius: Theme.radius("inner")).fill(Color.csBackground)
                         Text("The game picture appears here once translating starts.")
                             .font(.csCaption).foregroundStyle(Color.csSecondary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -667,7 +667,7 @@ struct RegionPicker: View {
                 }
             }
             .aspectRatio(16 / 9, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.radius("control")))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radius("inner")))
 
             Grid(alignment: .leading) {
                 GridRow {

@@ -7,7 +7,7 @@ import AppKit
 import UIKit
 #endif
 
-/// design/tokens.json: renkler, yazı boyutları, boşluklar. Windows sürümü de aynı dosyayı kullanır;
+/// design/tokens.json: renkler, yazı boyutları, boşluklar, köşeler. Parıltı ve degrade yoktur (docs/TASARIM.md). Windows sürümü de aynı dosyayı kullanır;
 /// bir değeri değiştirmek için yalnız o dosya düzenlenir.
 struct DesignTokens: Decodable {
     struct ColorPair: Decodable {
@@ -20,17 +20,8 @@ struct DesignTokens: Decodable {
         let weight: String
     }
 
-    /// Parıltı: renk, saydamlık, bulanıklık yarıçapı ve dikey kayma (docs/TASARIM.md › Parıltı).
-    struct GlowToken: Decodable {
-        let color: String
-        let opacity: Double
-        let radius: Double
-        let y: Double
-    }
-
     let name: String
     let color: [String: ColorPair]
-    let glow: [String: GlowToken]
     let font: [String: FontToken]
     let space: [String: Double]
     let radius: [String: Double]
@@ -93,14 +84,6 @@ enum Theme {
         return .system(size: token.size, weight: weight)
     }
 
-    /// Parıltının rengi ve ölçüsü; görünüm `glow(_:)` ile uygular.
-    static func glow(_ name: String) -> (color: Color, radius: CGFloat, y: CGFloat) {
-        guard let token = tokens.glow[name] else { fatalError("Bilinmeyen parıltı: \(name)") }
-        let (r, g, b) = DesignTokens.rgb(token.color) ?? (0, 0, 0)
-        // CSS'teki bulanıklık yarıçapı SwiftUI'da yaklaşık yarısına denk gelir.
-        return (Color(.sRGB, red: r, green: g, blue: b, opacity: token.opacity), CGFloat(token.radius) / 2, CGFloat(token.y))
-    }
-
     static func space(_ name: String) -> CGFloat { CGFloat(tokens.space[name] ?? 0) }
     static func radius(_ name: String) -> CGFloat { CGFloat(tokens.radius[name] ?? 0) }
     static func size(_ name: String) -> CGFloat { CGFloat(tokens.size[name] ?? 0) }
@@ -130,16 +113,8 @@ extension Color {
     static let csOnDanger = Theme.color("onDanger")
 }
 
-extension View {
-    /// tokens.json'daki parıltı (ör. "primary", "activeTile", "pro").
-    func glow(_ name: String, enabled: Bool = true) -> some View {
-        let glow = Theme.glow(name)
-        return shadow(color: enabled ? glow.color : .clear, radius: glow.radius, x: 0, y: glow.y)
-    }
-}
-
 extension Font {
-    /// Ekran başlığı; harf aralığı −0,4 (`.tracking(-0.4)`) ile kullanılır.
+    /// Ekran başlığı (28, yarı kalın, harf aralığı 0); ekranda en çok bir.
     static let csDisplay = Theme.font("display")
     static let csTitle = Theme.font("title")
     static let csHeadline = Theme.font("headline")

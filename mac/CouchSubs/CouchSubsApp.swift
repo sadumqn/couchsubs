@@ -47,7 +47,7 @@ struct CouchSubsApp: App {
             CommandGroup(replacing: .appInfo) {
                 Button("About CouchSubs") { model.showAbout = true }
                 #if !APP_STORE
-                Button("Check for Updates…") { updater.checkForUpdates(nil) }
+                Button("Check for updates…") { updater.checkForUpdates(nil) }
                 #endif
             }
             CommandGroup(replacing: .appSettings) {

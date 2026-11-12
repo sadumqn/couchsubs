@@ -14,7 +14,7 @@ struct BetterTranslationStep: View {
     @State private var result: Result<String, AIFailure>?
 
     var body: some View {
-        StepLayout(symbol: "character.bubble.fill", title: "Better translation (free)", message: FreeGemini.pitch) {
+        StepLayout(title: "Better translation (free)", message: FreeGemini.pitch) {
             VStack(alignment: .leading, spacing: Theme.space("l")) {
                 if model.usesFreeGemini {
                     DoneLabel(text: String(localized: "Gemini is ready. Subtitles will be translated with Gemini."))

@@ -23,7 +23,8 @@ struct LogoView: View {
     }
 }
 
-/// Düğme türleri: birincil (sarı, parıltılı), ikincil (yüzey-2, çerçeveli), tehlikeli (kırmızı tonlu), hayalet (yalnız yazı).
+/// Düğme türleri: birincil (düz sarı), ikincil (yüzey-2, çerçeveli), tehlikeli (kırmızı tonlu, çerçevesiz), hayalet (yalnız yazı).
+/// Gölge ve parıltı yok; basılıyken %97 ölçek (birincilde biraz açık sarı), devre dışıyken %40 saydamlık.
 struct CSButtonStyle: ButtonStyle {
     enum Kind { case primary, secondary, danger, ghost }
     var kind: Kind = .secondary
@@ -38,14 +39,11 @@ struct CSButtonStyle: ButtonStyle {
         return configuration.label
             .font(.csButton)
             .foregroundStyle(foreground)
-            .padding(.horizontal, kind == .ghost ? Theme.space("s") : Theme.space("tile"))
+            .padding(.horizontal, kind == .ghost ? Theme.space("m") : Theme.space("tile"))
             .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: Theme.size(height))
-            .background(background, in: shape)
+            .background(background(pressed: pressed), in: shape)
             .overlay { border(shape) }
-            .compositingGroup()
-            .glow("primary", enabled: kind == .primary && isEnabled && !pressed)
-            .glow("primaryDrop", enabled: kind == .primary && isEnabled && !pressed)
-            .scaleEffect(pressed ? 0.96 : 1)
+            .scaleEffect(pressed ? 0.97 : 1)
             .opacity(isEnabled ? 1 : 0.4)
             .contentShape(shape)
             .animation(.easeOut(duration: 0.12), value: pressed)
@@ -54,8 +52,7 @@ struct CSButtonStyle: ButtonStyle {
     @ViewBuilder private func border(_ shape: RoundedRectangle) -> some View {
         switch kind {
         case .secondary: shape.strokeBorder(Color.csBorder)
-        case .danger: shape.strokeBorder(Color.csDangerBorder)
-        case .primary, .ghost: EmptyView()
+        case .primary, .danger, .ghost: EmptyView()
         }
     }
 
@@ -68,12 +65,12 @@ struct CSButtonStyle: ButtonStyle {
         }
     }
 
-    private var background: AnyShapeStyle {
+    private func background(pressed: Bool) -> Color {
         switch kind {
-        case .primary: AnyShapeStyle(LinearGradient(colors: [.csAccentHi, .csAccent], startPoint: .top, endPoint: .bottom))
-        case .secondary: AnyShapeStyle(Color.csSurface2)
-        case .danger: AnyShapeStyle(Color.csDangerSoft)
-        case .ghost: AnyShapeStyle(Color.clear)
+        case .primary: pressed ? .csAccentHi : .csAccent
+        case .secondary: .csSurface2
+        case .danger: .csDangerSoft
+        case .ghost: .clear
         }
     }
 }
@@ -102,12 +99,12 @@ struct CSTextFieldStyle: TextFieldStyle {
     }
 }
 
-/// Karonun görünümü: düz, etkin (sarı çerçeve ve parıltı: canlı altyazı, seçili seçenek) ya da paket (mor→sarı çerçeve).
+/// Karonun görünümü: düz ya da etkin (seçili seçenek: 1 pt sarı çerçeve). Parıltı ve degrade yok.
 enum TileStyle {
-    case plain, active, pro
+    case plain, active
 }
 
-/// Bento karosu: yüzey, üstten hafif ışık, ince çerçeve, büyük köşe.
+/// Karo: düz yüzey, ince çerçeve, karo köşesi (16).
 struct TileBackground: ViewModifier {
     var style: TileStyle = .plain
     var padding: CGFloat = Theme.space("tile")
@@ -116,31 +113,8 @@ struct TileBackground: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: Theme.radius("card"), style: .continuous)
         return content
             .padding(padding)
-            .background(fill, in: shape)
-            .overlay(shape.fill(Self.sheen).allowsHitTesting(false))
-            .overlay(border(shape))
-            // Parıltı karonun yalnız dışına düşsün (içindeki yazılara ayrı ayrı gölge düşmesin).
-            .compositingGroup()
-            .glow("activeTile", enabled: style == .active)
-            .glow("pro", enabled: style == .pro)
-    }
-
-    /// Üstten aşağı %4 beyaz ışık (koyu temada karoyu zeminden ayırır).
-    private static let sheen = LinearGradient(colors: [.white.opacity(0.04), .white.opacity(0)], startPoint: .top, endPoint: .center)
-
-    private var fill: AnyShapeStyle {
-        switch style {
-        case .pro: AnyShapeStyle(LinearGradient(colors: [.csProSoft, .csSurface], startPoint: .top, endPoint: .bottom))
-        case .plain, .active: AnyShapeStyle(Color.csSurface)
-        }
-    }
-
-    @ViewBuilder private func border(_ shape: RoundedRectangle) -> some View {
-        switch style {
-        case .plain: shape.strokeBorder(Color.csTileBorder)
-        case .active: shape.strokeBorder(Theme.glow("activeBorder").color)
-        case .pro: shape.strokeBorder(LinearGradient(colors: [.csPro, .csAccent], startPoint: .topLeading, endPoint: .bottomTrailing))
-        }
+            .background(Color.csSurface, in: shape)
+            .overlay(shape.strokeBorder(style == .active ? Color.csAccent : Color.csTileBorder))
     }
 }
 
@@ -168,33 +142,22 @@ struct Card<Content: View>: View {
     }
 }
 
-/// Yumuşak sarı zeminde simge (sihirbaz adımının başı).
-struct IconBadge: View {
-    let symbol: String
-
-    var body: some View {
-        TileIcon(symbol: symbol, tint: .csAccentText, background: .csAccentSoft, size: Theme.size("iconBadge"))
-    }
-}
-
-/// Karonun köşesindeki küçük simge: renkli simge, aynı rengin yumuşak zemini.
+/// Karodaki simge: kutusuz, 18 pt, ikincil renkte (paket simgesi mor).
 struct TileIcon: View {
     let symbol: String
-    var tint: Color = .csText
-    var background: Color = .csSurface2
-    var size: CGFloat = Theme.size("tileIcon")
+    var tint: Color = .csSecondary
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: size * 0.5, weight: .semibold))
+            .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(tint)
-            .frame(width: size, height: size)
-            .background(background, in: RoundedRectangle(cornerRadius: Theme.radius("inner"), style: .continuous))
+            .frame(width: 18, height: 18)
             .accessibilityHidden(true)
     }
 }
 
-/// Durum hapı: yuvarlak uçlu, renkli zemin üstünde kısa yazı.
+/// Etiket: 24 yükseklik, etiket köşesi (6), nötr zemin; paket için mor. Canlı durum (`live`) etiket değil,
+/// atan nokta ve yazıdır.
 struct Pill: View {
     enum Tone { case accent, pro, success, muted }
     let text: String
@@ -202,37 +165,39 @@ struct Pill: View {
     var live = false
 
     var body: some View {
-        HStack(spacing: Theme.space("inline")) {
-            if live { LiveDot() }
-            Text(verbatim: text).lineLimit(1)
-        }
-        .font(.csCaption.weight(.semibold))
-        .foregroundStyle(foreground)
-        .padding(.horizontal, Theme.space("m"))
-        .frame(height: 28)
-        .background(background, in: Capsule())
-    }
-
-    private var foreground: Color {
-        switch tone {
-        case .accent: .csAccentText
-        case .pro: .csPro
-        case .success: .csSuccess
-        case .muted: .csSecondary
-        }
-    }
-
-    private var background: Color {
-        switch tone {
-        case .accent: .csAccentSoft
-        case .pro: .csProSoft
-        case .success: .csSuccessSoft
-        case .muted: .csSurface2
+        if live {
+            HStack(spacing: Theme.space("inline")) {
+                LiveDot()
+                Text(verbatim: text).lineLimit(1)
+            }
+            .font(.csCaption.monospacedDigit())
+            .foregroundStyle(Color.csText)
+        } else {
+            Text(verbatim: text)
+                .lineLimit(1)
+                .font(.csCaption.monospacedDigit())
+                .foregroundStyle(tone == .pro ? Color.csPro : Color.csSecondary)
+                .padding(.horizontal, Theme.space("s"))
+                .frame(height: 24)
+                .background(tone == .pro ? Color.csProSoft : Color.csSurface2,
+                            in: RoundedRectangle(cornerRadius: Theme.radius("tag"), style: .continuous))
         }
     }
 }
 
-/// Canlı nokta: yeşil nokta ve 1,6 sn'de bir genişleyip sönen halka (azaltılmış harekette halka yok).
+/// Durum noktası (8 pt): bağlı, hazır, sorun var. Atmaz; atan nokta yalnız canlı çeviride (`LiveDot`).
+struct StatusDot: View {
+    var color: Color = .csSuccess
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: Theme.size("statusDot"), height: Theme.size("statusDot"))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Canlı nokta: yeşil nokta ve 2 sn'de bir genişleyip sönen halka; yalnız çeviri canlıyken (azaltılmış harekette halka yok).
 struct LiveDot: View {
     var color: Color = .csSuccess
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -247,32 +212,29 @@ struct LiveDot: View {
                 if !reduceMotion {
                     Circle()
                         .stroke(color, lineWidth: 2)
-                        .frame(width: size + 12, height: size + 12)
-                        .scaleEffect(pulsing ? 1.2 : 0.4)
-                        .opacity(pulsing ? 0 : 0.8)
+                        .frame(width: size + 8, height: size + 8)
+                        .scaleEffect(pulsing ? 1.2 : 0.5)
+                        .opacity(pulsing ? 0 : 0.7)
                 }
             }
             .onAppear {
-                withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulsing = true }
+                guard !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 2).repeatForever(autoreverses: false)) { pulsing = true }
             }
             .accessibilityHidden(true)
     }
 }
 
-/// Sihirbaz adımlarının ortak düzeni: simge, başlık, açıklama, içerik.
+/// Sihirbaz adımlarının ortak düzeni: başlık, açıklama, içerik (simge kutusu yok).
 struct StepLayout<Content: View>: View {
-    let symbol: String
     let title: LocalizedStringKey
     let message: LocalizedStringKey
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.space("l")) {
-            IconBadge(symbol: symbol)
             Text(title)
                 .font(.csDisplay)
-                .tracking(-0.4)
-                .padding(.top, Theme.space("xs"))
             Text(message)
                 .font(.csBody)
                 .foregroundStyle(Color.csSecondary)
@@ -295,9 +257,9 @@ struct NumberedRow: View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.space("m")) {
             Text("\(number)")
                 .font(.csCallout.monospacedDigit().weight(.semibold))
-                .foregroundStyle(Color.csAccentText)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(Color.csAccentSoft))
+                .foregroundStyle(Color.csText)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color.csSurface2))
             Text(text)
                 .font(.csBody)
                 .lineSpacing(3)
@@ -340,7 +302,7 @@ struct StatusRow: View {
     }
 }
 
-/// Bento durum karosu: üstte simge (bağlıysa canlı nokta), altında küçük ad ve değer.
+/// Durum karosu: üstte etiket satırı (simge, ad, durum noktası), altında değer.
 struct StatusTile<Accessory: View>: View {
     let symbol: String
     let title: LocalizedStringKey
@@ -350,13 +312,12 @@ struct StatusTile<Accessory: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.space("s")) {
-            HStack {
-                TileIcon(symbol: symbol, tint: iconTint, background: iconBackground)
-                Spacer()
-                if tone == .good { LiveDot() }
-                else if tone == .warning { Circle().fill(Color.csWarning).frame(width: Theme.size("statusDot"), height: Theme.size("statusDot")) }
+            HStack(spacing: Theme.space("inline")) {
+                TileIcon(symbol: symbol)
+                Text(title).font(.csCaption).foregroundStyle(Color.csSecondary)
+                Spacer(minLength: 0)
+                if tone != .idle { StatusDot(color: tone.color) }
             }
-            Text(title).font(.csCaption).foregroundStyle(Color.csSecondary)
             Text(verbatim: value)
                 .font(.csHeadline)
                 .fixedSize(horizontal: false, vertical: true)
@@ -366,9 +327,6 @@ struct StatusTile<Accessory: View>: View {
         .tile()
         .accessibilityElement(children: .combine)
     }
-
-    private var iconTint: Color { tone == .good ? .csSuccess : .csText }
-    private var iconBackground: Color { tone == .good ? .csSuccessSoft : .csSurface2 }
 }
 
 extension StatusTile where Accessory == EmptyView {
@@ -415,28 +373,6 @@ struct ErrorText: View {
     }
 }
 
-/// Pencere zemini: sağ üstte sarı, sol altta mor yumuşak ışık (hareketsiz).
-struct BackgroundGlow: View {
-    var body: some View {
-        GeometryReader { geometry in
-            let size = geometry.size
-            ZStack {
-                Color.csBackground
-                spot("backgroundAccent", center: UnitPoint(x: 0.88, y: -0.06), in: size)
-                spot("backgroundPro", center: UnitPoint(x: -0.12, y: 1.06), in: size)
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
-    }
-
-    private func spot(_ name: String, center: UnitPoint, in size: CGSize) -> some View {
-        let glow = Theme.glow(name)
-        // tokens.json'daki yarıçap CSS biçiminde; Theme.glow yarısını verir.
-        return RadialGradient(colors: [glow.color, glow.color.opacity(0)], center: center, startRadius: 0, endRadius: glow.radius * 2 * 0.62)
-    }
-}
-
 /// Uygulamanın tamamına zemin rengi, yazı rengi ve temel yazı boyutunu verir.
 struct AppSurface: ViewModifier {
     func body(content: Content) -> some View {
@@ -444,7 +380,7 @@ struct AppSurface: ViewModifier {
             .font(.csBody)
             .foregroundStyle(Color.csText)
             .tint(Color.csAccentText)
-            .background(BackgroundGlow())
+            .background(Color.csBackground.ignoresSafeArea())
     }
 }
 
