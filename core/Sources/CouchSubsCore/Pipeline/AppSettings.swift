@@ -77,6 +77,11 @@ public enum SubtitleOutput: String, Codable, CaseIterable {
     public var showsOnComputer: Bool { self != .tv }
 }
 
+/// Uygulama pencerelerinin görünümü (Windows'taki `AppAppearance` ile aynı). Onaylı tasarım koyudur; varsayılan da odur.
+public enum AppAppearance: String, Codable, CaseIterable {
+    case dark, light, system
+}
+
 /// Kalıcı ayarlar (Anahtarlık değil, sıradan tercihler).
 public struct UserSettings: Codable, Equatable {
     public var region = CropRegion()
@@ -105,6 +110,8 @@ public struct UserSettings: Codable, Equatable {
     public var gamePacks = true
     /// Pakette bulunmayan İngilizce satırlar ortak havuza gönderilir (anonim; bkz. `LinePool`).
     public var sharePool = LinePool.enabledByDefault
+    /// Koyu, açık ya da sistemle aynı. Eski kayıtlarda yoktur; onlar da koyu açılır.
+    public var appearance = AppAppearance.dark
 
     public init() {}
 
@@ -129,6 +136,7 @@ public struct UserSettings: Codable, Equatable {
         overlayClickThrough = try values.decodeIfPresent(Bool.self, forKey: .overlayClickThrough) ?? defaults.overlayClickThrough
         gamePacks = try values.decodeIfPresent(Bool.self, forKey: .gamePacks) ?? defaults.gamePacks
         sharePool = try values.decodeIfPresent(Bool.self, forKey: .sharePool) ?? defaults.sharePool
+        appearance = (try? values.decodeIfPresent(AppAppearance.self, forKey: .appearance)) ?? defaults.appearance
     }
 
     /// Listede olmayan kayıtlı modeller (eski ayar ya da listeden çıkarılan model) varsayılana döner.

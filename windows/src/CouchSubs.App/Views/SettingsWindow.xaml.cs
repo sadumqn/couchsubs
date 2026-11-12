@@ -58,7 +58,14 @@ public partial class SettingsWindow : Window
         GamePacks.IsChecked = settings.GamePacks;
         SharePool.IsChecked = settings.SharePool;
         ShowPacks();
+        AppearanceChoice.SelectedItem = AppearanceChoice.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.Appearance.ToString());
         loading = false;
+    }
+
+    private void OnAppearance(object sender, SelectionChangedEventArgs e)
+    {
+        if (AppearanceChoice.SelectedItem is ComboBoxItem { Tag: string tag })
+            Update(s => s with { Appearance = Enum.Parse<AppAppearance>(tag) });
     }
 
     private void OnControllerChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

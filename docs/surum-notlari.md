@@ -4,6 +4,7 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 
 **Bu sürümde yeni**
 
+- **Koyu görünüm artık varsayılan (Mac ve Windows):** Uygulama, sistem açık temada olsa da onaylı tasarımdaki gibi koyu açılıyor. İsteyen Ayarlar › CouchSubs Hakkında › **Görünüm**'den **Açık** ya da **Sistemle aynı**'yı seçebilir; seçim ana pencereye, ayarlara, kurulum ekranlarına ve altyazı penceresine anında uygulanır. iPhone zaten koyuydu.
 - **Yerel yapay zekâ ile çeviri (Ollama, LM Studio):** Ayarlar › Çeviri'de yeni **Yerel model** motoru. Çeviriyi kendi bilgisayarınızda çalışan bir model (ör. `ollama pull qwen2.5:7b`) yapar; anahtar, kota ve ücret yoktur, altyazı metni bilgisayardan çıkmaz. Sunucu adresi ve model adı yazılır, **Bağlantıyı dene** sunucunun açık ve modelin indirilmiş olduğunu denetler. Model yanıt vermezse o satır ücretsiz çeviriyle gelir. Nasıl kurulacağı README'de. İsteyenlere teşekkürler (GitHub #27).
 - **Sadeleştirilmiş görünüm (Mac, Windows, iPhone):** Parıltılar, degradeler ve zemindeki ışıklar kalktı; köşeler ve yazı boyları tek ölçekte, sarı yalnız ana düğmede, seçili şeyde ve canlı Türkçe satırda. Mac'te dar pencerede ana ekranın iki sütunu artık üst üste binmiyor (sığmazsa alt alta diziliyor).
 - **Linux sunucusu (Docker):** CouchSubs artık evdeki bir Ubuntu sunucusunda ekransız çalışabiliyor; kurulum ve denetim aynı ağdaki telefondan ya da bilgisayardan açılan tarayıcı paneliyle yapılıyor. Ayrıntılar `linux/README.md`'de. Katkı: [Ceyhun Yılmaz](https://github.com/xZireaeel).

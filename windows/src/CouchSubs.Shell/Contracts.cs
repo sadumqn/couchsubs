@@ -39,6 +39,10 @@ public static class SubtitleOutputs
     public static bool ShowsOnComputer(this SubtitleOutput output) => output != SubtitleOutput.Tv;
 }
 
+/// <summary>Uygulama pencerelerinin görünümü (Mac'teki AppAppearance ile aynı). Onaylı tasarım koyudur; varsayılan da odur.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<AppAppearance>))]
+public enum AppAppearance { Dark, Light, System }
+
 /// <summary>Bilgisayar ekranındaki altyazı penceresinin yeri ve genişliği (WPF birimiyle; tüm ekranları kapsayan düzlemde).</summary>
 public sealed record OverlayBounds(double Left, double Top, double Width);
 
@@ -171,6 +175,8 @@ public sealed record UserSettings
     public bool GamePacks { get; init; } = true;
     /// <summary>Pakette bulunmayan İngilizce satırlar ortak havuza gönderilir (anonim; bkz. <see cref="LinePool"/>).</summary>
     public bool SharePool { get; init; } = LinePool.EnabledByDefault;
+    /// <summary>Koyu, açık ya da sistemle aynı. Eski ayar dosyalarında yoktur; onlar da koyu açılır.</summary>
+    public AppAppearance Appearance { get; init; } = AppAppearance.Dark;
 
     /// <summary>Ayarlarda seçili motor: çevrimiçi çeviri kapalıysa ücretsiz olan.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
