@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import CouchSubsCore
+#if !APP_STORE
+// Mac App Store sürümünde (APP_STORE) güncellemeyi App Store yapar; Sparkle pakete hiç girmez.
 import Sparkle
+#endif
 import SwiftUI
 
 @main
@@ -9,10 +12,12 @@ struct CouchSubsApp: App {
     @StateObject private var model = Self.makeModel()
     /// Bilgisayar ekranındaki altyazı penceresi.
     @State private var overlay = SubtitleOverlayController()
+    #if !APP_STORE
     /// Sparkle: her açılışta ve uygulama açıkken saatte bir GitHub'daki son sürüme bakar; testlerde başlamaz.
     private let updater = SPUStandardUpdaterController(
         startingUpdater: ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
         updaterDelegate: nil, userDriverDelegate: nil)
+    #endif
 
     /// Testler uygulamanın içinde çalışır. Gerçek Anahtarlığa dokunmazlar: imza farklı olunca macOS parola sorar ve test takılır.
     private static func makeModel() -> AppModel {
@@ -26,8 +31,10 @@ struct CouchSubsApp: App {
                 // Sparkle kendi takviminde günde bir bakar; yeni sürüm her açılışta fark edilsin diye açılışta da sessizce bakılır.
                 .task {
                     overlay.attach(model)
+                    #if !APP_STORE
                     guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
                     updater.updater.checkForUpdatesInBackground()
+                    #endif
                 }
                 .appSurface()
                 .frame(minWidth: Theme.size("windowWidth"), idealWidth: Theme.size("windowWidth"), maxWidth: Theme.size("windowWidth") * 1.25,
@@ -39,7 +46,9 @@ struct CouchSubsApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About CouchSubs") { model.showAbout = true }
+                #if !APP_STORE
                 Button("Check for Updates…") { updater.checkForUpdates(nil) }
+                #endif
             }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings") { model.showSettings = true }

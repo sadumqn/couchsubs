@@ -8352,6 +8352,22 @@
           }
         }
       }
+    },
+    "If the Mac App Store version cannot install the TV app, install it once with the GitHub (DMG) version of CouchSubs. After that, this version is enough.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the Mac App Store version cannot install the TV app, install it once with the GitHub (DMG) version of CouchSubs. After that, this version is enough."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac App Store sürümü TV uygulamasını kuramıyorsa, TV uygulamasını bir kez CouchSubs'ın GitHub (DMG) sürümüyle kurun. Sonrasında bu sürüm yeter."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

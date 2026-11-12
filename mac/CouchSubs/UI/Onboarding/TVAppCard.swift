@@ -142,6 +142,11 @@ struct TVAppCard: View {
             let label = samsung ? String(localized: "Details:") : String(localized: "TV says:")
             text += "\n\n" + label + " " + reason
         }
+        // Mac App Store sürümü sandbox'ta kurar (ssh, ssh-keygen ve yardımcı sandbox'ı miras alır). Sandbox bir adımı
+        // engellerse kullanıcı çıkışsız kalmasın: TV uygulaması bir kez GitHub (DMG) sürümüyle kurulur, sonrası yeter.
+        if Distribution.isAppStore, error == .installFailed {
+            text += "\n\n" + String(localized: "If the Mac App Store version cannot install the TV app, install it once with the GitHub (DMG) version of CouchSubs. After that, this version is enough.")
+        }
         guard samsung else { return text }
         if error == .installFailed || error == .certificateRejected {
             text += "\n\n" + String(localized: "If the TV shows “Server under maintenance”, it cannot reach Samsung's servers: check the TV's internet connection and its date and time, restart the TV and try again.")
