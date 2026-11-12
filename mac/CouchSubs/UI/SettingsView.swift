@@ -136,7 +136,9 @@ private struct SettingsPage: View {
             case .language: LanguageCard()
             case .area: AreaCards()
             case .obs: OBSCard()
-            case .about: AboutCard()
+            case .about:
+                AppThemeCard()
+                AboutCard()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -271,6 +273,21 @@ private struct OBSCard: View {
                 .buttonStyle(.secondary)
             }
             HintText(text: "If OBS runs on another computer, use this Mac's network address instead of localhost. The overlay only shows subtitles while the translation is running.")
+        }
+    }
+}
+
+/// Uygulamanın görünümü: koyu (varsayılan, onaylı tasarım), açık ya da sistemle aynı. Tüm pencerelere anında uygulanır.
+private struct AppThemeCard: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        Card {
+            Picker("Appearance", selection: $model.settings.appearance) {
+                Text("Dark").tag(AppAppearance.dark)
+                Text("Light").tag(AppAppearance.light)
+                Text("Same as system").tag(AppAppearance.system)
+            }
         }
     }
 }

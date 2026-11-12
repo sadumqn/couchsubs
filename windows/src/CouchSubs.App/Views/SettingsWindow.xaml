@@ -310,6 +310,17 @@
                 <StackPanel>
                     <TextBlock Text="{t:T 'About CouchSubs'}" Style="{StaticResource DisplayText}" Margin="0,0,0,16" />
                     <s:TvAppCard Margin="0,0,0,16" />
+                    <!-- Uygulamanın görünümü: koyu (varsayılan), açık ya da Windows'un temasıyla aynı; anında uygulanır. -->
+                    <c:Card Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{t:T 'Appearance'}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                            <ComboBox x:Name="AppearanceChoice" SelectionChanged="OnAppearance" MinWidth="200">
+                                <ComboBoxItem Content="{t:T 'Dark'}" Tag="Dark" />
+                                <ComboBoxItem Content="{t:T 'Light'}" Tag="Light" />
+                                <ComboBoxItem Content="{t:T 'Same as system'}" Tag="System" />
+                            </ComboBox>
+                        </StackPanel>
+                    </c:Card>
                     <c:Card>
                         <Grid>
                             <Button Content="{t:T 'About CouchSubs'}" Click="OnAbout" />

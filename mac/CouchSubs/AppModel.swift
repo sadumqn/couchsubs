@@ -371,6 +371,20 @@ enum TVAppState: Equatable {
     case approveOnTV
 }
 
+extension AppAppearance {
+    /// Uygulamanın tüm pencerelerinin (ana pencere, ayarlar, kurulum, altyazı penceresi, menüler) görünümü; nil sistemi
+    /// izler. Theme.swift'teki renkler pencerenin görünümüne göre çözüldüğü için hepsi birlikte değişir.
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .dark: NSAppearance(named: .darkAqua)
+        case .light: NSAppearance(named: .aqua)
+        case .system: nil
+        }
+    }
+
+    @MainActor func apply() { NSApplication.shared.appearance = nsAppearance }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     enum Step: Int, CaseIterable {
@@ -406,6 +420,7 @@ final class AppModel: ObservableObject {
             if settings.output != oldValue.output { outputChanged() }
             if settings.dubbing != oldValue.dubbing { dubbingSettingsChanged(from: oldValue.dubbing) }
             if settings.gamePacks != oldValue.gamePacks, let pipeline { connectPacks(to: pipeline) }
+            if settings.appearance != oldValue.appearance { settings.appearance.apply() }
             if settings.sharePool != oldValue.sharePool {
                 let (pool, enabled) = (pool, settings.sharePool)
                 Task { await pool.setEnabled(enabled) }
@@ -512,6 +527,8 @@ final class AppModel: ObservableObject {
         let loaded = defaults.data(forKey: StoreKey.settings).flatMap { try? JSONDecoder().decode(UserSettings.self, from: $0) } ?? UserSettings()
         let curated = loaded.withCuratedModels()
         settings = curated
+        // Pencereler açılmadan önce: açılışta açık temanın bir an görünmesi olmaz.
+        curated.appearance.apply()
         let poolFile = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(AppIdentity.name, isDirectory: true).appendingPathComponent("pool.json")
         let testing = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
