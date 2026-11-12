@@ -327,6 +327,7 @@ struct MobileLiveDot: View {
             }
             .onAppear {
                 guard pulses, !reduceMotion else { return }
+                // ai-design-check-ignore-next-line pulse-for-live-only -- yalnız canlı çeviride atar; azaltılmış harekette durur
                 withAnimation(.easeOut(duration: 2).repeatForever(autoreverses: false)) { pulse = true }
             }
             .accessibilityHidden(true)

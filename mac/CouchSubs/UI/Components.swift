@@ -219,6 +219,7 @@ struct LiveDot: View {
             }
             .onAppear {
                 guard !reduceMotion else { return }
+                // ai-design-check-ignore-next-line pulse-for-live-only -- yalnız canlı çeviride gösterilir; azaltılmış harekette durur
                 withAnimation(.easeOut(duration: 2).repeatForever(autoreverses: false)) { pulsing = true }
             }
             .accessibilityHidden(true)
