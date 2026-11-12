@@ -97,7 +97,7 @@ public partial class MainView : UserControl
         {
             var engine = controller.Settings.OnlineEngine;
             OnlineTitle.Text = Localizer.Current.Format("%@ is not translating right now", engine.DisplayName());
-            OnlineReason.Text = state.Describe(engine, Localizer.Current) + " " + Localizer.Current["Meanwhile the free translation is used."];
+            OnlineReason.Text = state.Describe(engine, Localizer.Current, controller.Settings.LocalAiServer) + " " + Localizer.Current["Meanwhile the free translation is used."];
         }
     }
 

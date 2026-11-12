@@ -29,6 +29,14 @@ public sealed class LiveServices : IAppServices
         new AiTranslator(provider, key, model, fallback, cache: TranslationCache.Shared(AppPaths.Translations, provider.EngineId(model), "en", "tr"));
 
     public Task<AiTestResult> TestAiKeyAsync(AiProvider provider, string key, string model) => AiTranslator.TestAsync(provider, key, model);
+
+    // Yerel model: önbellekte sunucu ve model ayrı tutulur ("local:localhost:11434/qwen2.5:7b").
+    public ITextTranslator? MakeLocalAiTranslator(LocalAiServer server, string key, ITextTranslator? fallback) =>
+        new AiTranslator(AiProvider.Local, key, server.Model, fallback, cache: TranslationCache.Shared(AppPaths.Translations, server.EngineId, "en", "tr"),
+                         server: server);
+
+    public Task<AiTestResult> TestLocalAiAsync(LocalAiServer server, string key) =>
+        AiTranslator.TestAsync(AiProvider.Local, key, server.Model, server: server);
     public IDubbingModel? Dubbing { get; } = PocketDubbingModel.EngineBundled ? new PocketDubbingModel() : null;
     public IDubbingModel? FastDubbing { get; } = WindowsVoiceModel.Available ? new WindowsVoiceModel() : null;
     public IAudioOutput? Audio { get; } = new WindowsAudioOutput();

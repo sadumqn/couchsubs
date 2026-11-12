@@ -143,6 +143,7 @@ public partial class SettingsWindow : Window
             TranslationEngine.DeepL => "Optional. With your own free DeepL key, translations read more naturally. Subtitle text is sent to DeepL; when DeepL cannot be reached, the translation model on this computer takes over.",
             TranslationEngine.Gemini => "Google's AI translates with the game's tone and keeps names as they are. Subtitle text is sent to Google with your own key, and any cost is billed to your Google account. When Gemini cannot be reached, the free translation takes over.",
             TranslationEngine.OpenAi => "OpenAI's AI translates with the game's tone and keeps names as they are. Subtitle text is sent to OpenAI with your own key, and any cost is billed to your OpenAI account. When OpenAI cannot be reached, the free translation takes over.",
+            TranslationEngine.Local => "Free, with no quota. An AI model on this computer (Ollama or LM Studio) translates; subtitle text never leaves it. Speed depends on your computer. When the model cannot be reached, the free translation takes over.",
             _ => "Anthropic's Claude translates with the game's tone and keeps names as they are. Subtitle text is sent to Anthropic with your own key, and any cost is billed to your Anthropic account. When Claude cannot be reached, the free translation takes over.",
         }];
         EnglishOnlyHint.Visibility = engine != TranslationEngine.Free && controller.Settings.SourceLanguage != "en" ? Visibility.Visible : Visibility.Collapsed;
@@ -154,17 +155,78 @@ public partial class SettingsWindow : Window
         if (engine == TranslationEngine.Free) return;
 
         var saved = controller.HasKey(engine);
+        var isLocal = engine == TranslationEngine.Local;
         NewKey.Visibility = saved ? Visibility.Collapsed : Visibility.Visible;
         SavedKey.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
         // DeepL'in denemesi bu ayki kullanımı gösterir; ayrı bir "Dene" düğmesi gerekmez.
         KeyTest.Visibility = engine == TranslationEngine.DeepL ? Visibility.Collapsed : Visibility.Visible;
-        NoKeyHint.Visibility = engine == TranslationEngine.DeepL ? Visibility.Collapsed : Visibility.Visible;
+        // Yerel modelde anahtar isteğe bağlıdır: düğme yalnız bağlantıyı dener (yazılan anahtar kabul edilirse saklanır).
+        NoKeyHint.Visibility = engine == TranslationEngine.DeepL || isLocal ? Visibility.Collapsed : Visibility.Visible;
+        KeySave.Content = text[isLocal ? "Test connection" : "Save and test"];
+        KeyTest.Content = text[isLocal ? "Test connection" : "Test"];
         var provider = engine.Provider();
         KeyLink.NavigateUri = provider?.KeyPage() ?? new Uri("https://www.deepl.com/pro-api");
-        KeyLinkText.Text = provider is { } named ? text.Format("Get a %@ API key", named.DisplayName()) : text["Get a free DeepL API key"];
-        ModelPanel.Visibility = provider is null ? Visibility.Collapsed : Visibility.Visible;
-        if (provider is { } p) ShowModels(p);
+        KeyLinkText.Text = isLocal ? text["Download Ollama"]
+            : provider is { } named ? text.Format("Get a %@ API key", named.DisplayName()) : text["Get a free DeepL API key"];
+        ModelPanel.Visibility = provider is null || isLocal ? Visibility.Collapsed : Visibility.Visible;
+        LocalPanel.Visibility = isLocal ? Visibility.Visible : Visibility.Collapsed;
+        LocalKeyLabel.Visibility = saved ? Visibility.Collapsed : Visibility.Visible;
+        // Yerel modelde geçersiz adres düğmeleri kapatır; başka motora geçince yeniden açılır.
+        KeySave.IsEnabled = true;
+        KeyTest.IsEnabled = true;
+        if (isLocal) ShowLocal();
+        else if (provider is { } p) ShowModels(p);
         if (saved && engine == TranslationEngine.DeepL) _ = ShowDeepLUsageAsync();
+    }
+
+    /// <summary>Yerel modelin kayıtlı adresi ve model adı; adres geçersizse uyarı.</summary>
+    private void ShowLocal()
+    {
+        var settings = controller.Settings;
+        LocalAddress.Text = settings.LocalAiBaseUrl;
+        LocalModel.Text = settings.LocalAiModel;
+        ShowLocalAddressError();
+    }
+
+    private void ShowLocalAddressError()
+    {
+        var invalid = LocalAiServer.Normalize(LocalAddress.Text) is null;
+        LocalAddressError.Visibility = invalid ? Visibility.Visible : Visibility.Collapsed;
+        LocalAddressError.Text = Localizer.Current.Format("This address is not valid. Example: %@", LocalAiServer.OllamaUrl);
+        KeySave.IsEnabled = !invalid;
+        KeyTest.IsEnabled = !invalid;
+    }
+
+    /// <summary>Yazılan adres ve model alandan çıkınca ya da Enter'a basınca kaydedilir; her tuşta hat yeniden kurulmaz.</summary>
+    private void CommitLocal()
+    {
+        var address = LocalAddress.Text.Trim();
+        var model = LocalModel.Text.Trim();
+        var settings = controller.Settings;
+        if (address != settings.LocalAiBaseUrl || model != settings.LocalAiModel)
+        {
+            Update(s => s with { LocalAiBaseUrl = address, LocalAiModel = model });
+            KeyStatus.Visibility = Visibility.Collapsed;
+            KeyError.Visibility = Visibility.Collapsed;
+        }
+        ShowLocalAddressError();
+    }
+
+    private void OnLocalChanged(object sender, RoutedEventArgs e) => CommitLocal();
+
+    private void OnLocalKey(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) CommitLocal();
+    }
+
+    private void OnUseOllama(object sender, RoutedEventArgs e) => UseLocalAddress(LocalAiServer.OllamaUrl);
+
+    private void OnUseLmStudio(object sender, RoutedEventArgs e) => UseLocalAddress(LocalAiServer.LmStudioUrl);
+
+    private void UseLocalAddress(string address)
+    {
+        LocalAddress.Text = address;
+        CommitLocal();
     }
 
     private void ShowStatus(string message, bool error)
@@ -191,7 +253,7 @@ public partial class SettingsWindow : Window
         if (result.State == OnlineKeyState.Valid)
             ShowStatus(Localizer.Current.Format("It works. Sample translation: %@", result.Sample ?? ""), false);
         else
-            ShowStatus(result.State.Describe(engine, Localizer.Current), true);
+            ShowStatus(result.State.Describe(engine, Localizer.Current, controller.Settings.LocalAiServer), true);
     }
 
     private async Task ShowDeepLUsageAsync() => ShowDeepLStatus(await controller.CheckDeepLKeyAsync());
@@ -209,7 +271,17 @@ public partial class SettingsWindow : Window
         KeySave.IsEnabled = false;
         try
         {
-            if (engine.Provider() is { } provider)
+            if (engine == TranslationEngine.Local)
+            {
+                CommitLocal();
+                KeySave.IsEnabled = false;
+                KeySave.Content = Localizer.Current["Testing…"];
+                var result = await controller.TestLocalAiAsync(KeyBox.Password);
+                if (controller.HasKey(engine)) KeyBox.Clear();
+                ShowEngine();
+                ShowAiResult(result, engine);
+            }
+            else if (engine.Provider() is { } provider)
             {
                 var result = await controller.SetAiKeyAsync(provider, KeyBox.Password);
                 var saved = controller.HasKey(engine);
@@ -227,7 +299,8 @@ public partial class SettingsWindow : Window
         }
         finally
         {
-            KeySave.IsEnabled = true;
+            KeySave.IsEnabled = engine != TranslationEngine.Local || LocalAiServer.Normalize(LocalAddress.Text) is not null;
+            if (engine == TranslationEngine.Local) KeySave.Content = Localizer.Current["Test connection"];
         }
     }
 
@@ -235,16 +308,18 @@ public partial class SettingsWindow : Window
     {
         var engine = SelectedEngine;
         if (engine.Provider() is not { } provider) return;
+        var isLocal = engine == TranslationEngine.Local;
+        if (isLocal) CommitLocal();
         KeyTest.IsEnabled = false;
         KeyTest.Content = Localizer.Current["Testing…"];
         try
         {
-            ShowAiResult(await controller.TestAiKeyAsync(provider), engine);
+            ShowAiResult(isLocal ? await controller.TestLocalAiAsync() : await controller.TestAiKeyAsync(provider), engine);
         }
         finally
         {
             KeyTest.IsEnabled = true;
-            KeyTest.Content = Localizer.Current["Test"];
+            KeyTest.Content = Localizer.Current[isLocal ? "Test connection" : "Test"];
         }
     }
 

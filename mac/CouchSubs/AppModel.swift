@@ -14,11 +14,17 @@ extension AppServices {
     func testAIKey(provider: AIProvider, key: String, model: String?) async -> Result<String, AIFailure> {
         await AITranslationCore.test(provider: provider, key: key, model: model)
     }
+    /// Yerel model sunucusunu (Ollama, LM Studio) örnek bir satırı çevirerek dener; anahtar boş olabilir.
+    func testLocalAI(server: LocalAIServer, key: String) async -> Result<String, AIFailure> {
+        await AITranslationCore.test(provider: .local, key: key, model: server.model, server: server)
+    }
 }
 
 protocol AppServices: AnyObject {
     /// Yapay zekâ anahtarını örnek bir satırı çevirerek dener (varsayılanı yukarıda; testlerde sahtesi).
     func testAIKey(provider: AIProvider, key: String, model: String?) async -> Result<String, AIFailure>
+    /// Yerel model sunucusunu dener (varsayılanı yukarıda; testlerde sahtesi).
+    func testLocalAI(server: LocalAIServer, key: String) async -> Result<String, AIFailure>
     func discoverConsoles() async -> [ConsoleInfo]
     func accountId(fromRedirect url: URL) async throws -> Data
     func register(host: String, accountId: Data, pin: UInt32) async throws -> RegisteredConsole
@@ -407,6 +413,7 @@ final class AppModel: ObservableObject {
             let translationChanged = settings.onlineTranslation != oldValue.onlineTranslation
                 || settings.onlineEngine != oldValue.onlineEngine || settings.geminiModel != oldValue.geminiModel
                 || settings.openAIModel != oldValue.openAIModel || settings.claudeModel != oldValue.claudeModel
+                || settings.localAIBaseURL != oldValue.localAIBaseURL || settings.localAIModel != oldValue.localAIModel
             if translationChanged { Task { await refreshTranslatorStatus() } }
             if isRunning, settings.sourceLanguage != oldValue.sourceLanguage || settings.targetLanguage != oldValue.targetLanguage
                 || translationChanged {
@@ -1114,15 +1121,22 @@ final class AppModel: ObservableObject {
         let local = Translator(source: source, target: target,
                                cache: Self.translationCache(engine: Translator.engineID, source: source, target: target))
         let engine = settings.onlineEngine
-        guard onlineTranslationActive, let storeKey = engine.storeKey, let key = store.load(String.self, for: storeKey) else { return local }
+        guard onlineTranslationActive, let storeKey = engine.storeKey else { return local }
         let online: TextTranslator & OnlineTranslating
-        if let provider = engine.aiProvider {
+        if engine == .local, let server = settings.localAIServer {
+            // Yerel modelin anahtarı isteğe bağlıdır; önbellekte sunucu ve model ayrı tutulur.
+            let key = store.load(String.self, for: storeKey) ?? ""
+            online = AITranslator(provider: .local, key: key, model: server.model, server: server, fallback: local,
+                                  cache: Self.translationCache(engine: server.engineID, source: source, target: target))
+        } else if let key = store.load(String.self, for: storeKey), let provider = engine.aiProvider {
             let model = provider.model(settings.model(for: provider)).id
             online = AITranslator(provider: provider, key: key, model: model, fallback: local,
                                   cache: Self.translationCache(engine: provider.engineID(model: model), source: source, target: target))
-        } else {
+        } else if let key = store.load(String.self, for: storeKey) {
             online = DeepLTranslator(key: key, fallback: local,
                                      cache: Self.translationCache(engine: DeepLTranslator.engineID, source: source, target: target))
+        } else {
+            return local
         }
         // Hizmet çeviremeyince ana ekranda uyarı çıkar; düzelince kalkar.
         online.onFailureChanged = { [weak self] state in
@@ -1139,9 +1153,15 @@ final class AppModel: ObservableObject {
         return TranslationCache.shared(in: directory, engine: engine, source: source, target: target)
     }
 
-    /// Çevrimiçi çeviri yalnız İngilizce→Türkçe için ve seçili motorun anahtarı kayıtlıysa açılır.
+    /// Çevrimiçi çeviri yalnız İngilizce→Türkçe için ve seçili motor hazırsa açılır.
     var onlineTranslationActive: Bool {
-        settings.onlineTranslation && settings.sourceLanguage == "en" && settings.targetLanguage == "tr" && hasKey(settings.onlineEngine)
+        settings.onlineTranslation && settings.sourceLanguage == "en" && settings.targetLanguage == "tr" && isReady(settings.onlineEngine)
+    }
+
+    /// Motor kullanılabilir mi: bulut motorlarında anahtar kayıtlıdır; yerel modelde anahtar gerekmez, adres ve model adı
+    /// geçerli olmalıdır. Sunucu kapalıysa satırlar ücretsiz çeviriyle gelir ve ana ekranda uyarı çıkar.
+    func isReady(_ engine: TranslationEngine) -> Bool {
+        engine == .local ? settings.localAIServer != nil : hasKey(engine)
     }
 
     /// Anahtarı kayıtlı motorlar (anahtarların kendisi arayüze hiç dönmez).
@@ -1188,10 +1208,32 @@ final class AppModel: ObservableObject {
         return await services.testAIKey(provider: provider, key: key, model: settings.model(for: provider))
     }
 
+    /// Ayarlardaki "Bağlantıyı dene": yerel model sunucusuna örnek satırı gönderir. `key` yazıldıysa o, yoksa kayıtlı
+    /// anahtar kullanılır; yazılan anahtar sunucu kabul ettiyse Anahtarlık'a yazılır. Adres geçersizse sunucuya
+    /// ulaşılamadı sayılır.
+    func testLocalAI(key typed: String = "") async -> Result<String, AIFailure> {
+        guard let server = settings.localAIServer else { return .failure(.unreachable) }
+        let typed = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = typed.isEmpty ? store.load(String.self, for: StoreKey.localAIKey) ?? "" : typed
+        let result = await services.testLocalAI(server: server, key: key)
+        if !typed.isEmpty {
+            switch result {
+            case .success, .failure(.quotaExceeded), .failure(.modelRejected): saveKey(typed, for: .local)
+            case .failure: break
+            }
+        }
+        return result
+    }
+
     func removeKey(_ engine: TranslationEngine) {
         guard let storeKey = engine.storeKey else { return }
         store.remove(storeKey)
         savedKeys.remove(engine)
+        if engine == .local {
+            // Yerel modelin anahtarı isteğe bağlıdır: anahtarsız çeviri sürer, hat anahtarsız yeniden kurulur.
+            if settings.translationEngine == .local, isRunning { makePipeline() }
+            return
+        }
         if settings.translationEngine == engine {
             settings.onlineTranslation = false
         } else {

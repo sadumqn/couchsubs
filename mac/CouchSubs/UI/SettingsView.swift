@@ -428,6 +428,7 @@ struct TranslationCard: View {
             case .deepL: DeepLKeySection()
             case .gemini, .openAI, .claude:
                 if let provider = engine.aiProvider { AIKeySection(provider: provider).id(provider) }
+            case .local: LocalAISection()
             }
             if engine == .gemini {
                 HintText(text: FreeGemini.privacy)
@@ -443,11 +444,14 @@ struct TranslationCard: View {
         case .gemini: "Google's AI translates with the game's tone and keeps names as they are. Subtitle text is sent to Google with your own key, and any cost is billed to your Google account. When Gemini cannot be reached, the free translation takes over."
         case .openAI: "OpenAI's AI translates with the game's tone and keeps names as they are. Subtitle text is sent to OpenAI with your own key, and any cost is billed to your OpenAI account. When OpenAI cannot be reached, the free translation takes over."
         case .claude: "Anthropic's Claude translates with the game's tone and keeps names as they are. Subtitle text is sent to Anthropic with your own key, and any cost is billed to your Anthropic account. When Claude cannot be reached, the free translation takes over."
+        case .local: "Free, with no quota. An AI model on this computer (Ollama or LM Studio) translates; subtitle text never leaves it. Speed depends on your computer. When the model cannot be reached, the free translation takes over."
         }
     }
 
-    /// Çevrimiçi motor hatasının kullanıcıya söylenişi (ayarlar ve ana ekran aynı metni kullanır).
-    static func describe(_ state: OnlineKeyState, engine: TranslationEngine) -> String {
+    /// Çevrimiçi motor hatasının kullanıcıya söylenişi (ayarlar ve ana ekran aynı metni kullanır). Yerel modelde
+    /// `server` sunucunun adresini ve modeli iletiye koyar.
+    static func describe(_ state: OnlineKeyState, engine: TranslationEngine, server: LocalAIServer? = nil) -> String {
+        if engine == .local { return describeLocal(state, server: server) }
         let name = engine.displayName
         return switch state {
         case .valid: String(localized: "It works.")
@@ -457,12 +461,39 @@ struct TranslationCard: View {
         case .unreachable: String(format: String(localized: "%@ could not be reached. Check your internet connection."), name)
         }
     }
+
+    /// Yerel model sunucusunun (Ollama, LM Studio) hatası; sunucunun türüne göre ne yapılacağı söylenir (Windows ile aynı).
+    static func describeLocal(_ state: OnlineKeyState, server: LocalAIServer?) -> String {
+        let server = server ?? LocalAIServer(baseURL: LocalAIServer.ollamaURL, model: LocalAIServer.defaultModel)!
+        switch state {
+        case .valid:
+            return String(localized: "It works.")
+        case .invalid:
+            return String(localized: "The local model server did not accept the API key. Check the key, or remove it if the server does not need one.")
+        case .quotaExceeded:
+            return String(localized: "The local model server is busy. Try again in a moment.")
+        case .modelRejected:
+            if server.kind == .lmStudio {
+                return String(format: String(localized: "LM Studio does not have the model %@. Download and load it in LM Studio, or check the model name."), server.model)
+            }
+            return String(format: String(localized: "The model %1$@ is not on the local server. Download it: ollama pull %1$@"), server.model)
+        case .unreachable:
+            switch server.kind {
+            case .ollama:
+                return String(format: String(localized: "Ollama is not running: %1$@ could not be reached, or the model did not answer in time. Open Ollama and download the model: ollama pull %2$@"), server.address, server.model)
+            case .lmStudio:
+                return String(format: String(localized: "LM Studio is not running: %@ could not be reached, or the model did not answer in time. Open LM Studio, load the model and start the local server."), server.address)
+            case .other:
+                return String(format: String(localized: "The local model server at %@ could not be reached, or the model did not answer in time. Check the address and that the server is running."), server.address)
+            }
+        }
+    }
 }
 
-/// Çeviri motoru seçimi: beş karo, seçili olan sarı çerçeveli ve parlak.
+/// Çeviri motoru seçimi: altı karo (iki sıra), seçili olan sarı çerçeveli ve parlak.
 private struct EngineTiles: View {
     @Binding var engine: TranslationEngine
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: Theme.space("m"), alignment: .top), count: 5)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: Theme.space("m"), alignment: .top), count: 3)
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: Theme.space("m")) {
@@ -502,6 +533,7 @@ private struct EngineTile: View {
         case .free: "On this computer, offline"
         case .deepL, .gemini: "With a free key"
         case .openAI, .claude: "With your own key"
+        case .local: "Ollama or LM Studio, no quota"
         }
     }
 }
@@ -636,6 +668,114 @@ private struct AIKeySection: View {
         result = nil
         Task {
             result = await work()
+            checking = false
+        }
+    }
+}
+
+/// Yerel model (Ollama, LM Studio): sunucu adresi, model adı (kullanıcı yazar), isteğe bağlı anahtar ve "Bağlantıyı
+/// dene" (Windows'taki ayarlarla aynı). Adres ve model, alandan çıkınca ya da Return'e basınca kaydedilir; her tuşta
+/// çeviri hattı yeniden kurulmasın.
+private struct LocalAISection: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var address = ""
+    @State private var modelName = ""
+    @State private var key = ""
+    @State private var checking = false
+    @State private var result: Result<String, AIFailure>?
+    @FocusState private var focused: Field?
+
+    private enum Field { case address, model }
+
+    var body: some View {
+        Group {
+            Grid(alignment: .leading, horizontalSpacing: Theme.space("m"), verticalSpacing: Theme.space("s")) {
+                GridRow {
+                    Text("Server address")
+                    TextField("Server address", text: $address, prompt: Text(verbatim: LocalAIServer.ollamaURL))
+                        .textFieldStyle(CSTextFieldStyle())
+                        .focused($focused, equals: .address)
+                        .onSubmit(commit)
+                }
+                GridRow {
+                    Text("Model name")
+                    TextField("Model name", text: $modelName, prompt: Text(verbatim: LocalAIServer.defaultModel))
+                        .textFieldStyle(CSTextFieldStyle())
+                        .focused($focused, equals: .model)
+                        .onSubmit(commit)
+                }
+            }
+            HStack(spacing: Theme.space("m")) {
+                Button("Use Ollama") { use(LocalAIServer.ollamaURL) }.buttonStyle(.secondary)
+                Button("Use LM Studio") { use(LocalAIServer.lmStudioURL) }.buttonStyle(.secondary)
+                Spacer()
+            }
+            if LocalAIServer.normalize(address) == nil {
+                ErrorText(error: String(format: String(localized: "This address is not valid. Example: %@"), LocalAIServer.ollamaURL))
+            }
+            HintText(text: "Type the model name as the server shows it. In Ollama, download it first: ollama pull qwen2.5:7b (downloaded models: ollama list). In LM Studio, load the model and start the local server.")
+            if model.hasKey(.local) {
+                HStack(spacing: Theme.space("m")) {
+                    DoneLabel(text: String(localized: "Key saved"))
+                    Spacer()
+                    Button("Remove key") {
+                        model.removeKey(.local)
+                        result = nil
+                    }
+                    .buttonStyle(.secondary)
+                }
+            } else {
+                SecureField("API key (optional)", text: $key).textFieldStyle(CSTextFieldStyle())
+            }
+            HStack(spacing: Theme.space("m")) {
+                Button(checking ? LocalizedStringKey("Testing…") : LocalizedStringKey("Test connection")) { test() }
+                    .buttonStyle(.secondary)
+                    .disabled(checking || LocalAIServer.normalize(address) == nil)
+                Spacer()
+                Link("Download Ollama", destination: AIProvider.local.keyPage).font(.csCallout)
+            }
+            if let result {
+                switch result {
+                case .success(let sample):
+                    Text(String(format: String(localized: "It works. Sample translation: %@"), sample))
+                        .font(.csCallout)
+                        .foregroundStyle(Color.csSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                case .failure(let failure):
+                    ErrorText(error: TranslationCard.describe(OnlineKeyState(failure), engine: .local, server: model.settings.localAIServer))
+                }
+            }
+        }
+        .onAppear {
+            address = model.settings.localAIBaseURL
+            modelName = model.settings.localAIModel
+        }
+        .onChange(of: focused) { _ in commit() }
+    }
+
+    private func use(_ url: String) {
+        address = url
+        commit()
+    }
+
+    /// Yazılanı ayara yazar; değiştiyse eski deneme sonucu kalkar.
+    private func commit() {
+        let address = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard address != model.settings.localAIBaseURL || name != model.settings.localAIModel else { return }
+        model.settings.localAIBaseURL = address
+        model.settings.localAIModel = name
+        result = nil
+    }
+
+    private func test() {
+        commit()
+        let typed = key
+        checking = true
+        result = nil
+        Task {
+            result = await model.testLocalAI(key: typed)
+            if model.hasKey(.local) { key = "" }
             checking = false
         }
     }
