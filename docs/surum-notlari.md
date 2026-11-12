@@ -1,9 +1,12 @@
 CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunlarının İngilizce altyazısını okur, Türkçesini TV'de oyunun üstünde gösterir ve isterseniz Türkçe seslendirir.
 
+**Site, kurulum rehberi ve SSS:** [couchsubs.enmeraapps.com](https://couchsubs.enmeraapps.com)
+
 **İndir:** [Mac (DMG)](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-macos.dmg) · [Windows (kurulum)](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-windows-Setup.exe)
 
 **Bu sürümde yeni**
 
+- **Windows'ta bozuk ve yarım okunan altyazılar çok daha az (katkı: [ronaldinho62](https://github.com/ronaldinho62), #28):** GTA V gibi açık ya da hareketli zeminli oyunlarda yazı birkaç yöntemle okunuyor, en sağlıklı okuma seçiliyor; bozuk görünen satır kısa bir süre bekletilip temiz okuması çevriliyor. Katkı sahibinin 840 gerçek GTA V satırıyla ölçümünde bozuk okumadan yapılan çeviri 757'den 100'e indi. Ayarlar › Çeviri › Gelişmiş'te iki bekleme süresi ayarlanabiliyor; "Önceki satırları üstte göster" kapatılabiliyor (TV uygulaması 0.9.16).
 - **Canlı ölçümler (Mac, Windows, iPhone):** Canlı altyazı alanında son satırın altında küçük bir satır: yazı tanımanın süresi (OCR, ms), çevirinin süresi (ms; paketten geldiyse "Hazır paket"), karenin PS5'ten gelişinden altyazının TV'ye gönderilmesine kadar geçen gecikme (ms) ve Mac ile iPhone'da yazı tanımanın güveni (%). Hepsi gerçek ölçüm; Windows'un yazı tanıması güven vermediği için orada güven yazılmaz.
 - **Altyazı bölgesi için hazır seçimler ve canlı önizleme:** Ayarlar › Altyazı alanı'nda **Alt bölge** (varsayılan), **Üst bölge**, **Tam ekran** ve **Özel**. Özel'de dikey konum ve yükseklik yüzdeyle ayarlanır. Çeviri sürerken önizlemede PS5'in son karesi ve üstünde bölgenin çerçevesi görünür; çerçeve sürüklenerek taşınır, köşesinden boyutlandırılır. iPhone'da bu ayar yeni (Ayarlar › Altyazı alanı). Eski ayarlar olduğu gibi kalır.
 - **TV'de test et:** Ana ekranda başlat düğmesinin yanında (Windows'ta altında, iPhone'da çeviri sürerken) tek dokunuşla deneme altyazısı gönderen düğme; altyazı yalnız bilgisayar ekranındaysa "Ekranda test et".
