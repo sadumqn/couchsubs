@@ -87,6 +87,16 @@ public final class SubtitlePipeline {
     public private(set) var lastOrigin: String?
     /// Bu hatta paketten gelen satır sayısı.
     public private(set) var packHits = 0
+    /// Altyazı günlüğü (`SubtitleLog`): ilk kare, okunan her kararlı satır ve akıbeti (paket, önbellek, çeviri, geç
+    /// kaldı, atıldı), çöp sayılıp bırakılan ve yok sayılan yeniden okumalar. Kararları değiştirmez.
+    public var onLog: ((String) -> Void)?
+    /// Paket isabetinde satırın geldiği paket (günlük için; bilinmiyorsa nil).
+    public var packName: (() -> String?)?
+    /// Oturumun (hat kurulunca ya da sıfırlanınca) başladığı an; ilk karenin ne kadar sonra geldiği günlüğe yazılır.
+    private var sessionStart: Int
+    private var sawFrame = false
+    private var sawText = false
+    private var lastNote: StabilizerNote?
 
     /// `scheduler`: varsayılanı her kareyi okur; uygulama gereksiz okumaları atlayan planı verir.
     /// `clock`: milisaniye saati; testlerde sahtesi verilir.
@@ -98,10 +108,23 @@ public final class SubtitlePipeline {
         self.scheduler = scheduler
         self.now = clock
         self.stabilizer = SubtitleStabilizer(clock: clock)
+        sessionStart = clock()
+    }
+
+    private func log(_ message: @autoclosure () -> String) {
+        onLog?(message())
+    }
+
+    private func log(_ request: Request, _ message: @autoclosure () -> String) {
+        onLog?("#\(request.number) \(message())")
     }
 
     /// Okuma çeviriyi beklemez; böylece çeviri sürerken gelen satırlar da yakalanır.
     public func process(_ frame: CGImage, region: CropRegion) async {
+        if !sawFrame {
+            sawFrame = true
+            log("ilk kare: oturum başından \(now() - sessionStart) ms sonra")
+        }
         // Yazı tanıma uzun sürebilir; arayüz takılmasın diye ana iş parçacığının dışında yapılır.
         let reader = self.reader
         let (area, signature) = await Task.detached(priority: .userInitiated) {
@@ -125,7 +148,20 @@ public final class SubtitlePipeline {
         let place = TextBox(left: region.left, top: region.top, right: region.right, bottom: region.bottom)
         let reading = lastReading.withoutButtonPrompts().withoutOcrNoise().subtitleBlock(in: place)
         let box = reading.box?.placed(in: place).centeredOnScreen()
-        switch stabilizer.feed(reading.text) {
+        if !sawText, !reading.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sawText = true
+            log("ilk yazı: oturum başından \(now() - sessionStart) ms sonra \(SubtitleLog.excerpt(reading.text))")
+        }
+        let action = stabilizer.feed(reading.text)
+        // Ekranda duran kötü yeniden okuma her karede not edilir; günlüğe bir kez yazılır.
+        if let note = stabilizer.note, note != lastNote {
+            lastNote = note
+            switch note {
+            case .worseReread(let text): log("yeniden-okuma: \(SubtitleLog.excerpt(text)) gösterilenden kötü, yok sayıldı")
+            case .garbledDropped(let text): log("çöp: \(SubtitleLog.excerpt(text)) kararlı olmadan kalktı, gönderilmedi")
+            }
+        }
+        switch action {
         case .none:
             break
         case .clear:
@@ -163,16 +199,25 @@ public final class SubtitlePipeline {
         }
         onPackMiss?(source)
         guard let current = inFlight else {
+            log(request, "\(SubtitleLog.excerpt(source)) → çeviriye")
             inFlight = request
             pump = Task { [weak self] in await self?.runPump() }
             return
         }
+        log(request, "\(SubtitleLog.excerpt(source)) → sırada (çeviri sürüyor: #\(current.number))")
         // Aynı cümlenin eski okuması sırada bekliyorsa çıkar; sıra dolduysa en eski bekleyen atlanır.
+        for old in waiting where TextMatch.isRevision(source, of: old.source) {
+            log(old, "atıldı: yerine düzelmiş okuması geldi (#\(request.number))")
+        }
         waiting.removeAll { TextMatch.isRevision(source, of: $0.source) }
         waiting.append(request)
-        if waiting.count > Self.maxWaiting { waiting.removeFirst(waiting.count - Self.maxWaiting) }
+        if waiting.count > Self.maxWaiting {
+            for old in waiting.prefix(waiting.count - Self.maxWaiting) { log(old, "atıldı: sıra doldu") }
+            waiting.removeFirst(waiting.count - Self.maxWaiting)
+        }
         // Süren çeviri bu cümlenin yarım okumasınınsa (daktilo efekti) beklenmez: bırakılır, tamamı hemen çevrilir.
         if !current.superseded, current.session == session, TextMatch.isGrowth(source, of: current.source) {
+            log(current, "bırakıldı: uzamış okuması geldi (#\(request.number))")
             current.superseded = true
             work?.cancel()
         }
@@ -186,13 +231,19 @@ public final class SubtitlePipeline {
 
     /// Paketteki Türkçe hemen gösterilir; süren çevirinin sonucu (eski satır) artık gösterilmez.
     private func showPacked(_ request: Request, _ packed: PackMatch) {
+        for old in waiting { log(old, "atıldı: sonraki satır paketten geldi (#\(request.number))") }
         waiting.removeAll()
         packHits += 1
         let source = request.source
         let translated = packed.text
         let shouldSend = stabilizer.shouldSend(source: source, translation: translated)
         remember(request.number, source, shouldSend ? translated : nil)
-        guard shouldSend else { return }
+        let pack = packName?().map { "paket:" + $0 } ?? "paket"
+        guard shouldSend else {
+            log(request, "\(SubtitleLog.excerpt(source)) → \(pack), zaten hedef dilde, gösterilmedi")
+            return
+        }
+        log(request, "\(SubtitleLog.excerpt(source)) → \(pack)")
         lastShown = request.number
         server.sendSubtitle(translated, durationMs: 15000, box: request.box, replaces: revisesShown(source))
         lastPair = (source, translated)
@@ -206,6 +257,7 @@ public final class SubtitlePipeline {
     private func restore(_ source: String, box: TextBox?) {
         if let pair = pairs.last(where: { $0.source == source }) {
             lineOnScreen = pair.number
+            log("#\(pair.number) geri geldi: \(SubtitleLog.excerpt(source))")
             guard let translation = pair.translation else { return }
             server.sendSubtitle(translation, durationMs: 15000, box: box, replaces: revisesShown(source))
             lastPair = (source, translation)
@@ -228,6 +280,13 @@ public final class SubtitlePipeline {
             await translate(request)
             // Ekrandan çoktan kalkmış satır çevrilmez; çevirisi zaten gösterilmeyecekti.
             let time = now()
+            for old in waiting {
+                if old.session != session {
+                    log(old, "atıldı: oturum bitti")
+                } else if let left = old.leftAt, time - left > Self.lateResultMs {
+                    log(old, "atıldı: çevrilmeden ekrandan kalktı (\(time - left) ms önce)")
+                }
+            }
             waiting.removeAll { $0.session != session || $0.leftAt.map { time - $0 > Self.lateResultMs } == true }
             inFlight = waiting.isEmpty ? nil : waiting.removeFirst()
         }
@@ -245,21 +304,36 @@ public final class SubtitlePipeline {
 
     private func translate(_ request: Request) async {
         let source = request.source
+        let started = now()
+        let probe = TranslationProbe()
         do {
             let translator = self.translator
-            let work = Task { try await translator.translate(source) }
+            let work = Task { try await TranslationProbe.$current.withValue(probe) { try await translator.translate(source) } }
             self.work = work
             defer { self.work = nil }
             let translated = try await work.value
-            guard request.session == session else { return }
+            let result = "\(probe.outcome()) \(now() - started) ms"
+            guard request.session == session else {
+                log(request, "\(result), atıldı: oturum bitti")
+                return
+            }
             lastError = nil
             onTranslationResult?(nil)
             let shouldSend = stabilizer.shouldSend(source: source, translation: translated)
             remember(request.number, source, shouldSend ? translated : nil)
-            guard request.number > lastShown, shouldSend, !request.superseded else { return }
+            guard request.number > lastShown, shouldSend, !request.superseded else {
+                let reason = !shouldSend ? "zaten hedef dilde"
+                    : request.superseded ? "uzamış okuması geldi" : "daha yeni satır gösterildi (#\(lastShown))"
+                log(request, "\(result), atıldı: \(reason)")
+                return
+            }
             let onScreen = request.number == lineOnScreen
             // Satır ekrandan çoktan kalktıysa çevirisi sonraki sahnenin üstüne düşmesin.
-            if !onScreen, let left = request.leftAt, now() - left > Self.lateResultMs { return }
+            if !onScreen, let left = request.leftAt, now() - left > Self.lateResultMs {
+                log(request, "\(result), geç: satır \(now() - left) ms önce kalktı, gösterilmedi")
+                return
+            }
+            log(request, "\(result), gösterildi\(onScreen ? "" : " (satır kalkmıştı)")")
             lastShown = request.number
             // Satır hâlâ ekrandaysa kalkınca silinir; kalktıysa okunacak kadar gösterilir.
             server.sendSubtitle(translated, durationMs: onScreen ? 15000 : Self.readingTime(for: translated), box: request.box,
@@ -272,6 +346,8 @@ public final class SubtitlePipeline {
         } catch {
             // Yerine uzamış okuması gelen satırın bırakılan çevirisi hata sayılmaz.
             guard request.session == session, !request.superseded else { return }
+            let retry = request.number == lineOnScreen ? ", satır ekrandayken yeniden denenecek" : ""
+            log(request, "hata (\(now() - started) ms): \(error)\(retry)")
             // Dil paketi eksikse ya da geçici bir hata olduysa satır ekranda kaldıkça (saniyede en çok bir kez) yeniden denenir.
             lastError = error as? TranslatorError
             onTranslationResult?(lastError)
@@ -299,6 +375,11 @@ public final class SubtitlePipeline {
 
     /// Okuma durunca TV'deki son altyazıyı kaldırır.
     public func reset() {
+        log("hat sıfırlandı (paketten \(packHits) satır)")
+        sessionStart = now()
+        sawFrame = false
+        sawText = false
+        lastNote = nil
         session += 1
         lineOnScreen = nil
         waiting.removeAll()

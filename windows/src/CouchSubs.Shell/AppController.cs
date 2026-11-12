@@ -962,6 +962,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             SubtitlesPaused = false;
             MakePipeline();
             if (settings.Dubbing.Enabled && DubbingInstalled) MakeDubber()?.Prepare();
+            SubtitleLog.Write($"oturum başladı: {settings.SourceLanguage}→{settings.TargetLanguage}, "
+                + $"motor: {(OnlineTranslationActive ? settings.OnlineEngine.ToString() : "ücretsiz")}, paketler: {(settings.GamePacks ? "açık" : "kapalı")}");
 
             RemotePlayLog.Note($"Çeviri başladı; PS5'e bağlanılıyor: {console.Name} {console.Host}");
             var stream = services.MakeStream(console, accountId);
@@ -1060,6 +1062,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         keeper?.Stop();
         keeper = null;
         pipeline?.Reset();
+        if (pipeline is not null) SubtitleLog.Write("oturum bitti");
         pipeline = null;
         activeReader = null;
         screenWork?.Cancel();
@@ -1190,6 +1193,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         built.TranslationResult += error => post(() => TranslatorStatus = error ?? TranslatorStatus.Ready);
         built.SpeechReady += lines => post(() => Speak(lines));
         built.PackMissed += OfferToPool;
+        built.Log = SubtitleLog.Write;
+        built.PackName = () => services.GamePacks?.SearchScope;
         ConnectPacks(built);
         OnlineIssue = null;
         pipeline = built;
@@ -1358,6 +1363,14 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private void SessionStateChanged(SessionState state)
     {
+        // Altyazı günlüğünde yalnız durumun türü (adres ve ayrıntı remoteplay.log'da).
+        if (state.Phase != SessionState.Phase)
+            SubtitleLog.Write(state.Phase switch
+            {
+                SessionPhase.Connecting => "PS5: bağlanıyor",
+                SessionPhase.Streaming => "PS5: bağlandı",
+                _ => "PS5: bağlantı yok",
+            });
         SessionState = state;
         UpdateTroubleClocks();
         // Bağlantı koptuysa TV'de eski altyazı kalmasın.
