@@ -1,13 +1,14 @@
 # Gizlilik / Privacy
 
-*Son güncelleme / Last updated: 2026-11-12*
+*Son güncelleme / Last updated: 2026-11-14*
 
 ## Türkçe
 
 CouchSubs, Enmera tarafından yayınlanan açık kaynaklı bir uygulamadır. Hesap istemez, reklam göstermez, sizi izlemez.
 Kendi sunucumuza giden tek şey, kapatabileceğiniz ortak havuzdaki İngilizce oyun metnidir (aşağıya bakın).
-Bilgisayar ve TV uygulamaları hiçbir kişisel veri toplamaz; reklam, analiz ya da izleme kodu içermez. iPhone
-uygulamasının kimliğe bağlanmayan kullanım istatistikleri için aşağıdaki "iPhone uygulaması" bölümüne bakın.
+Bilgisayar ve TV uygulamaları hiçbir kişisel veri toplamaz; reklam, analiz ya da izleme kodu içermez. iPhone ve
+Android telefon uygulamalarının kimliğe bağlanmayan kullanım istatistikleri için aşağıdaki "iPhone uygulaması" ve
+"Android telefon uygulaması" bölümlerine bakın.
 
 **Bilgisayarda kalanlar**
 
@@ -32,7 +33,7 @@ uygulamasının kimliğe bağlanmayan kullanım istatistikleri için aşağıdak
 - **Ortak havuz (Ayarlar › Çeviri'den kapatılabilir):** hiçbir oyun paketinde bulunmayan, okunan İngilizce altyazı
   satırları herkes için daha iyi Türkçe çeviriler hazırlamak üzere `couchsubs-pool.enmera.workers.dev` adresine
   gönderilir. Giden yalnız satırın metni, ondan üretilen anahtar, ilk görüldüğü an, uygulama sürümü, işletim sistemi
-  (mac/windows/ios) ve kuruluma özgü rastgele bir kimliktir. Görüntü, ses, kullanıcı adı, PSN ya da hesap bilgisi gönderilmez.
+  (mac/windows/ios/android) ve kuruluma özgü rastgele bir kimliktir. Görüntü, ses, kullanıcı adı, PSN ya da hesap bilgisi gönderilmez.
   Kapatınca gönderim hemen durur ve bekleyen satırlar silinir.
 - **Ev ağı:** PS5 ve LG TV'yi bulmak ve onlarla eşleşmek için yalnız yerel ağ kullanılır.
 
@@ -58,14 +59,45 @@ TV uygulaması altyazıları yalnız ev ağındaki CouchSubs bilgisayarından al
   gibi). Profil'deki "Ortak havuza katkı" ile kapatılır.
 - Oyun paketleri paket sunucusundan hesap ya da kimlik bilgisi gönderilmeden indirilir.
 
-Sorularınız için: https://github.com/yorulmazsinan/couchsubs/issues
+**Android telefon uygulaması**
+
+- **Reklam yok, hesap yok.** Uygulamada reklam gösterilmez; reklam kimliği (Android Advertising ID) toplanmaz, ilgili
+  izinler uygulamada yoktur.
+- **PS5 bağlantısı yalnız ev ağında:** telefon PS5'e Uzaktan Oynatma (Remote Play) ile aynı Wi-Fi üzerinden bağlanır.
+  Gelen oyun görüntüsü yalnız altyazıyı okumak için telefonun belleğinde, cihaz üstünde (Google ML Kit yazı tanıma)
+  işlenir; kaydedilmez, hiçbir yere gönderilmez. Çeviri işi sürerken kalıcı bir bildirim görünür.
+- **PSN girişi** uygulama içinde açılan Sony'nin kendi sayfasında yapılır; şifreniz yalnız Sony'ye gider. Sony'den yalnız
+  sayısal hesap kimliği alınır, oturum anahtarı saklanmaz. Hesap kimliği, PS5 eşleme anahtarları ve girdiğiniz çeviri
+  anahtarları yalnız telefonda, Android Keystore anahtarıyla şifrelenmiş olarak saklanır; uygulama silinince gider ve
+  yedeğe alınmaz.
+- **Ücretsiz çeviri** telefonun içinde Google ML Kit ile yapılır; Türkçe dil modeli ilk kullanımda Google'dan bir kez
+  indirilir. Google ML Kit, kendi çalışmasıyla ilgili performans ve kullanım ölçümlerini Google'a gönderebilir; altyazı
+  metni ya da görüntü bunlara dahil değildir.
+- **Çevrimiçi çeviri (yalnız siz seçerseniz):** kendi anahtarınızla DeepL, Gemini (Google), OpenAI ya da Claude
+  (Anthropic) seçerseniz okunan İngilizce satır ve bağlam için son birkaç satır doğrudan o servise gönderilir. Görüntü,
+  ses ve hesap bilgisi gönderilmez; o servisin kendi gizlilik koşulları geçerlidir.
+- **Kullanım istatistikleri (Profil › Kullanım verisi'nden kapatılabilir, varsayılan açık):** Google Firebase Analytics
+  ve Meta App Events uygulamanın nasıl kullanıldığını, kimliğinize bağlanmadan ölçer; çökmeler Firebase Crashlytics ile
+  bildirilir. Giden: açılan ekranlar, kurulumun bitmesi ve seçilen altyazı hedefi (TV ya da telefon), çevirinin
+  başlaması (hedef, çeviri motoru, paketlerin açık olup olmadığı) ve bitmesi (süre, satır sayısı, hazır paketten gelen
+  satır sayısı), bağlanan TV sayısı, kullanılan oyun paketinin adı; ayrıca bu hizmetlerin uygulamaya özgü rastgele
+  kimliği, cihaz modeli, Android sürümü ve IP'den çıkan ülke. Meta'ya olayların yalnız adı (ayrıntısız) ve uygulamanın
+  açılışı gider, karşılama ekranı geçildikten sonra. Altyazı metni, görüntü, PSN hesabı ya da anahtarlar gönderilmez.
+  Kapatınca Firebase ve Meta'ya hiçbir şey gitmez. Google'ın ve Meta'nın kendi gizlilik koşulları geçerlidir.
+- **Ortak havuz (Ayarlar › Ortak havuza katkı'dan kapatılabilir, varsayılan açık):** yukarıda anlatıldığı gibi; işletim
+  sistemi "android" olarak gider.
+- **TV'de gösterme:** telefon ev ağında küçük bir altyazı sunucusu açar (port 8787) ve TV'yi yerel ağda arar; altyazılar
+  yalnız aynı ağdaki CouchSubs TV uygulamasına gider.
+- Oyun paketleri haftada bir, hesap ya da kimlik bilgisi gönderilmeden indirilir.
+
+Sorularınız ve silme talepleriniz için: info@enmera.com.tr ya da https://github.com/yorulmazsinan/couchsubs/issues
 
 ## English
 
 CouchSubs is open-source software published by Enmera. It needs no account, shows no ads and does not track you.
 The only thing sent to a server of ours is English game text for the shared pool, which you can turn off (see
 below). The computer and TV apps collect no personal data and contain no advertising, analytics or tracking code. For
-the iPhone app's unlinked usage statistics, see "iPhone app" below.
+the unlinked usage statistics of the iPhone and Android phone apps, see "iPhone app" and "Android phone app" below.
 
 **Stays on your computer:** the game picture received from the PS5 is processed in memory only to read
 subtitles and is never stored or uploaded. Subtitles and translations are produced on your computer and
@@ -85,7 +117,7 @@ sent to DeepL unless you turn this on. PS5 and TV discovery and pairing use your
 **Shared pool (can be turned off in Settings › Translation):** English subtitle lines that were read and are not
 in any game pack are sent to `couchsubs-pool.enmera.workers.dev` to make better Turkish translations for
 everyone. Only the line's text, a key derived from it, when it was first seen, the app version, the operating
-system (mac/windows/ios) and a random ID made for this installation are sent; no picture, audio, user name, PSN or
+system (mac/windows/ios/android) and a random ID made for this installation are sent; no picture, audio, user name, PSN or
 account data. Turning it off stops sending at once and deletes lines waiting to be sent.
 
 The TV app receives subtitles only from the CouchSubs computer on your home network and does not connect
@@ -105,4 +137,28 @@ the phone, in the Keychain; English text is sent to such a service only if you t
 are not in any game pack go to the shared pool (as described above); turn it off with "Contribute to the shared pool"
 in Profile. Game packs are downloaded from the pack server without sending any account or identifying data.
 
-Contact: https://github.com/yorulmazsinan/couchsubs/issues
+**Android phone app:** no ads, no account. No ads are shown and the Android advertising ID is not collected; the app
+does not hold the related permissions. The phone connects to your PS5 with Remote Play over your home Wi-Fi only. The
+game picture is processed in the phone's memory, on the device (Google ML Kit text recognition), only to read
+subtitles; it is never stored or uploaded. A persistent notification is shown while translation runs. PlayStation
+Network sign-in happens on Sony's own page opened inside the app; your password goes only to Sony. Only the numeric
+account ID is requested from Sony and no session token is kept. The account ID, the PS5 pairing keys and any
+translation keys you enter are stored only on the phone, encrypted with an Android Keystore key; they are removed with
+the app and are not backed up. Free translation runs on the phone with Google ML Kit; the Turkish language model is
+downloaded once from Google on first use, and ML Kit may send Google performance and usage metrics about its own
+operation, which do not include subtitle text or pictures. If you choose DeepL, Gemini (Google), OpenAI or Claude
+(Anthropic) with your own key, the English line that was read and the last few lines for context are sent directly to
+that service; no picture, audio or account data, and that service's own privacy terms apply. Usage statistics (on by
+default, turn off in Profile › Usage data) are measured with Google Firebase Analytics and Meta App Events without being
+linked to you, and crashes are reported with Firebase Crashlytics. What is sent: opened screens, finishing setup and the
+chosen subtitle target (TV or phone), translation start (target, engine, whether packs are on) and stop (duration,
+number of lines, lines from a ready-made pack), number of connected TVs, the name of the game pack used, plus these
+services' random app-specific ID, device model, Android version and the country derived from the IP address. Meta
+receives only event names (without details) and app launches, after the welcome screen. No subtitle text, picture, PSN
+account or keys are sent; when turned off nothing goes to Firebase or Meta. Google's and Meta's own privacy terms apply.
+The shared pool works as described above (can be turned off in Settings › Contribute to the shared pool, on by default;
+the operating system is sent as "android"). To show subtitles on a TV, the phone runs a small subtitle server on your
+home network (port 8787) and looks for TVs on the local network; subtitles go only to the CouchSubs TV app on the same
+network. Game packs are downloaded about once a week without sending any account or identifying data.
+
+Contact and deletion requests: info@enmera.com.tr or https://github.com/yorulmazsinan/couchsubs/issues
