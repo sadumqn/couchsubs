@@ -6,9 +6,13 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 
 **Bu sürümde yeni**
 
-- **İki yeni Türkçe yama:** Marvel's Spider-Man 2 ve Death Stranding (Director's Cut). Oyunu açınca yama kendiliğinden seçilir; yamadaki satırlar beklemeden gelir.
-- **Mac'te ana ekran düzeltmesi:** Ayarlar açılıp kapandıktan sonra sol sütundaki kartların sağ sütuna taşması giderildi.
-- **Windows'ta uzun yazılar:** "Bilgisayar ekranı" seçeneği, uzun PS5 durumu ve çeviri motorunun adı artık kesilmeden alt satıra iniyor.
+- **Samsung kurulumunda doğru "Host PC IP":** VPN, sanal makine ve WSL bağdaştırıcıları artık seçilmiyor, Wi-Fi ya da Ethernet adresi gösteriliyor; ağ ya da TV değişince adres kendiliğinden yenileniyor (Mac ve Windows).
+- **Samsung girişi açılmazsa:** tarayıcı giriş penceresini açılır pencere diye engellerse ne yapılacağı ekranda yazıyor; Windows'a "Bağlantıyı kopyala" düğmesi geldi.
+- **Mac'te çevirinin durması giderildi:** altyazı alanı değiştirilince (ör. Tam ekran, Özel) bazen çeviri duruyor, yalnız uygulamayı kapatıp açmak düzeltiyordu. Artık "Durdur / Başlat" düzeltiyor, takılan okuma da kendiliğinden yeniden başlıyor.
+- **"Üstünü örtsün"de tek kutu:** Türkçe metin İngilizceden uzun olunca iki farklı boyda kutu görünüyordu; artık siyah örtü Türkçe kadar büyüyor (TV uygulaması 0.9.17).
+- **Adlar çevrilmiyor:** Phantom Blade Zero'daki "Soul" ücretsiz çeviride "ruh" diye çevrilmiyor; sıradan "soul" yine çevriliyor.
+
+**beta.34'te gelenler:** Marvel's Spider-Man 2 ve Death Stranding (Director's Cut) yamaları, Mac'te sol sütun taşmasının giderilmesi, Windows'ta uzun yazıların kesilmeden alt satıra inmesi.
 
 **beta.33'te gelenler:** canlı ölçümler (okuma, çeviri, gecikme), altyazı alanı için hazır seçimler ve canlı önizleme, "TV'de test et", Geçmiş, Windows'ta bozuk ve yarım okunan altyazıların çok azalması (katkı: [ronaldinho62](https://github.com/ronaldinho62), #28), TV uygulaması 0.9.16.
 
