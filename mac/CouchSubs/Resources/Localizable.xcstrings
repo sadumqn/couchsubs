@@ -5457,6 +5457,22 @@
         }
       }
     },
+    "On the computer screen, move the subtitle by dragging its window: press Adjust the subtitle window.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the computer screen, move the subtitle by dragging its window: press Adjust the subtitle window."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilgisayar ekranındaki altyazıyı penceresini sürükleyerek taşıyın: Altyazı penceresini ayarla'ya basın."
+          }
+        }
+      }
+    },
     "When on, clicks go through to the window below. Press ⌥⌘L or use the menu bar to turn it off.": {
       "localizations": {
         "en": {
