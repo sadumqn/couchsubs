@@ -109,6 +109,50 @@ public class SubtitlePipelineTests
     private static string[] Lines(params (string Text, int Count)[] runs) =>
         [.. runs.SelectMany(run => Enumerable.Repeat(run.Text, run.Count))];
 
+    /// <summary>Okumayı test bırakana kadar bekletir (takılan yazı tanıma).</summary>
+    private sealed class BlockingReader(string text) : ITextReader
+    {
+        public readonly ManualResetEventSlim Entered = new();
+        public readonly ManualResetEventSlim Release = new();
+        public string Read(Frame image)
+        {
+            Entered.Set();
+            Release.Wait(TimeSpan.FromSeconds(10));
+            return text;
+        }
+    }
+
+    // Takılan okuma hat sıfırlandıktan sonra bitince eski satır TV'ye gitmez (FrameGate ile birlikte, 2026-11-13).
+    [Fact]
+    public async Task ReadFinishingAfterResetIsDropped()
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        var reader = new BlockingReader("Hold the gate.");
+        var pipeline = new SubtitlePipeline(reader, translator, sender);
+        var running = pipeline.ProcessAsync(Image, new CropRegion());
+        Assert.True(reader.Entered.Wait(TimeSpan.FromSeconds(5)));
+        pipeline.Reset();
+        reader.Release.Set();
+        await running;
+        Assert.Empty(translator.Requested);
+        Assert.Empty(sender.Sent);
+    }
+
+    [Fact]
+    public async Task BlockedReadIsTranslatedWhenNotReset()
+    {
+        var translator = new FakeTranslator();
+        var reader = new BlockingReader("Hold the gate.");
+        var pipeline = new SubtitlePipeline(reader, translator, new FakeSender());
+        var running = pipeline.ProcessAsync(Image, new CropRegion());
+        Assert.True(reader.Entered.Wait(TimeSpan.FromSeconds(5)));
+        reader.Release.Set();
+        await running;
+        for (var i = 0; i < 50 && translator.Requested.Count == 0; i++) await Task.Delay(20);
+        Assert.Equal(["Hold the gate."], translator.Requested);
+    }
+
     [Fact]
     public async Task ButtonPromptsAreNotTranslated()
     {

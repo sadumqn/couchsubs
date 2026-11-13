@@ -66,7 +66,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private bool subtitlesPaused;
     /// <summary>Oyundaki altyazının son görüldüğü yer; deneme altyazısı TV'de oraya yerleşir.</summary>
     private TextBox? lastSubtitleBox;
-    private int processing;
+    /// <summary>Hatta aynı anda tek kare girer; durdurma ve yeni hat kapıyı sıfırlar, takılan okuma hattı yeniden kurdurur.</summary>
+    private readonly FrameGate frameGate = new();
     private Dubber? dubber;
     private string? updateVersion;
     private bool updating;
@@ -1086,6 +1087,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         pipeline?.Reset();
         if (pipeline is not null) SubtitleLog.Write("oturum bitti");
         pipeline = null;
+        // Yeni "Başlat" eski oturumdan kalan (belki takılmış) okumayı beklemeden temiz başlar.
+        frameGate.Reset();
         activeReader = null;
         screenWork?.Cancel();
         screenWork = null;
@@ -1202,6 +1205,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     {
         pipeline?.Reset();
         pipeline = null;
+        // Eski hatta süren okuma beklenmez; yeni hat ilk karesini hemen alır.
+        frameGate.Reset();
         ActiveSourceLanguage = settings.SourceLanguage;
         var reader = services.MakeReader(settings.SourceLanguage);
         activeReader = reader;
@@ -1466,14 +1471,23 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (subtitlesPaused) return;
             // Önceki kare hâlâ işleniyorsa bu kare atlanır; okuma kareleri biriktirmez.
             var current = pipeline;
-            if (current is null || Interlocked.Exchange(ref processing, 1) == 1) return;
+            if (current is null) return;
+            var entry = frameGate.TryEnter(Environment.TickCount64);
+            if (entry.Kind == FrameGate.EntryKind.Stuck)
+            {
+                // Okuma bitmedi: önizleme canlıyken altyazı hiç gelmiyordu ve ancak uygulamayı kapatıp açmak düzeltiyordu.
+                SubtitleLog.Write($"okuma {entry.Ms} ms'dir bitmedi; okuma hattı yeniden kuruldu");
+                post(MakePipeline);
+                return;
+            }
+            if (entry.Kind != FrameGate.EntryKind.Enter) return;
             try
             {
                 await current.ProcessAsync(frame, settings.Region, arrived);
             }
             finally
             {
-                Volatile.Write(ref processing, 0);
+                frameGate.Leave(entry.Token);
             }
         }
         catch

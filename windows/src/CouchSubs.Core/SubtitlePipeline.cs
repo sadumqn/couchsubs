@@ -157,8 +157,11 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
     public async Task ProcessAsync(Frame frame, CropRegion region, long? capturedAt = null)
     {
         var captured = capturedAt ?? now();
+        // Okuma sürerken hat sıfırlandıysa (çeviri durdu, hat yeniden kuruldu) bu karenin sonucu yeni oturuma karışmaz.
+        int startedSession;
         lock (gate)
         {
+            startedSession = session;
             if (!sawFrame)
             {
                 sawFrame = true;
@@ -190,6 +193,14 @@ public sealed class SubtitlePipeline(ITextReader reader, ITextTranslator transla
             }
             catch { return (Reading.Empty, (int?)null); }
         });
+        lock (gate)
+        {
+            if (session != startedSession)
+            {
+                Write("eski okuma bitti, hat sıfırlanmıştı; atıldı");
+                return;
+            }
+        }
         // Kumanda ipuçları ("R2 Swing") altyazı değildir; çevrilmez, yeri de altyazının yerine katılmaz.
         // Yazı tanımanın uydurduğu sözcük çöpleri ("ou$3e") de çevirmene gitmez.
         // Alandaki menü ve köşe göstergeleri de altyazı değildir; yalnız altyazı bloğu çevrilir ve kutusu ona göre olur.
