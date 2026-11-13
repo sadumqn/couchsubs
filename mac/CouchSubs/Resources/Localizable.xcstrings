@@ -6209,6 +6209,22 @@
         }
       }
     },
+    "If the sign-in window does not open, the browser may have blocked it as a pop-up: allow pop-ups for this page from the icon in the address bar, then press Open the page again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the sign-in window does not open, the browser may have blocked it as a pop-up: allow pop-ups for this page from the icon in the address bar, then press Open the page again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giriş penceresi açılmazsa tarayıcı onu açılır pencere diye engellemiş olabilir: adres çubuğundaki simgeden bu sayfa için açılır pencerelere izin verin, sonra Sayfayı yeniden aç'a basın."
+          }
+        }
+      }
+    },
     "A CouchSubs TV app signed on another computer is still on the TV and could not be removed. On the TV, open Apps, select CouchSubs, delete it and try again.": {
       "localizations": {
         "en": {
