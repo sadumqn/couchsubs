@@ -478,7 +478,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public Action<Uri> OpenInBrowser { get; set; } = _ => { };
 
     /// <summary>Samsung'da geliştirici modunda "Host PC IP" olarak yazılacak bu bilgisayarın adresi.</summary>
-    public string? ComputerAddress => LocalAddress(tv is { Host.Length: > 0 } target ? target.Host : "192.168.1.1");
+    public string? ComputerAddress => LocalAddress(tv is { Host.Length: > 0 } target ? target.Host : null);
 
     /// <summary>
     /// Geliştirici modu açık TV'de uygulamayı eksikse kurar, eskiyse günceller.
@@ -1509,24 +1509,14 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     /// <summary>TV ile aynı ağdaki bilgisayar adresi.</summary>
     private string ServerAddress(LgTv target) => $"http://{LocalAddress(target.Host) ?? "127.0.0.1"}:{ServerPort}";
 
-    public static string? LocalAddress(string near)
+    /// <summary>
+    /// <paramref name="near"/> adresine (TV) ulaşan bu bilgisayar adresi; TV adresi bilinmiyorsa (null ya da geçersiz)
+    /// Wi-Fi/Ethernet adresi. VPN ve sanal bağdaştırıcılar ancak başka adres yoksa seçilir (<see cref="LocalNetwork.ChooseComputerAddress"/>).
+    /// </summary>
+    public static string? LocalAddress(string? near)
     {
-        if (!IPAddress.TryParse(near, out var target) || target.AddressFamily != AddressFamily.InterNetwork) return null;
-        string? fallback = null;
-        foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
-        {
-            if (network.OperationalStatus != OperationalStatus.Up || network.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-            foreach (var unicast in network.GetIPProperties().UnicastAddresses)
-            {
-                if (unicast.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                var mask = unicast.IPv4Mask.GetAddressBytes();
-                var address = unicast.Address.GetAddressBytes();
-                var wanted = target.GetAddressBytes();
-                if (Enumerable.Range(0, 4).All(i => (address[i] & mask[i]) == (wanted[i] & mask[i]))) return unicast.Address.ToString();
-                fallback ??= unicast.Address.ToString();
-            }
-        }
-        return fallback;
+        IPAddress? target = IPAddress.TryParse(near, out var parsed) && parsed.AddressFamily == AddressFamily.InterNetwork ? parsed : null;
+        return LocalNetwork.ChooseComputerAddress(LocalNetwork.Ipv4Adapters(), target);
     }
 
     // --- Windows Güvenlik Duvarı ---

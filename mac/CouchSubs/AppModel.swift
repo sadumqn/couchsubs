@@ -923,7 +923,7 @@ final class AppModel: ObservableObject {
 
     /// Samsung'da geliştirici modunda "Host PC IP" olarak yazılacak bu Mac'in adresi.
     var computerAddress: String? {
-        Self.localAddress(near: tv?.host.isEmpty == false ? tv!.host : "192.168.1.1")
+        Self.localAddress(near: tv?.host.isEmpty == false ? tv!.host : nil)
     }
 
     /// Key Server'dan anahtarı alır (TV ekranındaki parolayla) ve uygulamayı kurar.
@@ -1511,7 +1511,7 @@ final class AppModel: ObservableObject {
         "http://\(Self.localAddress(near: tv.host) ?? "127.0.0.1"):\(serverPort)"
     }
 
-    static func localAddress(near host: String) -> String? { NetworkAddress.near(host) }
+    static func localAddress(near host: String?) -> String? { NetworkAddress.near(host) }
 }
 
 // MARK: - Dublaj
