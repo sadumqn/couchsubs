@@ -183,7 +183,8 @@ public final class SubtitlePipeline {
             sawText = true
             log("ilk yazı: oturum başından \(now() - sessionStart) ms sonra \(SubtitleLog.excerpt(reading.text))")
         }
-        let action = stabilizer.feed(reading.text)
+        // Bölge izi ve satırın yeri: okuma boş dönse de satırın yeri değişmediyse satır silinmez (parlak zemin).
+        let action = stabilizer.feed(reading.text, signature: signature, box: reading.box)
         // Ekranda duran kötü yeniden okuma her karede not edilir; günlüğe bir kez yazılır.
         if let note = stabilizer.note, note != lastNote {
             lastNote = note
@@ -198,6 +199,7 @@ public final class SubtitlePipeline {
         case .clear:
             lineLeft()
             server.clear()
+            log("kalktı: bölge boş okundu, ekran temizlendi")
         case .translate(let source):
             lineLeft()
             enqueue(source, box: box)
