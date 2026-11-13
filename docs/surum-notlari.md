@@ -6,11 +6,12 @@ CouchSubs'ın yeni deneme sürümü. Türkçe dil desteği olmayan PS5 oyunları
 
 **Bu sürümde yeni**
 
-- **Samsung kurulumunda doğru "Host PC IP":** VPN, sanal makine ve WSL bağdaştırıcıları artık seçilmiyor, Wi-Fi ya da Ethernet adresi gösteriliyor; ağ ya da TV değişince adres kendiliğinden yenileniyor (Mac ve Windows).
-- **Samsung girişi açılmazsa:** tarayıcı giriş penceresini açılır pencere diye engellerse ne yapılacağı ekranda yazıyor; Windows'a "Bağlantıyı kopyala" düğmesi geldi.
-- **Mac'te çevirinin durması giderildi:** altyazı alanı değiştirilince (ör. Tam ekran, Özel) bazen çeviri duruyor, yalnız uygulamayı kapatıp açmak düzeltiyordu. Artık "Durdur / Başlat" düzeltiyor, takılan okuma da kendiliğinden yeniden başlıyor.
-- **"Üstünü örtsün"de tek kutu:** Türkçe metin İngilizceden uzun olunca iki farklı boyda kutu görünüyordu; artık siyah örtü Türkçe kadar büyüyor (TV uygulaması 0.9.17).
-- **Adlar çevrilmiyor:** Phantom Blade Zero'daki "Soul" ücretsiz çeviride "ruh" diye çevrilmiyor; sıradan "soul" yine çevriliyor.
+- **Açık renkli sahnelerde çeviri kaybolmuyor:** İngilizce altyazı beyaz ya da parlak bir zeminin önündeyken yazı tanıma kısa süre kaçırınca Türkçe çeviri siliniyordu. Artık altyazının yeri değişmediyse çeviri ekranda kalıyor; altyazı gerçekten gidince eskisi gibi hemen kalkıyor.
+- **DeepL'de adlar korunuyor:** Sözlükteki adlar (ör. Phantom Blade Zero'daki "Soul") DeepL'de de çevrilmiyor; adın arkasındaki sözcük de bozulmuyor ("began" → "Pegan" gibi).
+- **Takılan okuma çeviriyi durdurmuyor (Windows ve iPhone):** Mac'te beta.35'te düzeltilen sorun diğer platformlarda da giderildi.
+- **Ayarlar'da altyazının yeri:** "Yerleşim" ve "Ekrandaki konum" yalnız TV'ye gönderilirken görünüyor; bilgisayar ekranındaki altyazı için yerinde "Altyazı penceresini ayarla" düğmesi var.
+
+**beta.35'te gelenler:** Samsung kurulumunda doğru "Host PC IP" (VPN ve sanal bağdaştırıcılar seçilmiyor), Samsung girişi açılmazsa açılır pencere ipucu ve bağlantıyı kopyala düğmesi, Mac'te alan değişince çevirinin durmasının giderilmesi, "Üstünü örtsün"de tek kutu (TV uygulaması 0.9.17), ücretsiz çeviride "Soul" gibi adların korunması.
 
 **beta.34'te gelenler:** Marvel's Spider-Man 2 ve Death Stranding (Director's Cut) yamaları, Mac'te sol sütun taşmasının giderilmesi, Windows'ta uzun yazıların kesilmeden alt satıra inmesi.
 
