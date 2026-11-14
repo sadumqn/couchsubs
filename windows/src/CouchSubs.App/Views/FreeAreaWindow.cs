@@ -200,13 +200,6 @@ public sealed class FreeAreaWindow : Window
                 ShowResult(text["Could not translate this area."], rect);
                 break;
         }
-
-        // Yalnız TV'de gösteriliyorsa bilgisayar ekranının işi bitmiştir; pencere kendiliğinden kapanır.
-        if (outcome == ExtraRegionOutcome.Shown && controller.Settings.FreeAreaTarget == ResultTarget.Tv)
-        {
-            await Task.Delay(700);
-            if (token == version && IsLoaded) Close();
-        }
     }
 
     /// <summary>Metni seçilen alanın altına (sığmıyorsa üstüne) koyar.</summary>
