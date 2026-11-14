@@ -67,6 +67,8 @@ public partial class SettingsWindow : Window
         // Num 8: oyunun o anki görüntüsü önizlemeye alınır.
         controller.SnapshotRequested += OnSnapshot;
         Closed += (_, _) => controller.SnapshotRequested -= OnSnapshot;
+        controller.ExtraLiveChanged += OnExtraLiveChanged;
+        Closed += (_, _) => controller.ExtraLiveChanged -= OnExtraLiveChanged;
         Dubbing.Attach(controller);
         OutputCard.Attach(controller);
         ShowStyleTitle();
@@ -579,6 +581,22 @@ public partial class SettingsWindow : Window
         Region.ShowRegion(region);
     }
 
+    private void OnExtraLive(object sender, RoutedEventArgs e)
+    {
+        if (loading || area is < 1 or > 2) return;
+        controller.SetExtraLive(area, ExtraLive.IsChecked == true);
+    }
+
+    /// <summary>Num 4 / Num 6 ile (ya da çeviri durunca) değişen sürekli gösterimi düğmeye yansıtır.</summary>
+    private void OnExtraLiveChanged(int slot, bool on)
+    {
+        if (slot != area) return;
+        var wasLoading = loading;
+        loading = true;
+        ExtraLive.IsChecked = on;
+        loading = wasLoading;
+    }
+
     /// <summary>Resimde seçilen alanı hemen çevirir; sonuç ayara göre TV'ye gider, resmin üzerinde ve altta da gösterilir.</summary>
     private async Task TranslateFreeAsync(CropRegion region)
     {
@@ -625,6 +643,7 @@ public partial class SettingsWindow : Window
             UseArea.Visibility = Visibility.Collapsed;
             PresetPanel.Visibility = Visibility.Collapsed;
             ExtraTargetPanel.Visibility = Visibility.Visible;
+            ExtraLive.Visibility = Visibility.Collapsed;
             SetExtraRadio(settings.FreeAreaTarget);
             FreeResultBox.Visibility = Visibility.Visible;
             FreeResult.Text = "";
@@ -651,11 +670,13 @@ public partial class SettingsWindow : Window
             UseArea.IsChecked = extra is not null;
             PresetPanel.Visibility = Visibility.Collapsed;
             ExtraTargetPanel.Visibility = Visibility.Visible;
+            ExtraLive.Visibility = Visibility.Visible;
+            ExtraLive.IsChecked = controller.IsExtraLive(slot);
             (settings.ExtraTarget(slot) switch { ResultTarget.Pc => ExtraPc, ResultTarget.Both => ExtraBoth, _ => ExtraTv }).IsChecked = true;
             Region.IsEnabled = extra is not null;
             Region.DefaultRegion = ExtraDefaults[slot - 1];
             Region.ShowRegion(extra ?? ExtraDefaults[slot - 1]);
-            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press its key (Num 1 or 2, or Ctrl+Shift+1 or 2) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."];
+            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press its key (Num 1 or 2, or Ctrl+Shift+1 or 2) to read and translate it once; press it again to remove the translation. Choose where the result shows. It works even when CouchSubs is in the background."];
         }
         loading = wasLoading;
     }

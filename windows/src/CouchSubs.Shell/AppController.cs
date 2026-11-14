@@ -64,6 +64,21 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private ITextReader? activeReader;
     private int extraBusy;
     private bool subtitlesPaused;
+    // Ek bölgeler (1, 2): ekrandaki sonuç (tuşa yeniden basınca kaldırmak için) ve sürekli gösterme.
+    private const int ExtraSlots = 2;
+    private readonly DateTime[] extraShownUntil = new DateTime[ExtraSlots + 1];
+    private readonly ResultTarget[] extraShownTarget = new ResultTarget[ExtraSlots + 1];
+    private readonly bool[] extraLive = new bool[ExtraSlots + 1];
+    private readonly long[] extraLiveNext = new long[ExtraSlots + 1];
+    private readonly string?[] extraLiveKey = new string?[ExtraSlots + 1];
+    private readonly int[] extraLiveEmpty = new int[ExtraSlots + 1];
+    private readonly bool[] extraLiveBusy = new bool[ExtraSlots + 1];
+    private readonly long[] extraLiveSentAt = new long[ExtraSlots + 1];
+    /// <summary>Sürekli gösterimde bölge bu aralıkla yeniden okunur.</summary>
+    private const int LiveIntervalMs = 1000;
+    /// <summary>Sürekli gösterimde sonuç bu süre ekranda kalır; değişmediyse süre dolmadan yeniden gönderilir.</summary>
+    private const int LiveShowMs = 30000;
+    private const int LiveResendMs = 25000;
     /// <summary>Oyundaki altyazının son görüldüğü yer; deneme altyazısı TV'de oraya yerleşir.</summary>
     private TextBox? lastSubtitleBox;
     /// <summary>Hatta aynı anda tek kare girer; durdurma ve yeni hat kapıyı sıfırlar, takılan okuma hattı yeniden kurdurur.</summary>
@@ -805,6 +820,142 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     /// <summary>Çeviri bilgisayarda da gösterilecekse (metin, kalma süresi ms) ile çağrılır.</summary>
     public event Action<string, int>? PcResultReady;
 
+    /// <summary>Bilgisayardaki çeviri kutusu kaldırılsın.</summary>
+    public event Action? PcResultCleared;
+
+    /// <summary>Bir ek bölgenin sürekli gösterim durumu değişti (ayar penceresi düğmeyi günceller).</summary>
+    public event Action<int, bool>? ExtraLiveChanged;
+
+    public bool IsExtraLive(int slot) => slot is >= 1 and <= ExtraSlots && extraLive[slot];
+
+    /// <summary>Num 4 / Num 6: ek bölgeyi sürekli göster ya da bırak.</summary>
+    public void ToggleExtraLive(int slot) => SetExtraLive(slot, !IsExtraLive(slot));
+
+    /// <summary>
+    /// Sürekli gösterim: bölge yaklaşık saniyede bir okunur, yazı değişince çevrilip ekranda tutulur; yazı kaybolunca kalkar.
+    /// Yalnız çeviri sürerken ve bölge açıkken açılır. Kapatınca ekrandaki çeviri de kalkar.
+    /// </summary>
+    public void SetExtraLive(int slot, bool on)
+    {
+        if (slot is < 1 or > ExtraSlots) return;
+        if (on && (!isRunning || settings.ExtraRegion(slot) is null))
+        {
+            post(() => ExtraLiveChanged?.Invoke(slot, false));
+            return;
+        }
+        if (extraLive[slot] == on) return;
+        extraLive[slot] = on;
+        extraLiveKey[slot] = null;
+        extraLiveEmpty[slot] = 0;
+        extraLiveNext[slot] = 0;
+        if (!on) ClearExtraResult(slot);
+        post(() => ExtraLiveChanged?.Invoke(slot, on));
+        server.SendStyle(settings.Style);
+        server.SendSubtitle(text[on ? "Area shown continuously" : "Area display stopped"], 1500);
+    }
+
+    /// <summary>Ek bölgenin ekrandaki çevirisini (TV ve/veya bilgisayar) kaldırır.</summary>
+    private void ClearExtraResult(int slot)
+    {
+        var target = extraShownTarget[slot];
+        extraShownUntil[slot] = default;
+        if (target != ResultTarget.Pc) server.Clear();
+        if (target != ResultTarget.Tv) post(() => PcResultCleared?.Invoke());
+    }
+
+    private void ResetExtraLive()
+    {
+        for (var slot = 1; slot <= ExtraSlots; slot++)
+        {
+            extraLive[slot] = false;
+            extraLiveKey[slot] = null;
+            extraLiveEmpty[slot] = 0;
+            extraShownUntil[slot] = default;
+        }
+    }
+
+    /// <summary>Kare geldiğinde, sürekli gösterimdeki bölgelerden sırası gelenleri okutur.</summary>
+    private void TickExtraLive(Frame frame)
+    {
+        for (var slot = 1; slot <= ExtraSlots; slot++)
+        {
+            if (!extraLive[slot] || extraLiveBusy[slot]) continue;
+            if (Environment.TickCount64 < extraLiveNext[slot]) continue;
+            if (settings.ExtraRegion(slot) is not { } region) continue;
+            extraLiveBusy[slot] = true;
+            _ = LiveAreaAsync(slot, frame, region);
+        }
+    }
+
+    private async Task LiveAreaAsync(int slot, Frame frame, CropRegion region)
+    {
+        try
+        {
+            var reader = activeReader;
+            if (!isRunning || reader is null) return;
+            // Tuşla yapılan tek seferlik çeviri sürerken sürekli okuma bir tur atlanır.
+            if (Interlocked.Exchange(ref extraBusy, 1) == 1) return;
+            RegionTranslation.Result? result;
+            try
+            {
+                result = await RegionTranslation.TranslateOnceAsync(frame, region, reader, MakeTranslator());
+            }
+            catch (TranslatorException error)
+            {
+                post(() => TranslatorStatus = error.Status);
+                return;
+            }
+            finally
+            {
+                Volatile.Write(ref extraBusy, 0);
+            }
+            if (!extraLive[slot]) return;
+            var target = settings.ExtraTarget(slot);
+            if (result is null)
+            {
+                // Tek bir boş okuma yazıyı kaldırmaz (okuma titremesi); art arda iki boş okuma kaldırır.
+                if (++extraLiveEmpty[slot] >= 2 && extraLiveKey[slot] is not null)
+                {
+                    extraLiveKey[slot] = null;
+                    ClearExtraResult(slot);
+                }
+                return;
+            }
+            extraLiveEmpty[slot] = 0;
+            var key = LiveKey(result.Source);
+            var now = Environment.TickCount64;
+            if (key == extraLiveKey[slot] && now - extraLiveSentAt[slot] < LiveResendMs) return;
+            extraLiveKey[slot] = key;
+            extraLiveSentAt[slot] = now;
+            extraShownTarget[slot] = target;
+            extraShownUntil[slot] = DateTime.UtcNow.AddMilliseconds(LiveShowMs);
+            if (target != ResultTarget.Pc)
+            {
+                server.SendStyle(settings.Style);
+                server.SendSubtitle(result.Translation, LiveShowMs, result.Box, paragraphs: result.Structured);
+            }
+            post(() =>
+            {
+                LastSource = result.Source;
+                LastTranslation = result.Translation;
+                if (target != ResultTarget.Tv) PcResultReady?.Invoke(result.Translation, LiveShowMs);
+            });
+        }
+        catch
+        {
+            // Tek bir okumanın başarısız olması sürekli gösterimi durdurmaz.
+        }
+        finally
+        {
+            extraLiveNext[slot] = Environment.TickCount64 + LiveIntervalMs;
+            extraLiveBusy[slot] = false;
+        }
+    }
+
+    /// <summary>Okuma gürültüsü yüzünden aynı yazı yeniden çevrilmesin: yalnız harf ve rakamlar, küçük harfle.</summary>
+    private static string LiveKey(string source) =>
+        new(source.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+
     /// <summary>
     /// 1, 2 ya da 3 numaralı ek bölgeyi şimdi bir kez okuyup çevirir; sonuç ayardaki yere (TV, bilgisayar ya da ikisi) gider
     /// (görev paneli gibi yazılar için). Çeviri sürmüyorsa, bölge kapalıysa ya da önceki istek bitmediyse hiçbir şey yapılmaz.
@@ -813,8 +964,28 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     {
         if (settings.ExtraRegion(slot) is not { } region) return ExtraRegionOutcome.NotConfigured;
         if (lastFrame is not { } frame) return ExtraRegionOutcome.NotRunning;
+        if (slot is >= 1 and <= ExtraSlots)
+        {
+            // Sürekli gösterim açıkken tuş onu kapatır; çeviri ekrandayken yeniden basmak çeviriyi kaldırır.
+            if (extraLive[slot])
+            {
+                SetExtraLive(slot, false);
+                return ExtraRegionOutcome.Cleared;
+            }
+            if (DateTime.UtcNow < extraShownUntil[slot])
+            {
+                ClearExtraResult(slot);
+                return ExtraRegionOutcome.Cleared;
+            }
+        }
         var target = settings.ExtraTarget(slot);
-        return (await RunRegionAsync(frame, region, target != ResultTarget.Pc, target != ResultTarget.Tv)).Outcome;
+        var (outcome, result) = await RunRegionAsync(frame, region, target != ResultTarget.Pc, target != ResultTarget.Tv);
+        if (outcome == ExtraRegionOutcome.Shown && result is not null && slot is >= 1 and <= ExtraSlots)
+        {
+            extraShownTarget[slot] = target;
+            extraShownUntil[slot] = DateTime.UtcNow.AddMilliseconds(RegionTranslation.DisplayMilliseconds(result.Translation));
+        }
+        return outcome;
     }
 
     /// <summary>
@@ -982,6 +1153,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             try { await StartServerAsync(); } catch { /* port açılamadıysa TV durumu "bekleniyor" kalır */ }
             server.SendStyle(settings.Style);
             SubtitlesPaused = false;
+            ResetExtraLive();
             MetricsText = "";
             MakePipeline();
             if (settings.Dubbing.Enabled && DubbingInstalled) MakeDubber()?.Prepare();
@@ -1095,6 +1267,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (DateTime.UtcNow < screenShownUntil) server.ClearScreen();
         screenShownUntil = default;
         SubtitlesPaused = false;
+        ResetExtraLive();
         ActiveSourceLanguage = null;
         OnlineIssue = null;
         StopDubber();
@@ -1467,6 +1640,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         try
         {
             post(() => LastFrame = frame);
+            TickExtraLive(frame);
             // Duraklatıldıysa kare yalnız ek bölgeler ve serbest alan için saklanır; altyazı okunmaz.
             if (subtitlesPaused) return;
             // Önceki kare hâlâ işleniyorsa bu kare atlanır; okuma kareleri biriktirmez.
@@ -1820,7 +1994,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 }
 
 /// <summary>Ek bölgenin tek seferlik çevirisinin sonucu.</summary>
-public enum ExtraRegionOutcome { Shown, NoText, NotConfigured, NotRunning, Busy, TranslatorUnavailable, Failed }
+/// <summary><see cref="Cleared"/>: ekrandaki çeviri, tuşa yeniden basılınca (ya da sürekli gösterim kapanınca) kaldırıldı.</summary>
+public enum ExtraRegionOutcome { Shown, Cleared, NoText, NotConfigured, NotRunning, Busy, TranslatorUnavailable, Failed }
 
 /// <summary>"Ekranı çevir"in sonucu; <see cref="Cleared"/>: TV'deki çeviriler kaldırıldı ya da süren iş iptal edildi.</summary>
 public enum ScreenOutcome { Shown, NoText, Cleared, NotRunning, TranslatorUnavailable, Failed }

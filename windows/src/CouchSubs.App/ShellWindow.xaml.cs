@@ -32,6 +32,7 @@ public partial class ShellWindow : Window
         };
         // Bilgisayarda gösterilecek çeviriler küçük, üstte duran bir kutuda çıkar.
         controller.PcResultReady += PcResultWindow.Display;
+        controller.PcResultCleared += PcResultWindow.Dismiss;
         // Bilgisayar ekranındaki altyazı penceresi (altyazı yokken gizli). Kurulamazsa uygulama onsuz açılır.
         SubtitleOverlayWindow? overlay = null;
         try
@@ -46,6 +47,7 @@ public partial class ShellWindow : Window
         Closed += (_, _) =>
         {
             controller.PcResultReady -= PcResultWindow.Display;
+            controller.PcResultCleared -= PcResultWindow.Dismiss;
             overlay?.Detach();
             hotkeys?.Dispose();
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
@@ -66,6 +68,8 @@ public partial class ShellWindow : Window
         {
             case HotkeyAction.ExtraRegion1: _ = controller.TranslateExtraRegionAsync(1); break;
             case HotkeyAction.ExtraRegion2: _ = controller.TranslateExtraRegionAsync(2); break;
+            case HotkeyAction.ExtraLive1: controller.ToggleExtraLive(1); break;
+            case HotkeyAction.ExtraLive2: controller.ToggleExtraLive(2); break;
             case HotkeyAction.PauseSubtitles: controller.ToggleSubtitles(); break;
             case HotkeyAction.Snapshot: controller.RequestSnapshot(); break;
             case HotkeyAction.FreeArea: FreeAreaWindow.Open(controller); break;

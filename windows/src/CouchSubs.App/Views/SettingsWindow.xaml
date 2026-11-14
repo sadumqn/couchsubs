@@ -337,6 +337,8 @@
                                         <RadioButton x:Name="ExtraBoth" Content="{t:T 'On both'}" GroupName="extraTarget" Style="{StaticResource SegmentButton}" Checked="OnExtraTarget" Tag="Both" />
                                     </StackPanel>
                                 </Border>
+                                <CheckBox x:Name="ExtraLive" Content="{t:T 'Show continuously (Num 4 for Area 1, Num 6 for Area 2)'}" Margin="0,12,0,0"
+                                          Foreground="{DynamicResource textPrimaryBrush}" Checked="OnExtraLive" Unchecked="OnExtraLive" />
                             </StackPanel>
                             <c:RegionPicker x:Name="Region" RegionChanged="OnRegion" />
                             <Button Content="{t:T 'Refresh picture (Num 8 or Ctrl+Shift+8)'}" Click="OnRefresh" HorizontalAlignment="Left" Margin="0,12,0,0" />

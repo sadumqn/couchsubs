@@ -64,6 +64,30 @@ public class ExtraRegionTests
     }
 
     [Fact]
+    public void ContinuousDisplayNeedsRunningTranslation()
+    {
+        var (controller, _) = Ready();
+        controller.Settings = controller.Settings.WithExtraRegion(1, new CropRegion());
+        controller.SetExtraLive(1, true);
+        Assert.False(controller.IsExtraLive(1));
+    }
+
+    [Fact]
+    public async Task ContinuousDisplayTurnsOnAndTheAreaKeyTurnsItOff()
+    {
+        var (controller, services) = Ready();
+        controller.Settings = controller.Settings.WithExtraRegion(1, new CropRegion());
+        await controller.StartAsync();
+        services.Streams[0].Emit(Frame.Blank(64, 64));
+        controller.ToggleExtraLive(1);
+        Assert.True(controller.IsExtraLive(1));
+        Assert.False(controller.IsExtraLive(2));
+        Assert.Equal(ExtraRegionOutcome.Cleared, await controller.TranslateExtraRegionAsync(1));
+        Assert.False(controller.IsExtraLive(1));
+        controller.Stop();
+    }
+
+    [Fact]
     public void FreeAreaResultShowsOnTheTvByDefault() =>
         Assert.Equal(ResultTarget.Tv, new UserSettings().FreeAreaTarget);
 

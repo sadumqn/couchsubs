@@ -25,6 +25,9 @@ public sealed class PcResultWindow : Window
         current.Show();
     }
 
+    /// <summary>Gösterilen kutu varsa kapatır.</summary>
+    public static void Dismiss() => current?.Close();
+
     private PcResultWindow(string text, int milliseconds)
     {
         var work = SystemParameters.WorkArea;

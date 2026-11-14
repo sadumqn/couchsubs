@@ -5,10 +5,14 @@ namespace CouchSubs.Shell;
 /// <summary>Genel kısayolların yaptığı iş. Her işin iki tuşu var: Num tuşu ve sayı tuş takımı olmayan klavyeler için Ctrl+Shift+rakam.</summary>
 public enum HotkeyAction
 {
-    /// <summary>Num 1 / Ctrl+Shift+1: 1. ek bölgeyi bir kez çevir.</summary>
+    /// <summary>Num 1 / Ctrl+Shift+1: 1. ek bölgeyi bir kez çevir; çeviri ekrandayken yeniden basınca kaldır.</summary>
     ExtraRegion1,
-    /// <summary>Num 2 / Ctrl+Shift+2: 2. ek bölgeyi bir kez çevir.</summary>
+    /// <summary>Num 2 / Ctrl+Shift+2: 2. ek bölgeyi bir kez çevir; çeviri ekrandayken yeniden basınca kaldır.</summary>
     ExtraRegion2,
+    /// <summary>Num 4 / Ctrl+Shift+4: 1. ek bölgeyi sürekli göster / bırak.</summary>
+    ExtraLive1,
+    /// <summary>Num 6 / Ctrl+Shift+6: 2. ek bölgeyi sürekli göster / bırak.</summary>
+    ExtraLive2,
     /// <summary>Num 5 / Ctrl+Shift+5: görüntüyü dondurup serbest alan seçtir.</summary>
     FreeArea,
     /// <summary>Num 8 / Ctrl+Shift+8: ayar ekranındaki görüntüyü oyunun şu anki görüntüsüyle yenile.</summary>
@@ -52,6 +56,8 @@ public static class HotkeyTable
     [
         (HotkeyAction.ExtraRegion1, 1),
         (HotkeyAction.ExtraRegion2, 2),
+        (HotkeyAction.ExtraLive1, 4),
+        (HotkeyAction.ExtraLive2, 6),
         (HotkeyAction.FreeArea, 5),
         (HotkeyAction.Snapshot, 8),
         (HotkeyAction.PauseSubtitles, 0),
