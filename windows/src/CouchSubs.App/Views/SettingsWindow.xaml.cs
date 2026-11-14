@@ -16,7 +16,20 @@ public partial class SettingsWindow : Window
         [("en", "English"), ("ja", "Japanese"), ("de", "German"), ("fr", "French"), ("es", "Spanish")];
 
     /// <summary>Ek bölgeler ilk açıldığında (sağ üst köşe, sağ alt köşe, ekranın ortası) bu alanlarla başlar.</summary>
-    private static readonly CropRegion[] ExtraDefaults = [new(0.05, 0.28, 0.60, 0.97), new(0.72, 0.95, 0.60, 0.97), new(0.35, 0.65, 0.30, 0.70)];
+    private static readonly CropRegion[] ExtraDefaults = [new(0.05, 0.28, 0.60, 0.97), new(0.72, 0.95, 0.60, 0.97)];
+
+    /// <summary>Serbest alan sekmesi: kayıtlı bölge yoktur, seçilen alan hemen çevrilir.</summary>
+    private const int FreeSlot = 3;
+    private int freeVersion;
+    /// <summary>Önizlemede şu an görünen kare; serbest alan çevirisi bunun üstünden yapılır.</summary>
+    private CouchSubs.Core.Frame? shownFrame;
+
+    private void ShowPicture(CouchSubs.Core.Frame? frame = null)
+    {
+        freeVersion++;
+        shownFrame = frame ?? controller.LastFrame;
+        Region.Frame = shownFrame;
+    }
 
     private readonly AppController controller;
     private bool loading = true;
@@ -48,7 +61,7 @@ public partial class SettingsWindow : Window
             GameLanguage.Items.Add(new ComboBoxItem { Content = Localizer.Current[name], Tag = code, IsSelected = code == settings.SourceLanguage });
         LanguageCard.Visibility = GameLanguage.Items.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         (settings.FreeAreaTarget switch { ResultTarget.Pc => FreePc, ResultTarget.Both => FreeBoth, _ => FreeTv }).IsChecked = true;
-        Region.Frame = controller.LastFrame;
+        ShowPicture();
         ObsAddress.Text = $"http://localhost:{controller.ServerPort}/obs";
         ShowArea(0);
         // Num 8: oyunun o anki görüntüsü önizlemeye alınır.
@@ -84,11 +97,11 @@ public partial class SettingsWindow : Window
     /// <summary>Alan sekmesi açıkken önizleme oyunun görüntüsüyle saniyede bir yenilenir (çerçeve sürüklenirken beklenir).</summary>
     private void ShowLiveFrame()
     {
-        if (!AreaTab.IsSelected || Region.IsDragging || controller.LastFrame is not { } frame) return;
+        if (!AreaTab.IsSelected || area == FreeSlot || Region.IsDragging || controller.LastFrame is not { } frame) return;
         var now = Environment.TickCount64;
         if (now - lastPreview < 1000) return;
         lastPreview = now;
-        Region.Frame = frame;
+        ShowPicture(frame);
     }
 
     /// <summary>Altyazı bilgisayar ekranında da gösteriliyorsa görünüm kartı yalnız TV'ye ait değildir.</summary>
@@ -413,12 +426,21 @@ public partial class SettingsWindow : Window
         if (loading || sender is not RadioButton { Tag: string tag }) return;
         var target = Enum.Parse<ResultTarget>(tag);
         Update(s => s with { FreeAreaTarget = target });
+        if (area == FreeSlot) SetExtraRadio(target);
+    }
+
+    private void SetExtraRadio(ResultTarget target)
+    {
+        var wasLoading = loading;
+        loading = true;
+        (target switch { ResultTarget.Pc => ExtraPc, ResultTarget.Both => ExtraBoth, _ => ExtraTv }).IsChecked = true;
+        loading = wasLoading;
     }
 
     /// <summary>Önizlemeyi oyunun şu anki görüntüsüyle yeniler (çerçeve olduğu gibi kalır).</summary>
-    private void OnRefresh(object sender, RoutedEventArgs e) => Region.Frame = controller.LastFrame;
+    private void OnRefresh(object sender, RoutedEventArgs e) => ShowPicture();
 
-    private void OnSnapshot() => Dispatcher.Invoke(() => Region.Frame = controller.LastFrame);
+    private void OnSnapshot() => Dispatcher.Invoke(() => ShowPicture());
 
     private void OnPosition(object sender, RoutedPropertyChangedEventArgs<double> e) =>
         Update(s => s with { Style = s.Style with { BottomPercent = (int)Math.Round(e.NewValue) } });
@@ -500,6 +522,11 @@ public partial class SettingsWindow : Window
     private void OnRegion(object? sender, CropRegion region)
     {
         var slot = area;
+        if (slot == FreeSlot)
+        {
+            if (!loading) _ = TranslateFreeAsync(region);
+            return;
+        }
         Update(s => slot == 0 ? s with { Region = region, AreaPreset = AreaPresets.Matching(region) } : s.WithExtraRegion(slot, region));
         if (slot == 0) ShowPreset();
     }
@@ -552,6 +579,31 @@ public partial class SettingsWindow : Window
         Region.ShowRegion(region);
     }
 
+    /// <summary>Resimde seçilen alanı hemen çevirir; sonuç ayara göre TV'ye gider, resmin üzerinde ve altta da gösterilir.</summary>
+    private async Task TranslateFreeAsync(CropRegion region)
+    {
+        var text = Localizer.Current;
+        var token = ++freeVersion;
+        if (shownFrame is not { } frame)
+        {
+            FreeResult.Text = text["Could not translate this area."];
+            return;
+        }
+        FreeResult.Text = text["Translating…"];
+        Region.ShowOverlay(null);
+        var (outcome, result) = await controller.TranslateAreaAsync(frame, region);
+        if (token != freeVersion || area != FreeSlot) return;
+        FreeResult.Text = outcome switch
+        {
+            ExtraRegionOutcome.Shown when result is not null => result.Translation,
+            ExtraRegionOutcome.NoText => text["No text found in this area."],
+            ExtraRegionOutcome.Busy => text["Translating…"],
+            _ => text["Could not translate this area."],
+        };
+        // PC'de (ya da ikisinde) seçilen alanın hemen altında Türkçe karşılığı da görünür.
+        Region.ShowOverlay(controller.Settings.FreeAreaTarget == ResultTarget.Tv ? null : FreeResult.Text);
+    }
+
     private void OnArea(object sender, RoutedEventArgs e)
     {
         if (!loading && sender is RadioButton { Tag: string tag }) ShowArea(int.Parse(tag));
@@ -565,7 +617,23 @@ public partial class SettingsWindow : Window
         loading = true;
         var text = Localizer.Current;
         var settings = controller.Settings;
-        if (slot == 0)
+        FreeResultBox.Visibility = Visibility.Collapsed;
+        Region.ShowOverlay(null);
+        if (slot == FreeSlot)
+        {
+            freeVersion++;
+            UseArea.Visibility = Visibility.Collapsed;
+            PresetPanel.Visibility = Visibility.Collapsed;
+            ExtraTargetPanel.Visibility = Visibility.Visible;
+            SetExtraRadio(settings.FreeAreaTarget);
+            FreeResultBox.Visibility = Visibility.Visible;
+            FreeResult.Text = "";
+            Region.IsEnabled = true;
+            Region.DefaultRegion = new CropRegion();
+            Region.ShowRegion(new CropRegion());
+            AreaHint.Text = text["Drag over the text on the picture and it is translated right away, like Num 5 but here. Press Refresh picture (Num 8) first to get the game's current frame."];
+        }
+        else if (slot == 0)
         {
             UseArea.Visibility = Visibility.Collapsed;
             ExtraTargetPanel.Visibility = Visibility.Collapsed;
@@ -587,7 +655,7 @@ public partial class SettingsWindow : Window
             Region.IsEnabled = extra is not null;
             Region.DefaultRegion = ExtraDefaults[slot - 1];
             Region.ShowRegion(extra ?? ExtraDefaults[slot - 1]);
-            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press its key (Num 1, 2 or 3, or Ctrl+Shift+1, 2 or 3) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."];
+            AreaHint.Text = text["Draw the area to translate, for example a quest panel. While you play, press its key (Num 1 or 2, or Ctrl+Shift+1 or 2) to read and translate it once. Choose where the result shows. It works even when CouchSubs is in the background."];
         }
         loading = wasLoading;
     }
@@ -597,12 +665,21 @@ public partial class SettingsWindow : Window
         if (loading || area == 0 || sender is not RadioButton { Tag: string tag }) return;
         var slot = area;
         var target = Enum.Parse<ResultTarget>(tag);
+        if (slot == FreeSlot)
+        {
+            Update(s => s with { FreeAreaTarget = target });
+            var wasLoading = loading;
+            loading = true;
+            (target switch { ResultTarget.Pc => FreePc, ResultTarget.Both => FreeBoth, _ => FreeTv }).IsChecked = true;
+            loading = wasLoading;
+            return;
+        }
         Update(s => s.WithExtraTarget(slot, target));
     }
 
     private void OnUseArea(object sender, RoutedEventArgs e)
     {
-        if (loading || area == 0) return;
+        if (loading || area == 0 || area == FreeSlot) return;
         var on = UseArea.IsChecked == true;
         Region.IsEnabled = on;
         var slot = area;

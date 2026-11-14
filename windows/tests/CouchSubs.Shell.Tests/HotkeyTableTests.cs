@@ -24,7 +24,6 @@ public class HotkeyTableTests
     [InlineData(HotkeyAction.PauseSubtitles, 0)]
     [InlineData(HotkeyAction.ExtraRegion1, 1)]
     [InlineData(HotkeyAction.ExtraRegion2, 2)]
-    [InlineData(HotkeyAction.ExtraRegion3, 3)]
     [InlineData(HotkeyAction.FreeArea, 5)]
     [InlineData(HotkeyAction.ClickThrough, 7)]
     [InlineData(HotkeyAction.Snapshot, 8)]

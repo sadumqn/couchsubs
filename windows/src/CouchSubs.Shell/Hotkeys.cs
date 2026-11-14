@@ -9,8 +9,6 @@ public enum HotkeyAction
     ExtraRegion1,
     /// <summary>Num 2 / Ctrl+Shift+2: 2. ek bölgeyi bir kez çevir.</summary>
     ExtraRegion2,
-    /// <summary>Num 3 / Ctrl+Shift+3: 3. ek bölgeyi bir kez çevir.</summary>
-    ExtraRegion3,
     /// <summary>Num 5 / Ctrl+Shift+5: görüntüyü dondurup serbest alan seçtir.</summary>
     FreeArea,
     /// <summary>Num 8 / Ctrl+Shift+8: ayar ekranındaki görüntüyü oyunun şu anki görüntüsüyle yenile.</summary>
@@ -54,7 +52,6 @@ public static class HotkeyTable
     [
         (HotkeyAction.ExtraRegion1, 1),
         (HotkeyAction.ExtraRegion2, 2),
-        (HotkeyAction.ExtraRegion3, 3),
         (HotkeyAction.FreeArea, 5),
         (HotkeyAction.Snapshot, 8),
         (HotkeyAction.PauseSubtitles, 0),

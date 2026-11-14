@@ -43,6 +43,26 @@ public sealed class RegionPicker : UserControl
     /// <summary>Çerçeve şu an fareyle çiziliyor ya da taşınıyor (önizleme bu sırada yenilenmez).</summary>
     public bool IsDragging => drag != Drag.None;
 
+    private readonly TextBlock overlayText = new() { Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
+    private readonly Border overlay = new()
+    {
+        Background = new SolidColorBrush(Color.FromArgb(0xE6, 0, 0, 0)),
+        CornerRadius = new CornerRadius(6),
+        Padding = new Thickness(8, 5, 8, 5),
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Top,
+        Visibility = Visibility.Collapsed,
+        IsHitTestVisible = false,
+    };
+
+    /// <summary>Seçilen alanın hemen altına (sığmıyorsa üstüne) bir metin koyar; null ya da boşsa kaldırır.</summary>
+    public void ShowOverlay(string? text)
+    {
+        overlayText.Text = text ?? "";
+        overlay.Visibility = string.IsNullOrWhiteSpace(text) ? Visibility.Collapsed : Visibility.Visible;
+        Layout();
+    }
+
     /// <summary>"Alanı sıfırla" düğmesinin döneceği bölge (ek bölgelerin varsayılanı altyazınınkinden farklıdır).</summary>
     public CropRegion DefaultRegion { get; set; } = new();
 
@@ -53,6 +73,7 @@ public sealed class RegionPicker : UserControl
         foreach (var handle in handles) handle.SetResourceReference(Shape.FillProperty, "accentBrush");
         preview.SizeChanged += (_, _) => Layout();
         SizeChanged += (_, _) => FitHeight();
+        overlay.Child = overlayText;
         preview.MouseLeftButtonDown += OnDown;
         preview.MouseMove += OnMove;
         preview.MouseLeftButtonUp += OnUp;
@@ -127,6 +148,7 @@ public sealed class RegionPicker : UserControl
             }
             preview.Children.Add(frameBox);
             foreach (var handle in handles) preview.Children.Add(handle);
+            preview.Children.Add(overlay);
             Layout();
         }
     }
@@ -136,6 +158,7 @@ public sealed class RegionPicker : UserControl
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
         var point = e.GetPosition(preview);
+        ShowOverlay(null);
         anchor = point;
         dragStart = region;
         dragEdges = EdgesAt(point);
@@ -250,5 +273,16 @@ public sealed class RegionPicker : UserControl
         var corners = new[] { new Point(bounds.Left, bounds.Top), new Point(bounds.Right, bounds.Top), new Point(bounds.Left, bounds.Bottom), new Point(bounds.Right, bounds.Bottom) };
         for (var i = 0; i < handles.Length; i++)
             handles[i].Margin = new Thickness(corners[i].X - 5, corners[i].Y - 5, 0, 0);
+
+        if (overlay.Visibility != Visibility.Visible || preview.ActualWidth <= 0) return;
+        overlayText.FontSize = Math.Clamp(preview.ActualHeight * 0.045, 11, 22);
+        overlay.MaxWidth = Math.Max(120, preview.ActualWidth * 0.7);
+        overlay.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var size = overlay.DesiredSize;
+        var y = bounds.Bottom + 4;
+        if (y + size.Height > preview.ActualHeight) y = bounds.Top - 4 - size.Height;
+        y = Math.Clamp(y, 0, Math.Max(0, preview.ActualHeight - size.Height));
+        var x = Math.Clamp(bounds.Left, 0, Math.Max(0, preview.ActualWidth - size.Width));
+        overlay.Margin = new Thickness(x, y, 0, 0);
     }
 }
