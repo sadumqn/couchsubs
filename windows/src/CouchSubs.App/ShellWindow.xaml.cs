@@ -136,8 +136,6 @@ public partial class ShellWindow : Window
             ShowStatus();
         if (e.PropertyName is nameof(AppController.Settings)) Motion.AnimationsEnabled = controller.Settings.TransitionAnimations;
         if (e.PropertyName is nameof(AppController.IsRunning)) MotionGate.Translating = controller.IsRunning;
-        if (e.PropertyName is nameof(AppController.IsRunning) && !controller.IsRunning && showingMain)
-            PopupAdWindow.Offer(this, controller, PopupAdMoment.TranslationStopped);
         if (e.PropertyName is nameof(AppController.IsRunning) or nameof(AppController.HotkeysPaused) or nameof(AppController.Settings))
             ApplyHotkeys();
     }
@@ -183,8 +181,6 @@ public partial class ShellWindow : Window
             return;
         }
         home = new MainView(controller);
-        // Açılır reklam: yalnız açılışta ya da çeviri durunca, günde en fazla bir kez (PopupAdPolicy).
-        Dispatcher.BeginInvoke(() => PopupAdWindow.Offer(this, controller, PopupAdMoment.AppLaunch), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         tab = ShellTab.Home;
         Show(home);
         SelectTab(ShellTab.Home, null);
@@ -264,7 +260,8 @@ public partial class ShellWindow : Window
     /// </summary>
     private void ApplyInsets()
     {
-        var ads = showingMain && AdCatalog.Banners.Count > 0;
+        // Alttaki reklam şeridi bu sürümde yok: butonların üstüne biniyordu. Şerit ve alt boşluk kapalı.
+        const bool ads = false;
         Ads.Visibility = BottomGlass.Visibility = ads ? Visibility.Visible : Visibility.Collapsed;
         var top = showingMain ? Palette.Size["header"] : 0;
         var bottom = ads ? Palette.Size["adBand"] + Sp.V("xs") + Sp.V("m") : 0;
