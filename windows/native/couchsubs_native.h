@@ -5,6 +5,7 @@
 #ifndef COUCHSUBS_NATIVE_H
 #define COUCHSUBS_NATIVE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef _WIN32
@@ -32,6 +33,13 @@ typedef void (*cs_console_cb)(const char *host, const char *name, int awake, voi
  * aramayı 500 ms'de bir tekrarlar; aynı PS5 birden çok kez bildirilebilir. Bloklar. */
 CS_API int cs_discover(const char *const *targets, int target_count, int timeout_ms, cs_console_cb callback, void *user);
 
+/* cs_console_cb'nin genişletilmişi: PS5'te çalışan uygulamanın kimliği ve adı da gelir (yoksa NULL). */
+typedef void (*cs_console_ex_cb)(const char *host, const char *name, int awake, const char *running_app_titleid,
+		const char *running_app_name, void *user);
+
+/* cs_discover ile aynı; yanıtlar cs_console_ex_cb ile bildirilir. */
+CS_API int cs_discover_ex(const char *const *targets, int target_count, int timeout_ms, cs_console_ex_cb callback, void *user);
+
 /* Kayıtlı PS5'i dinlenme modundan uyandırır. credential: kayıt anahtarının onaltılık değeri. */
 CS_API int cs_wake(const char *host, uint64_t credential);
 
@@ -57,14 +65,17 @@ typedef void (*cs_frame_cb)(const uint8_t *bgra, int width, int height, int stri
 enum {
     CS_EVENT_CONNECTED = 0,
     CS_EVENT_QUIT = 1,            /* quit_reason: aşağıdaki CS_QUIT_* değerlerinden biri */
-    CS_EVENT_LOGIN_PIN = 2        /* ikinci kullanıcının PS5 giriş şifresi var */
+    CS_EVENT_LOGIN_PIN = 2        /* PS5 giriş şifresi istiyor; quit_reason 1 ise önceki şifre yanlıştı */
 };
 enum {
     CS_QUIT_STOPPED = 0,
     CS_QUIT_IN_USE = 1,           /* Remote Play başka cihazda kullanılıyor */
-    CS_QUIT_REFUSED = 2,          /* bağlantı reddedildi / kayıt geçersiz */
+    CS_QUIT_REFUSED = 2,          /* PS5'in adresi TCP bağlantısını reddetti (yeni uyanıyor ya da adres değişmiş); eşleme sorunu değil */
     CS_QUIT_NETWORK = 3,          /* bağlantı koptu */
-    CS_QUIT_OTHER = 4             /* reason_text açıklar */
+    CS_QUIT_OTHER = 4,            /* reason_text açıklar */
+    CS_QUIT_RP_CRASHED = 5,       /* PS5'teki Uzaktan Oynatma çöktü (CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_CRASH, GitHub #519) */
+    CS_QUIT_PSN_REGIST_FAILED = 6, /* PSN üzerinden eşleme reddedildi: yeniden eşleme gerekir */
+    CS_QUIT_CONSOLE_CLOSED = 7     /* PS5 akışı kendisi kapattı (ör. oyun sırasında kullanıcı değişti); reason_text PS5'in nedeni */
 };
 typedef void (*cs_event_cb)(int event, int quit_reason, const char *reason_text, void *user);
 
@@ -77,8 +88,29 @@ CS_API cs_session *cs_session_start(const char *host, const uint8_t regist_key[0
                                     const uint8_t account_id[8], int max_fps,
                                     cs_frame_cb frame, cs_event_cb event, cs_log_cb log, void *user);
 
+/* cs_session_start ile aynı; video_height 720 ise 720p (~10 Mbit/sn), değilse 1080p (~15 Mbit/sn) istenir. Bağlantı
+ * kablosuz ağda sık koparsa uygulama sonraki oturumları 720p açar. */
+CS_API cs_session *cs_session_start_ex(const char *host, const uint8_t regist_key[0x10], const uint8_t morning[0x10],
+                                       const uint8_t account_id[8], int max_fps, int video_height,
+                                       cs_frame_cb frame, cs_event_cb event, cs_log_cb log, void *user);
+
+/* PS5'in istediği giriş şifresini (ASCII rakamlar) gönderir. Olay geri çağrısı içinden çağrılmamalı (libchiaki olayı
+ * kilit tutarken verir). Dönüş: 0 başarı. */
+CS_API int cs_session_set_login_pin(cs_session *session, const uint8_t *pin, size_t pin_size);
+
 /* Oturumu durdurur, iş parçacıklarını bekler ve belleği bırakır. Geri çağrı içinden çağrılmamalı. */
 CS_API void cs_session_stop(cs_session *session);
+
+/* --- Çökme kaydı (yalnız Windows; öteki sistemlerde -1 döner) --- */
+
+/* Süreç yerel bir hatayla (erişim ihlali gibi) kapanırken directory (UTF-16) klasörüne cokme-<zaman>-<süreç>-<sıra>.txt
+ * özetini ve aynı adlı küçük .dmp dökümünü yazan işleyicileri kurar. header (UTF-8, satır sonlarıyla) özetin başına olduğu
+ * gibi yazılır (sürüm, işletim sistemi). Süreç başına bir kez; sonraki çağrılar bir şey yapmaz. */
+CS_API int cs_crash_install(const uint16_t *directory, const char *header);
+
+/* Yalnız testler: kasıtlı erişim ihlali. kind 0: çağıran iş parçacığında geçersiz adrese yazma; 1: yerel iş parçacığında
+ * aynısı; 2: yerel iş parçacığında bırakılmış belleğe atlama (adres hiçbir modüle düşmez). Dönmez. */
+CS_API void cs_crash_test(int kind);
 
 #ifdef __cplusplus
 }

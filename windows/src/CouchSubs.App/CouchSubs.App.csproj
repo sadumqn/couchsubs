@@ -2,9 +2,13 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <!-- 22621 SDK'sı GraphicsCaptureSession.IsBorderRequired'ı (sarı yakalama çerçevesi) getirir; uygulama yine 19041'de çalışır,
+         yeni API'ler ApiInformation ile denetlenir. -->
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <!-- Yalnız tepsi simgesi (NotifyIcon) için; WinForms türleri tam adla kullanılır. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>CouchSubs</AssemblyName>
     <RootNamespace>CouchSubs.App</RootNamespace>
@@ -16,13 +20,46 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
     <PackageReference Include="Velopack" Version="1.2.161" />
+    <!-- Gelişmiş yazı tanıma (PP-OCRv6): DirectML ile her ekran kartında, yoksa işlemcide (MIT). -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
+  </ItemGroup>
+
+  <!-- Paket sunucusu (server/packs): `dotnet publish -p:CouchSubsPacksUrl=https://…` ile verilir; boşsa paket indirme kapalı (PackUpdater). -->
+  <ItemGroup>
+    <AssemblyMetadata Include="CouchSubsPacksUrl" Value="$(CouchSubsPacksUrl)" />
+    <!-- Yedek adres: workers.dev'e ulaşılamazsa (ağ hatası/zaman aşımı/5xx) denenir (#583); `-p:CouchSubsPacksFallbackUrl=https://…`. -->
+    <AssemblyMetadata Include="CouchSubsPacksFallbackUrl" Value="$(CouchSubsPacksFallbackUrl)" />
+    <!-- İstek imzasının sırrı (PackSigning): depoda değil, `-p:CouchSubsPacksSecret=…` (CI: PACKS_APP_SECRET). Boşsa paket indirme kapalı. -->
+    <AssemblyMetadata Include="CouchSubsPacksSecret" Value="$(CouchSubsPacksSecret)" />
+  </ItemGroup>
+
+  <!-- Kullanım verisi (GA4 Measurement Protocol): `-p:CouchSubsGaMeasurementId=G-… -p:CouchSubsGaApiSecret=…` ile verilir
+       (CI: GA_MEASUREMENT_ID, GA_API_SECRET sırları); boşsa ölçüm tamamen kapalı (UsageStats). -->
+  <ItemGroup>
+    <AssemblyMetadata Include="CouchSubsGaMeasurementId" Value="$(CouchSubsGaMeasurementId)" />
+    <AssemblyMetadata Include="CouchSubsGaApiSecret" Value="$(CouchSubsGaApiSecret)" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Assets\logo.png" />
+    <!-- Enmera logosu (açılış ve Hakkında; koyu ve açık zemin için). -->
+    <Resource Include="Assets\enmera-white.png" />
+    <Resource Include="Assets\enmera-black.png" />
+    <!-- Yeni arayüzün renk, yazı, ölçü ve hareket değerleri (Mac ile ortak; Theme/Palette.cs okur). -->
+    <EmbeddedResource Include="..\..\..\design\yeni-arayuz\tasarim.json" LogicalName="tasarim.json" />
+    <!-- Alt reklam bandı (Cebbin, Gramla, Bakkal): Mac ile ortak liste ve simgeler (Services/AdCatalog.cs). -->
+    <EmbeddedResource Include="..\..\..\design\yeni-arayuz\reklamlar.json" LogicalName="reklamlar.json" />
+    <Resource Include="..\..\..\design\yeni-arayuz\reklam\*.png" Link="Assets\reklam\%(Filename)%(Extension)" />
+    <!-- Açılır reklamın görseli (reklamlar.json › popups; Mac aynı dosyayı okur). -->
+    <Resource Include="..\..\..\design\yeni-arayuz\reklam\*.jpg" Link="Assets\reklam\%(Filename)%(Extension)" />
     <!-- ShellWindow.xaml pencere simgesi olarak bunu okur; ApplicationIcon yalnız exe simgesidir. -->
     <Resource Include="Assets\CouchSubs.ico" />
   </ItemGroup>
@@ -30,6 +67,15 @@
   <!-- TV uygulaması paketleri (scripts/package-tv.sh, package-tizen.sh ve Android derlemesi üretir); geliştirici modu açık TV'ye kurulur. -->
   <ItemGroup>
     <Content Include="..\..\..\dist\tv-app\*.ipk;..\..\..\dist\tv-app\*.wgt;..\..\..\dist\tv-app\*.apk" Link="tv-app\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\xbox-bridge\dist\bridge.cjs;..\..\xbox-bridge\dist\player.html;..\..\xbox-bridge\dist\player.js"
+             Link="xbox-bridge\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\xbox-bridge\dist\node.exe" Condition="Exists('..\..\xbox-bridge\dist\node.exe')"
+             Link="xbox-bridge\node.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\xbox-bridge\dist\licenses\*" Link="xbox-bridge\licenses\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

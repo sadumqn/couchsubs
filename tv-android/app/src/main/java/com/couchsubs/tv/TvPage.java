@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package com.couchsubs.tv;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -29,11 +34,28 @@ final class TvPage {
     interface Host {
         void showHdmi(int port);
 
+        /** Konsolun girişi bulunamadı: hiçbir giriş açılmaz, kullanıcıdan girişi seçmesi istenir (#367). */
+        void chooseInput();
+
         void exit();
 
         /** Bilgisayar görüntü modunu değiştirdi (yeni mod kaydedildikten sonra çağrılır). */
         void displayModeChanged(String mode);
+
+        /**
+         * Sayfanın WebView işlemi (renderer) çöktü ya da sistem onu kapattı. Bu sayfa artık kullanılamaz: kaldırılıp yenisi
+         * kurulmalı. Android 8+ bunu bildirir; ele alınmazsa uygulamanın tamamı kapanır (#616).
+         */
+        void pageGone(boolean crashed);
+
+        /**
+         * Bilgi panelinin tanı satırı için görüntü modu ve HDMI görüntüsünün durumu ("mode inApp · tv available").
+         * Sayfanın iş parçacığından çağrılır; yalnız iş parçacığı güvenli alanlar okunmalı.
+         */
+        String diagnostics();
     }
+
+    private static final String TAG = "CouchSubsPage";
 
     private static final String PREFS = "couchsubs";
     private static final String KEY_DISPLAY_MODE = "displayMode";
@@ -68,6 +90,34 @@ final class TvPage {
         // Ölçek fiziksel piksel başına yüzde: 1920 CSS pikseli ekranın tam genişliğine sığar (1080p'de %100).
         webView.setInitialScale(fitScalePercent());
         webView.addJavascriptInterface(new Bridge(), "AndroidTV");
+        webView.setWebViewClient(new PageClient());
+        // Katman penceresi hiçbir zaman gizlenerek açılmaz. 0.9.42'de sayfa yüklenene kadar görünmez tutuluyordu (alfa 0,
+        // yükleme bitince 1): bazı Android TV'lerde (Philips) katman bir daha görünmedi, altyazı HDMI görüntüsünün üstüne
+        // hiç çıkmadı. Zemin zaten şeffaftır; yüklenmemiş sayfa görüntüyü örtmez.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Altyazı katmanı görünmese de (TV'nin HDMI ekranı öndeyken) WebView işlemi önemli sayılsın; düşük bellekli
+            // TV'lerde sistem onu ilk kapatılacaklar arasına koymasın.
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+        }
+    }
+
+    /** WebView işlemi giderse uygulama kapanmasın diye bildirimi üstlenir (bkz. Host.pageGone). */
+    private final class PageClient extends WebViewClient {
+        private boolean gone;
+
+        @TargetApi(Build.VERSION_CODES.O)
+        @Override
+        public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+            boolean crashed = detail.didCrash();
+            Log.w(TAG, "WebView renderer gone: crashed=" + crashed + " priorityAtExit=" + detail.rendererPriorityAtExit()
+                    + " overlay=" + overlay);
+            if (!gone) {
+                gone = true;
+                ui.removeCallbacksAndMessages(null);
+                host.pageGone(crashed);
+            }
+            return true;
+        }
     }
 
     void load() {
@@ -121,14 +171,23 @@ final class TvPage {
     // --- Görüntü modu tercihi ---
 
     static String storedDisplayMode(Context context) {
-        String mode = DisplayMode.normalize(prefs(context).getString(KEY_DISPLAY_MODE, null));
-        return mode == null ? DisplayMode.IN_APP : mode;
+        return DisplayMode.orAuto(prefs(context).getString(KEY_DISPLAY_MODE, null));
     }
 
     /** Yeni modu kaydeder; kayıtlı olandan farklıysa true döner. */
     static boolean storeDisplayMode(Context context, String mode) {
         if (!DisplayMode.isChange(storedDisplayMode(context), mode)) return false;
         prefs(context).edit().putString(KEY_DISPLAY_MODE, DisplayMode.normalize(mode)).apply();
+        return true;
+    }
+
+    private static final String KEY_AUTO_OVERLAY_TOLD = "autoOverlayTold";
+
+    /** Otomatik tercihle ilk kez katmanda açılıyor mu (bilgi bir kez gösterilir); işaret burada konur. */
+    static boolean firstAutoOverlay(Context context) {
+        SharedPreferences prefs = prefs(context);
+        if (prefs.getBoolean(KEY_AUTO_OVERLAY_TOLD, false)) return false;
+        prefs.edit().putBoolean(KEY_AUTO_OVERLAY_TOLD, true).apply();
         return true;
     }
 
@@ -145,6 +204,20 @@ final class TvPage {
 
         @JavascriptInterface
         public int consolePort() { return HdmiInputs.consolePort(context); }
+
+        /** Açılışta açılacak giriş (bkz. HdmiInputs.pick): "3:console" gibi; "0:" ise bilinmiyor. */
+        @JavascriptInterface
+        public String pickPort(int saved) {
+            HdmiInputs.Pick pick = HdmiInputs.pick(context, saved);
+            return pick.port + ":" + (pick.reason == null ? "" : pick.reason);
+        }
+
+        @JavascriptInterface
+        public void chooseInput() { ui.post(host::chooseInput); }
+
+        /** Kullanıcı "0" ile elle seçimi bıraktı: uygulamanın kaydettiği giriş de unutulur. */
+        @JavascriptInterface
+        public void forgetInput() { HdmiInputs.forget(context); }
 
         @JavascriptInterface
         public String localAddress() {
@@ -174,6 +247,19 @@ final class TvPage {
             ui.post(() -> {
                 if (storeDisplayMode(context, mode)) host.displayModeChanged(DisplayMode.normalize(mode));
             });
+        }
+
+        /** Bilgi panelinin tanı satırı: görüntü modu, TvView durumu, cihazın üreticisi, modeli ve Android sürümü. */
+        @JavascriptInterface
+        public String diagnostics() {
+            String state;
+            try {
+                state = host.diagnostics();
+            } catch (RuntimeException e) {
+                state = "";
+            }
+            return (state == null || state.isEmpty() ? "" : state + " · ") + Build.MANUFACTURER + " " + Build.MODEL
+                    + " · Android " + Build.VERSION.RELEASE + " (" + Build.VERSION.SDK_INT + ")";
         }
 
         /** Panelde görünen sürüm: Android uygulamasının kendi sürümü (ortak sayfadaki sayı diğer TV'lerinkidir). */

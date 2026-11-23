@@ -16,6 +16,7 @@ namespace CouchSubs.App.Services;
 /// <summary>Uygulama denetleyicisinin gerçek dünya bağlantıları (PS5, PSN, TV, OCR, çeviri).</summary>
 public sealed class LiveServices : IAppServices
 {
+    public IXboxService? Xbox { get; } = new XboxService();
     public ITranslationModel Translation { get; } = new MarianModel();
 
     // DeepL yalnız İngilizce→Türkçe için açılır; önceki oturumların çevirileri kotadan yemeden yeniden kullanılır.
@@ -25,19 +26,25 @@ public sealed class LiveServices : IAppServices
     public Task<OnlineKeyCheck> CheckOnlineKeyAsync(string key) => DeepLTranslator.CheckAsync(key);
 
     // Her model kendi önbelleğini kullanır ("gemini:gemini-3.5-flash-lite"); model değişince eski çeviriler karışmaz.
-    public ITextTranslator? MakeAiTranslator(AiProvider provider, string key, string model, ITextTranslator? fallback) =>
-        new AiTranslator(provider, key, model, fallback, cache: TranslationCache.Shared(AppPaths.Translations, provider.EngineId(model), "en", "tr"));
+    // Ek talimat aynı önbellekte kalır; anahtar talimatın etiketiyle ayrılır (bkz. AiTranslator.CacheKey).
+    public ITextTranslator? MakeAiTranslator(AiProvider provider, string key, string model, ITextTranslator? fallback, Func<string?>? game,
+                                             string? instruction = null, bool paidTier = false) =>
+        new AiTranslator(provider, key, model, fallback, cache: TranslationCache.Shared(AppPaths.Translations, provider.EngineId(model), "en", "tr"),
+                         game: game, instruction: instruction, paidTier: paidTier);
 
     public Task<AiTestResult> TestAiKeyAsync(AiProvider provider, string key, string model) => AiTranslator.TestAsync(provider, key, model);
 
     // Yerel model: önbellekte sunucu ve model ayrı tutulur ("local:localhost:11434/qwen2.5:7b").
-    public ITextTranslator? MakeLocalAiTranslator(LocalAiServer server, string key, ITextTranslator? fallback) =>
+    public ITextTranslator? MakeLocalAiTranslator(LocalAiServer server, string key, ITextTranslator? fallback, Func<string?>? game,
+                                                  string? instruction = null) =>
         new AiTranslator(AiProvider.Local, key, server.Model, fallback, cache: TranslationCache.Shared(AppPaths.Translations, server.EngineId, "en", "tr"),
-                         server: server);
+                         server: server, game: game, instruction: instruction);
 
     public Task<AiTestResult> TestLocalAiAsync(LocalAiServer server, string key) =>
         AiTranslator.TestAsync(AiProvider.Local, key, server.Model, server: server);
     public IDubbingModel? Dubbing { get; } = PocketDubbingModel.EngineBundled ? new PocketDubbingModel() : null;
+    private readonly AdvancedOcrModel advancedOcr = new();
+    public IOcrModel? AdvancedOcr => advancedOcr;
     public IDubbingModel? FastDubbing { get; } = WindowsVoiceModel.Available ? new WindowsVoiceModel() : null;
     public IAudioOutput? Audio { get; } = new WindowsAudioOutput();
     public IUpdater? Updater { get; } = new Updater();
@@ -45,9 +52,24 @@ public sealed class LiveServices : IAppServices
     // Oyun paketleri: uygulamaya gömülü olanlar ve %LOCALAPPDATA%\CouchSubs\packs klasöründekiler.
     public GamePackLibrary? GamePacks { get; } = new(GamePackLibrary.EmbeddedPacks, GamePackLibrary.UserDirectory);
     public PackMatch? FindInPacks(string text) => GamePacks is { } packs ? PackLookup.Match(packs, text) : null;
+    public PackPartial? FindPartialInPacks(string text) => GamePacks is { } packs ? PackLookup.MatchPartial(packs, text) : null;
     public LinePool? Pool { get; } = new(Path.Combine(AppPaths.Data, "pool.json"),
         AppVersion.Current(System.Reflection.Assembly.GetEntryAssembly() ?? typeof(LiveServices).Assembly));
     public string? HistoryFile { get; } = Path.Combine(AppPaths.Data, "history.json");
+    // Kullanım verisi: ölçüm kimliği ve API sırrı derlemeden (CouchSubsGaMeasurementId, CouchSubsGaApiSecret); yoksa kapalı.
+    public UsageStats? Usage { get; } = UsageStats.Config.FromBuild() is { } usage
+        ? new UsageStats(usage, Path.Combine(AppPaths.Data, "usage-id"),
+            AppVersion.Current(System.Reflection.Assembly.GetEntryAssembly() ?? typeof(LiveServices).Assembly),
+            "Windows " + Environment.OSVersion.Version)
+        : null;
+    public Task<RunningGame?> RunningGameAsync(string host) => ConsoleDiscovery.RunningGameAsync(host);
+    // Paket sunucusu ve uygulama sırrı yapılandırıldıysa (COUCHSUBS_PACKS_URL ya da derlemedeki CouchSubsPacksUrl;
+    // CouchSubsPacksSecret) indirilen paketler kullanıcının paket klasörüne gider. Adres ya da sır yoksa (yerel geliştirici
+    // derlemesi; sunucu imzasız isteği reddeder) kapalı.
+    public PackUpdater? PackUpdates { get; } = PackUpdater.ConfiguredBaseUrl() is { } url && PackSigning.ConfiguredSecret() is { } secret
+        ? new PackUpdater(url, GamePackLibrary.UserDirectory, Path.Combine(AppPaths.Data, "packs-remote.json"),
+            fallbackUrls: PackUpdater.ConfiguredFallbackUrl() is { } fallback ? [fallback] : null, secret: secret)
+        : null;
 
     public async Task<IReadOnlyList<ConsoleInfo>> DiscoverConsolesAsync()
     {
@@ -69,15 +91,30 @@ public sealed class LiveServices : IAppServices
         return [.. await lg, .. await samsung];
     }
 
-    public async Task<TvPairing> PairTvAsync(LgTv tv, string? key, string server)
+    public async Task<TvPairing> PairTvAsync(LgTv tv, string? key, string server, string accessKey)
     {
         // Bilgisayar Android TV'yi denetlemez; TV uygulaması bilgisayarı kendisi bulur.
         if (tv.Brand == TvBrand.AndroidTv) return new TvPairing("", true);
         if (tv.Brand == TvBrand.Samsung)
         {
+            SamsungAppKnowledge.InstallLog = new TvInstall.InstallLog(TvInstallLogPath).Write;
             using var samsung = new SamsungClient(tv, key);
-            var token = await samsung.ConnectAsync();
-            try { await samsung.LaunchAsync(SamsungClient.AppId, new Dictionary<string, string> { ["server"] = server }); }
+            string token;
+            try { token = await samsung.ConnectAsync(); }
+            catch (Exception error) when (error is not SsapException { Reason: "rejected" })
+            {
+                if (await SamsungDiscovery.DeveloperInfoAsync(tv.Host) is null) throw;
+                // TV uzaktan kumanda iznini sormadı ya da izin 60 saniyede gelmedi (The Frame'de Sanat Modu, izin kutusu
+                // kapalı TV'ler); TV ağda yanıt veriyor. Eşleşme durmaz: TV uygulaması geliştirici bağlantısıyla (sdb)
+                // kurulup açılır. Önceden "Bağlan" bir dakika bekleyip başa dönüyor, kurulum adımına hiç geçilmiyordu.
+                new TvInstall.InstallLog(TvInstallLogPath).Write(
+                    $"Samsung uzaktan kumanda izni alınamadı ({error.GetType().Name}: {error.Message}); TV 8001'de yanıt verdi, eşleşme izinsiz sürdü.");
+                return new TvPairing(key ?? "", true);
+            }
+            try { await samsung.LaunchAsync(SamsungClient.AppId, new Dictionary<string, string> { ["server"] = server, ["key"] = accessKey }); }
+            // TV uygulamanın kurulu olduğunu doğrulamadıysa (listede yok ya da liste 3 sn'de gelmedi) açma komutu gitmez:
+            // kurulum adımları görünür (Smart Hub mağaza aramasına gidip "AS400" demesin; Mac ve iPhone ile aynı).
+            catch (SsapException error) when (error.Reason == SamsungClient.NotInstalledReason) { return new TvPairing(token, false); }
             catch (Exception) { /* TV uygulaması bilgisayarı kendisi de bulabilir */ }
             return new TvPairing(token, true);
         }
@@ -85,7 +122,7 @@ public sealed class LiveServices : IAppServices
         var newKey = await client.ConnectAsync();
         try
         {
-            await client.LaunchAsync(AppController.TvAppId, new Dictionary<string, string> { ["server"] = server });
+            await client.LaunchAsync(AppController.TvAppId, new Dictionary<string, string> { ["server"] = server, ["key"] = accessKey });
             return new TvPairing(newKey, true);
         }
         catch (Exception)
@@ -94,19 +131,42 @@ public sealed class LiveServices : IAppServices
         }
     }
 
-    public IStreamSession MakeStream(RegisteredConsole console, byte[] accountId) => new StreamSession(console, accountId);
+    public IStreamSession MakeStream(RegisteredConsole console, byte[] accountId, string? loginPasscode) =>
+        new StreamSession(console, accountId, loginPasscode);
 
-    public IKeeper MakeKeeper(LgTv tv, string? key, IReadOnlyDictionary<string, string> parameters, Func<bool> appConnected, Action<LgTv> onMoved)
+    public IStreamSession MakeWindowStream(RemotePlayApp app) => new RemotePlayWindowStream(app);
+    public IStreamSession MakeDemoStream() => new DemoStream(DemoFrameRenderer.Render);
+    public IStreamSession MakeCaptureWindowStream(WindowCaptureTarget target) => new RemotePlayWindowStream(target);
+    public IReadOnlyList<WindowCaptureTarget> CaptureWindows() => RemotePlayWindowStream.ListCaptureWindows();
+    public bool RemotePlayInstalled(RemotePlayApp app) => RemotePlayWindowStream.IsInstalled(app);
+
+    public IKeeper MakeKeeper(LgTv tv, string? key, IReadOnlyDictionary<string, string> parameters, Func<bool> appConnected, Action<LgTv> onMoved,
+                              Action<string> onKey, Func<int?>? consolePort = null,
+                              Action<TvOpenProblem?>? onOpenResult = null)
     {
-        if (tv.Brand == TvBrand.AndroidTv) return new IdleKeeper();
+        if (tv.Brand == TvBrand.AndroidTv)
+        {
+            // Android TV: ADB açıksa (uygulama bu bilgisayardan kurulduysa) CouchSubs TV bilgisayarın adresiyle açılır ve
+            // bağlanana kadar arada bir yeniden açılır (iPhone ve Android telefonla aynı). Eskiden bilgisayar Android TV'ye
+            // hiç dokunmuyordu. TV yine ekrandaki kodun onayıyla (/pair) eşleşir; erişim anahtarı gitmez.
+            var host = tv.Host;
+            var launch = parameters.TryGetValue("server", out var address)
+                ? JsonSerializer.Serialize(new Dictionary<string, string> { ["server"] = address }) : null;
+            return new AndroidKeeper(new AndroidTvKeeper(() => AndroidTvInstaller.OpenAsync(host, DataDirectory("adb"), launch),
+                appConnected, AndroidOpenProblem, onOpenResult, new TvInstall.InstallLog(TvInstallLogPath).Write));
+        }
         if (tv.Brand == TvBrand.Samsung)
         {
+            SamsungAppKnowledge.InstallLog = new TvInstall.InstallLog(TvInstallLogPath).Write;
+            var token = new SamsungTokenHolder(key, onKey);
             var samsungLocator = new TvLocator(tv, async target =>
             {
-                var client = new SamsungClient(target, key);
+                // Adresi değişen TV'de kurulu olduğu bilgisi yeni adrese de geçer (yoksa bekçi listeye bakıp açmayabilir).
+                SamsungAppKnowledge.Carry(tv.Host, target.Host);
+                var client = new SamsungClient(target, token.Current);
                 try
                 {
-                    await client.ConnectAsync();
+                    token.Received(await client.ConnectAsync());
                     return client;
                 }
                 catch
@@ -115,7 +175,10 @@ public sealed class LiveServices : IAppServices
                     throw;
                 }
             }, () => SamsungDiscovery.SearchAsync(), onMoved);
-            return new Keeper(new TvKeeper(samsungLocator.ConnectAsync, SamsungClient.AppId, parameters, appConnected));
+            // Önce geliştirici bağlantısı (sdb) denenir; uzaktan kumanda bağlantısıyla açma bazı TV'lerde sessizce çalışmıyordu.
+            var host = tv.Host;
+            return new Keeper(new TvKeeper(() => Task.FromResult<ITvControl>(new SamsungLauncher(() => OpenSamsungAppAsync(host), samsungLocator.ConnectAsync)),
+                SamsungClient.AppId, parameters, appConnected, onOpenResult: onOpenResult));
         }
         var locator = new TvLocator(tv, async target =>
         {
@@ -131,8 +194,14 @@ public sealed class LiveServices : IAppServices
                 throw;
             }
         }, () => LgDiscovery.SearchAsync(), onMoved);
-        return new Keeper(new TvKeeper(locator.ConnectAsync, AppController.TvAppId, parameters));
+        // Açık ve bağlı TV uygulamasına yeni bağlantıda açma komutu gitmez (#1055; Mac, iPhone ve Android ile aynı).
+        return new Keeper(new TvKeeper(locator.ConnectAsync, AppController.TvAppId, parameters, consolePort: consolePort, onOpenResult: onOpenResult,
+                                       tvConnected: appConnected));
     }
+
+    /// <summary>Android TV'de açılamamanın nedeni: TV hata ayıklama iznini onaylamadıysa ayrı, gerisi "ulaşılamıyor".</summary>
+    internal static TvOpenProblem AndroidOpenProblem(Exception error) =>
+        error is AndroidInstallException { Error: AndroidInstallError.NotApproved } ? TvOpenProblem.DebugNotApproved : TvOpenProblem.DebugOff;
 
     // --- TV uygulamasını kurma ---
 
@@ -150,23 +219,34 @@ public sealed class LiveServices : IAppServices
 
     public Task<bool> IsDevModeOnAsync(string host) => DevModeInstaller.IsDevModeOnAsync(host);
 
+    // LG kurulumunun adımları da tvinstall.log'a telefonlardaki satırlarla yazılır (LgInstallLog); önceden yalnız Samsung
+    // ve Android TV kurulumu günlük tutuyordu.
+    private static LgInstallLog LgLog => new(new TvInstall.InstallLog(TvInstallLogPath).Write);
+
+    public void WriteTvInstallLog(string line) => new TvInstall.InstallLog(TvInstallLogPath).Write(line);
+
     public Task<string> FetchDevKeyAsync(string host, string passphrase) =>
-        DevModeInstaller.FetchKeyAsync(host, passphrase, new ProcessRunner(), DevModeTools.ForThisSystem());
+        LgLog.KeyAsync(host, () => DevModeInstaller.FetchKeyAsync(host, passphrase, new ProcessRunner(), DevModeTools.ForThisSystem()));
 
     public Task<string?> InstalledTvAppVersionAsync(string host, string devKey) =>
-        WithKeyFileAsync(devKey, file => Installer(host, file).InstalledVersionAsync());
+        LgLog.InstalledVersionAsync(host, BundledTvAppVersion, () => WithKeyFileAsync(devKey, file => Installer(host, file).CheckInstalledVersionAsync()));
 
-    public async Task InstallTvAppAsync(string host, string devKey)
+    public Task InstallTvAppAsync(string host, string devKey) => InstallTvAppAsync(host, devKey, replaceForeign: false);
+
+    public async Task InstallTvAppAsync(string host, string devKey, bool replaceForeign)
     {
         try
         {
-            await WithKeyFileAsync<object?>(devKey, async file =>
+            await LgLog.InstallAsync(() => WithKeyFileAsync<object?>(devKey, async file =>
             {
                 if (BundledTvPackage is not { } package || BundledTvAppVersion is not { } version)
                     throw new DevModeException(DevModeError.InstallFailed, "uygulamanın yanında LG paketi (tv-app/*.ipk) yok");
+                // Kullanıcı "Kaldırıp Kur" dedi: CouchSubs'ın kimliğini kullanan başka uygulama önce kaldırılır.
+                if (replaceForeign)
+                    WriteTvInstallLog($"LG: kullanıcı onayıyla TV'deki com.couchsubs.tv kaldırıldı: {await Installer(host, file).RemoveAppAsync()}");
                 await Installer(host, file).InstallAsync(package, version);
                 return null;
-            });
+            }));
         }
         catch (DevModeException error)
         {
@@ -205,13 +285,64 @@ public sealed class LiveServices : IAppServices
 
     public Task<bool> IsSamsungDevModeOnAsync(string host) => SamsungTvInstaller.IsDevModeOnAsync(host);
 
-    public async Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
+    /// <summary>
+    /// Kurulu TV uygulamasını geliştirici bağlantısıyla (sdb) açar. Geliştirici modu kapalıysa, Host PC IP başka
+    /// bilgisayarınsa ya da TV açmadıysa false döner.
+    /// </summary>
+    private static async Task<bool> OpenSamsungAppAsync(string host)
+    {
+        if (string.IsNullOrEmpty(host) || !await SamsungTvInstaller.IsDevModeOnAsync(host)) return false;
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var log = new TvInstall.InstallLog(TvInstallLogPath);
+        var installer = new SamsungTvInstaller(host, DataDirectory("samsung"), new SamsungCertificates(http, log)) { Log = log };
+        try
+        {
+            return await Task.Run(() => installer.OpenAsync());
+        }
+        catch (Exception error)
+        {
+            log.Write($"Uygulama açılamadı: {error.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Bekçinin Samsung'da TV uygulamasını açma yolu: önce geliştirici bağlantısı (sdb), olmazsa uzaktan kumanda
+    /// bağlantısı (8002, ilk bağlantıda TV izin sorar). Samsung önplandaki uygulamayı söylemez; bekçi yalnız açar.
+    /// </summary>
+    private sealed class SamsungLauncher(Func<Task<bool>> openWithSdb, Func<Task<ITvControl>> connectRemote) : ITvControl
+    {
+        public async Task LaunchAsync(string appId, IReadOnlyDictionary<string, string> parameters, CancellationToken cancellationToken = default)
+        {
+            if (await openWithSdb()) return;
+            using var remote = await connectRemote();
+            await remote.LaunchAsync(appId, parameters, cancellationToken);
+        }
+
+        public Task<string> ForegroundAppIdAsync(CancellationToken cancellationToken = default) => Task.FromResult("");
+
+        public void Dispose() { }
+    }
+
+    public async Task<SamsungPreflight> CheckSamsungAsync(string host)
+    {
+        var info = await SamsungDiscovery.DeveloperInfoAsync(host);
+        return new SamsungPreflight(info, AppController.LocalAddress(host));
+    }
+
+    public Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, bool openIfInstalled, Action<TvInstallEvent> onEvent) =>
+        InstallSamsungAppAsync(host, app, openIfInstalled, replaceForeign: false, onEvent);
+
+    public async Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, bool openIfInstalled, bool replaceForeign,
+        Action<TvInstallEvent> onEvent)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(1) };
         var log = new TvInstall.InstallLog(TvInstallLogPath);
         var installer = new SamsungTvInstaller(host, DataDirectory("samsung"), new SamsungCertificates(http, log))
         {
             Log = log,
+            OpenIfInstalled = openIfInstalled,
+            ReplaceForeign = replaceForeign,
             Progress = step => onEvent(new TvInstallEvent(TvInstallEventKind.Progress, Step: step)),
             SignIn = token => SamsungLogin.SignInAsync(url => onEvent(new TvInstallEvent(TvInstallEventKind.SignIn, new Uri(url))),
                 TimeSpan.FromMinutes(10), token),
@@ -233,7 +364,7 @@ public sealed class LiveServices : IAppServices
         }
     }
 
-    /// <summary>Samsung kurulum günlüğü: %LOCALAPPDATA%\CouchSubs\tvinstall.log (hata iletisinde de yazar).</summary>
+    /// <summary>TV kurulum günlüğü (LG, Samsung, Android TV): %LOCALAPPDATA%\CouchSubs\tvinstall.log (hata iletisinde de yazar).</summary>
     public static string TvInstallLogPath => DataDirectory("tvinstall.log");
 
     internal static DevModeError SamsungError(SamsungInstallError error) => error switch
@@ -248,6 +379,7 @@ public sealed class LiveServices : IAppServices
         SamsungInstallError.TvClockWrong => DevModeError.TvClockWrong,
         SamsungInstallError.PackageBlocked => DevModeError.PackageBlocked,
         SamsungInstallError.ConnectionLost => DevModeError.ConnectionLost,
+        SamsungInstallError.ForeignApp => DevModeError.ForeignApp,
         _ => DevModeError.InstallFailed,
     };
 
@@ -255,15 +387,32 @@ public sealed class LiveServices : IAppServices
 
     public Task<IReadOnlyList<string>> ScanAndroidTvsAsync() => AndroidTvInstaller.ScanAsync();
 
-    public async Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
+    public Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, bool openIfInstalled, Action<TvInstallEvent> onEvent) =>
+        InstallAndroidAppAsync(host, app, openIfInstalled, null, onEvent);
+
+    public Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, bool openIfInstalled, string? launchParams,
+                                               Action<TvInstallEvent> onEvent) =>
+        InstallAndroidAppAsync(host, app, openIfInstalled, launchParams, replaceForeign: false, onEvent);
+
+    public async Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, bool openIfInstalled, string? launchParams,
+                                                     bool replaceForeign, Action<TvInstallEvent> onEvent)
     {
+        void Approve() => onEvent(new TvInstallEvent(TvInstallEventKind.ApproveOnTv));
         var installer = new AndroidTvInstaller(host, DataDirectory("adb"))
         {
-            OnApprovalNeeded = () => onEvent(new TvInstallEvent(TvInstallEventKind.ApproveOnTv)),
+            OnApprovalNeeded = Approve,
+            LaunchParams = launchParams,
+            ReplaceForeign = replaceForeign,
+            // CouchSubs TV Play'de ve TV'de Play Store varsa TV'de Play sayfası açılır (PlayStoreRedirect.cs).
+            PlayListed = AndroidTvInstaller.IsListedOnPlayAsync,
+            OnPlayOpened = () => onEvent(new TvInstallEvent(TvInstallEventKind.Progress, Step: "play")),
         };
         try
         {
-            var (version, _) = await Task.Run(() => installer.EnsureInstalledAsync(app.Path, app.Version));
+            // TV'den kaldırılıp kaydı kalan uygulama da kurulur (AndroidTvApp.cs); "yeniden kur"da güncel uygulama açılır.
+            var log = new TvInstall.InstallLog(TvInstallLogPath);
+            var (version, _) = await Task.Run(() => TvInstall.AndroidTvApp.EnsureInstalledAsync(installer, host, DataDirectory("adb"), app.Path,
+                app.Version, openIfInstalled, Approve, log.Write));
             return version;
         }
         catch (AndroidInstallException error)
@@ -273,6 +422,7 @@ public sealed class LiveServices : IAppServices
             {
                 AndroidInstallError.Unreachable => DevModeError.Unreachable,
                 AndroidInstallError.NotApproved => DevModeError.NotApproved,
+                AndroidInstallError.ForeignApp => DevModeError.ForeignApp,
                 _ => DevModeError.InstallFailed,
             }, error.Message);
         }
@@ -317,6 +467,22 @@ public sealed class LiveServices : IAppServices
         WindowsOcrReader.DictionaryScore = dictionary ? WindowsSpellCheck.Score : null;
         return reader;
     }
+    public ITextReader? MakeReader(string language, OcrEngine engine)
+    {
+        var reader = MakeReader(language);
+        // Seçim Windows'a dönünce gelişmiş okuyucunun oturumları bırakılır (ekran kartı belleği boşalır).
+        if (engine != OcrEngine.Advanced)
+        {
+            PaddleOcrReader.ReleaseAll();
+            return reader;
+        }
+        // Sözlük ve bekletme ayarları (yukarıda) iki okuyucuda da geçerlidir; gelişmiş okuyucu açılamazsa Windows'unki kalır.
+        // Okurken art arda hata verirse (ör. DirectML "device removed") oturumları bırakılır ve bu hatta Windows'unki okur.
+        if (advancedOcr.IsInstalled && PaddleOcrReader.Create(advancedOcr.Directory, language) is { } advanced)
+            return new FallbackTextReader(advanced, reader, advanced.Release);
+        return reader;
+    }
+
     public bool HasOcrLanguage(string language) => WindowsOcrReader.HasLanguage(language);
 
     /// <summary>Denetlenemeyen TV'ler için: TV uygulaması kendisi bağlanır.</summary>
@@ -334,25 +500,64 @@ public sealed class LiveServices : IAppServices
         public void Reconnect() => keeper.Reconnect();
     }
 
+    private sealed class AndroidKeeper(AndroidTvKeeper keeper) : IKeeper
+    {
+        public void Start(TimeSpan interval) => keeper.Start(interval);
+        public void Stop() => keeper.Stop();
+        public void Reconnect() => keeper.Reconnect();
+    }
+
     /// <summary>OPUS-MT modelleri; şimdilik yalnız İngilizce→Türkçe.</summary>
     private sealed class MarianModel : ITranslationModel
     {
-        private readonly ModelStore englishTurkish = new(Path.Combine(AppPaths.Models, "en-tr"));
+        private readonly Ct2ModelStore englishTurkish = new(Path.Combine(AppPaths.Models, "en-tr-ct2"));
+        private readonly CudaRuntimeStore cuda = new(Path.Combine(AppPaths.Data, "cuda-12.8"));
         private MarianTranslator? translator;
+        private Task? cudaDownload;
+        private TranslationDevice device = TranslationDevice.Cpu;
+        private int cpuThreads = CpuThreadOptions.Default;
         private int failed;
 
         public event Action? EngineFailure;
+        public event Action? GpuFallback;
+
+        public void SelectDevice(TranslationDevice selected)
+        {
+            if (device == selected) return;
+            device = selected;
+            // NVIDIA sürücüsü (nvcuda.dll) yoksa ~565 MB indirme boşa gider; doğrudan CPU'ya düşülür.
+            if (selected == TranslationDevice.Gpu && File.Exists(Path.Combine(Environment.SystemDirectory, "nvcuda.dll")))
+            {
+                cudaDownload = cuda.StartDownload();
+                _ = cudaDownload.ContinueWith(task =>
+                    StartupGuard.Log("CUDA çalışma zamanı indirilemedi", task.Exception!),
+                    CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            }
+            translator?.Dispose();
+            translator = null;
+            Interlocked.Exchange(ref failed, 0);
+        }
+
+        public void SelectCpuThreads(int selected)
+        {
+            selected = CpuThreadOptions.Normalize(selected, Environment.ProcessorCount);
+            if (cpuThreads == selected) return;
+            cpuThreads = selected;
+            translator?.Dispose();
+            translator = null;
+            Interlocked.Exchange(ref failed, 0);
+        }
 
         public bool EngineFailed => Volatile.Read(ref failed) != 0;
 
         /// <summary>
-        /// Motor açılamadı: hata.log'a bir kez yazılır, ana ekran uyarı gösterir. En sık neden: onnxruntime.dll ya da
-        /// yanındaki Visual C++ çalışma zamanı DLL'leri (antivirüs karantinası, eksik kopya) yüklenemedi.
+        /// Motor açılamadı: hata.log'a bir kez yazılır, ana ekran uyarı gösterir. En sık neden: CTranslate2
+        /// çalışma zamanı ya da Visual C++ DLL'leri eksik.
         /// </summary>
         private void Fail(Exception error)
         {
             if (Interlocked.Exchange(ref failed, 1) != 0) return;
-            StartupGuard.Log("Ücretsiz çeviri motoru açılamadı (ONNX Runtime)", error);
+            StartupGuard.Log("Ücretsiz çeviri motoru açılamadı (CTranslate2)", error);
             EngineFailure?.Invoke();
         }
 
@@ -360,8 +565,29 @@ public sealed class LiveServices : IAppServices
 
         public bool IsInstalled(string source, string target) => IsSupported(source, target) && englishTurkish.IsInstalled;
 
-        public Task DownloadAsync(string source, string target, IProgress<double> progress, CancellationToken cancellationToken) =>
-            englishTurkish.DownloadAsync(progress, cancellationToken);
+        public async Task DownloadAsync(string source, string target, IProgress<double> progress, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await englishTurkish.DownloadAsync(progress, cancellationToken);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                // Ekran yalnız "internet bağlantınızı kontrol edin" der; asıl neden (TLS, disk, antivirüs, özet) hata.log'da kalsın.
+                StartupGuard.Log("Ücretsiz çeviri modeli indirilemedi", error);
+                throw;
+            }
+            // Önceki sürümlerin ONNX modeli (yaklaşık 530 MB) artık kullanılmaz; yeni model kurulunca silinir.
+            try
+            {
+                var old = Path.Combine(AppPaths.Models, "en-tr");
+                if (Directory.Exists(old)) Directory.Delete(old, recursive: true);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                StartupGuard.Log("Eski ONNX çeviri modeli silinemedi", error);
+            }
+        }
 
         // Model belleğe bir kez yüklenir; dil değişse de aynı çevirmen kullanılır. Yükleme 1–3 sn sürdüğü
         // için hemen arka planda başlar; ilk altyazı beklemez.
@@ -372,7 +598,10 @@ public sealed class LiveServices : IAppServices
             try
             {
                 created = new MarianTranslator(englishTurkish.InstallDirectory,
-                    cache: TranslationCache.Shared(AppPaths.Translations, MarianTranslator.EngineId, "en", "tr"));
+                    cache: TranslationCache.Shared(AppPaths.Translations, MarianTranslator.EngineId, "en", "tr"),
+                    useGpu: device == TranslationDevice.Gpu, onGpuFallback: () => GpuFallback?.Invoke(),
+                    cudaReady: cudaDownload, cudaDirectory: cuda.InstallDirectory,
+                    cpuThreads: cpuThreads);
             }
             catch (Exception error)
             {
@@ -404,7 +633,7 @@ public sealed class FileSettingsStore : ISettingsStore
 
     public UserSettings Load()
     {
-        try { return JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(FilePath)) ?? new UserSettings(); }
+        try { return ExtraAreaMigration.Load(File.ReadAllText(FilePath)); }
         catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException) { return new UserSettings(); }
     }
 
@@ -428,6 +657,6 @@ public sealed class FileSettingsStore : ISettingsStore
 
 public sealed class WindowsSleepGuard : ISleepGuard
 {
-    public void Begin() => SleepGuard.Begin();
+    public void Begin(bool keepDisplayOn) => SleepGuard.Begin(keepDisplayOn);
     public void End() => SleepGuard.End();
 }

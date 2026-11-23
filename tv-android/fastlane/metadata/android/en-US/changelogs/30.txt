@@ -1,0 +1,1 @@
+0.9.27: Samsung ultrawide (21:9) screens: the picture fills the screen.

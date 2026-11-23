@@ -1,0 +1,1 @@
+0.9.52: 4K Samsung TV'lerde ve ultra geniş Samsung monitörlerde PS5 görüntüsünün penceresi artık birkaç saniyede bir boşuna yeniden istenmiyor; bazı modellerde bu, parlaklığın sürekli bir an artıp normale dönmesine yol açıyordu. Samsung pencereyi sürekli bozarsa dakikada en çok üç kez yeniden isteniyor.

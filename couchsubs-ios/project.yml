@@ -46,18 +46,45 @@ targets:
       - path: ../mac/CouchSubs/UI/Theme.swift
       - path: ../mac/CouchSubs/UI/Components.swift
       - path: ../mac/CouchSubs/UI/LoginWebView.swift
+      # Xbox (Beta) hata metinleri Mac uygulamasıyla ortak.
+      - path: ../mac/CouchSubs/UI/XboxText.swift
+      # "Paketleri şimdi güncelle"nin sonuç metni Mac uygulamasıyla ortak.
+      - path: ../mac/CouchSubs/UI/PackUpdateText.swift
+      # DeepL anahtarının bu ayki kullanım satırı Mac uygulamasıyla ortak.
+      - path: ../mac/CouchSubs/UI/DeepLUsageText.swift
+      # Dublaj seslerinin adları Mac uygulamasıyla ortak.
+      - path: ../mac/CouchSubs/UI/DubbingVoiceText.swift
+      # Yerel model sunucusunun durum iletileri Mac uygulamasıyla ortak.
+      - path: ../mac/CouchSubs/UI/LocalAIText.swift
       # Altyazı bölgesinin canlı önizlemesi (sürüklenen çerçeve).
       - path: ../mac/CouchSubs/UI/RegionPreview.swift
+      # Ayarların ortak değerleri: hız ön ayarları, altyazı renk listeleri, açılış sesi (Mac ile aynı).
+      - path: ../mac/CouchSubs/UI/Yeni/SubtitlePalette.swift
+      # Perde tasarım dili: tasarim.json'un okunuşu, hareket kapısı, efektler, yeni bileşenler ve bileşen kataloğu (Mac ile
+      # aynı kod; platforma özgü küçük farklar dosyaların içinde).
+      - path: ../mac/CouchSubs/UI/Yeni/DSTokens.swift
+      - path: ../mac/CouchSubs/UI/Yeni/Perde.swift
+      - path: ../mac/CouchSubs/UI/Yeni/PerdeCatalog.swift
       # Ekran metinleri Mac uygulamasıyla aynı katalogda (Türkçe).
       - path: ../mac/CouchSubs/Resources/Localizable.xcstrings
         buildPhase: resources
       - path: ../design/tokens.json
+        buildPhase: resources
+      # Yeni arayüzün tasarım değerleri, alt reklam şeridinin reklamları ve uygulama simgeleri (Mac ve Windows aynı
+      # dosyaları okur).
+      - path: ../design/yeni-arayuz/tasarim.json
+        buildPhase: resources
+      - path: ../design/yeni-arayuz/reklamlar.json
+        buildPhase: resources
+      - path: ../design/yeni-arayuz/reklam
+        type: folder
         buildPhase: resources
       - path: Config
         buildPhase: none
     dependencies:
       - package: CouchSubsCore
       - package: RemotePlay
+        product: RemotePlay
       # Reklam kimliği (IDFA) desteği ve reklam dönüşüm kitaplığı olmayan sürüm (GoogleAppMeasurementCore).
       - package: Firebase
         product: FirebaseAnalyticsCore
@@ -65,7 +92,17 @@ targets:
         product: FirebaseCrashlytics
       - package: Facebook
         product: FacebookCore
+      # Xbox ev yayını (Beta): Mac uygulamasıyla ortak oturum (remoteplay/Sources/XboxStream); Google libwebrtc'nin
+      # hazır derlemesini (stasel/WebRTC, BSD-3) o paket getirir. Protokol katmanı CouchSubsCore/Xbox'ta.
+      - package: RemotePlay
+        product: XboxStream
     postBuildScripts:
+      # Telefondan TV kurulumu: Samsung paketi kaynaktan, Android TV ve LG paketleri son GitHub sürümünden
+      # (scripts/ios-tv-packages.sh; indirilemezse önceki indirilen kullanılır).
+      - name: TV paketleri
+        basedOnDependencyAnalysis: false
+        script: |
+          "${PROJECT_DIR}/../scripts/ios-tv-packages.sh" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
       # Firebase ayar dosyası depoda değil (gitignore); varsa uygulamaya kopyalanır, yoksa Firebase kapalı çalışır.
       - name: GoogleService-Info.plist (varsa)
         basedOnDependencyAnalysis: false
@@ -91,7 +128,17 @@ targets:
         LSApplicationCategoryType: public.app-category.utilities
         # Yalnız standart şifreleme (TLS, Remote Play'in standart AES'i): ihracat beyanı her yüklemede sorulmasın.
         ITSAppUsesNonExemptEncryption: false
-        NSLocalNetworkUsageDescription: CouchSubs connects to your PS5 and TV on the home network to read and send translated subtitles.
+        NSLocalNetworkUsageDescription: CouchSubs connects to your PS5 and TV on the home network to read and send translated subtitles, installs and updates its TV app on your TV, and reaches the local model server (Ollama, LM Studio) on your computer if you choose it.
+        # WebRTC kitaplığı kamera ve mikrofon arayüzlerini içerir; kamera hiç açılmaz. Xbox oyun sesi çalınırken WebRTC ses birimi mikrofon iznini sorabilir; yerel ses parçası olmadığından ses gönderilmez.
+        NSMicrophoneUsageDescription: CouchSubs never records or sends your voice. To play the Xbox game sound on this iPhone, the streaming library opens the audio system, which may ask for microphone access; you can decline and the sound still plays.
+        NSCameraUsageDescription: CouchSubs does not use the camera. The video library used for Xbox streaming includes camera support, which stays off.
+        # Samsung girişi sayfası jetonu bu telefondaki http://localhost:4794'e gönderir; TV'lerle düz HTTP konuşulur.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # "Audio, AirPlay, and Picture in Picture": "Arka planda sürdür" ayarının Resim içinde resim penceresi (oyun
+        # görüntüsü + canlı altyazı) ve bu telefonda çalınan Xbox oyun sesi için. Sessiz ses çalınmaz (BackgroundPiP.swift;
+        # App Review notu: docs/app-store.md).
+        UIBackgroundModes: [audio]
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
         UIRequiresFullScreen: false
@@ -104,9 +151,13 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        UIUserInterfaceStyle: Dark
+        # Yeni arayüz açık ve koyu görünümü sistemden alır (eskiden hep koyuydu).
+        UIUserInterfaceStyle: Automatic
         # Config/App.xcconfig + Secrets.xcconfig'ten (bkz. AppConfig.swift).
         CSPacksBaseURL: $(PACKS_API_BASE_URL)
+        CSPacksFallbackURL: $(PACKS_API_FALLBACK_URL)
+        # İstek imzası (PackSigning); Secrets.xcconfig ya da derlemede PACKS_APP_SECRET=… Boşsa paket indirme kapalı.
+        CSPacksAppSecret: $(PACKS_APP_SECRET)
         FacebookAppID: $(FACEBOOK_APP_ID)
         FacebookClientToken: $(FACEBOOK_CLIENT_TOKEN)
         FacebookDisplayName: CouchSubs

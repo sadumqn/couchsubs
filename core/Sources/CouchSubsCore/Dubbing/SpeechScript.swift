@@ -19,6 +19,32 @@ public struct SpokenLine: Equatable, Sendable {
     }
 }
 
+/// Çevirmenin son çevirdiği satırların seslendirme cümleleri (satır → cümleler), iş parçacıkları arasında güvenli.
+///
+/// Çeviri (`translate`) arka plandaki iş parçacıklarında yazar, okuma hattı (`spokenLines`) ana iş parçacığında okur;
+/// yerine okuması gelen satırın iptal edilen çevirisi de bir sonraki satırın çevirisiyle aynı anda yazabilir. Kilitsiz
+/// sözlükte bu eşzamanlı erişim uygulamayı çökertir (iPhone'da dublaj geldiğinden beri okuma hattı her satırda okuyor).
+public final class SpeechMemory: @unchecked Sendable {
+    /// En çok bu kadar satır tutulur; dolunca baştan başlanır.
+    public static let capacity = 512
+
+    private let lock = NSLock()
+    private var lines: [String: [SpokenLine]] = [:]
+
+    public init() {}
+
+    public subscript(text: String) -> [SpokenLine]? {
+        lock.withLock { lines[text] }
+    }
+
+    public func store(_ spoken: [SpokenLine], for text: String) {
+        lock.withLock {
+            if lines.count >= Self.capacity { lines.removeAll() }
+            lines[text] = spoken
+        }
+    }
+}
+
 /// Çevrilen parçalardan seslendirilecek cümleleri çıkarır (bkz. `SubtitleSegmenter.split`).
 public enum SpeechScript {
     /// `translations[i]`, `pieces[i]` çevrilecek bir parçaysa onun Türkçesidir; diğerleri yok sayılır.
@@ -50,13 +76,13 @@ public enum SpeechScript {
 
     /// Önceki oturumdan önbellekte duran satır: cümleleri de önbellekteyse konuşmacılarıyla kurulur, değilse
     /// satırın tamamı tek cümle sayılır.
-    public static func fromCache(_ text: String, cache: TranslationCache) -> [SpokenLine] {
-        guard let whole = cache.value(for: text) else { return [] }
+    public static func fromCache(_ text: String, cache: TranslationCache, cacheKey: (String) -> String = { $0 }) -> [SpokenLine] {
+        guard let whole = cache.value(for: cacheKey(text)) else { return [] }
         let pieces = SubtitleSegmenter.split(text)
         var translations: [String?] = []
         for piece in pieces {
             guard piece.translate else { translations.append(nil); continue }
-            guard let sentence = cache.value(for: piece.text) else { return [SpokenLine(english: text, turkish: whole)] }
+            guard let sentence = cache.value(for: cacheKey(piece.text)) else { return [SpokenLine(english: text, turkish: whole)] }
             translations.append(sentence)
         }
         return lines(pieces: pieces, translations: translations)

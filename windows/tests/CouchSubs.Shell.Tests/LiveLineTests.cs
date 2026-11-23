@@ -142,6 +142,86 @@ public class AreaPresetSettingsTests
     }
 
     [Fact]
+    public void KeepCenteredIsOnByDefaultAndInOldSettings()
+    {
+        Assert.True(new UserSettings().KeepAreaCentered);
+        Assert.True(JsonSerializer.Deserialize<UserSettings>("""{"SourceLanguage":"en"}""")!.KeepAreaCentered);
+        var off = JsonSerializer.Serialize(new UserSettings() with { KeepAreaCentered = false });
+        Assert.False(JsonSerializer.Deserialize<UserSettings>(off)!.KeepAreaCentered);
+    }
+
+    [Fact]
+    public void SpeakerColorsAreOnByDefaultAndInOldSettings()
+    {
+        Assert.True(new UserSettings().SpeakerColors);
+        Assert.True(JsonSerializer.Deserialize<UserSettings>("""{"SourceLanguage":"en"}""")!.SpeakerColors);
+        var off = JsonSerializer.Serialize(new UserSettings() with { SpeakerColors = false });
+        Assert.False(JsonSerializer.Deserialize<UserSettings>(off)!.SpeakerColors);
+    }
+
+    [Fact]
+    public void SetTextApartIsOnByDefaultAndInOldSettings()
+    {
+        Assert.True(new UserSettings().SetTextApart);
+        Assert.True(JsonSerializer.Deserialize<UserSettings>("{}")!.SetTextApart);
+        Assert.False(JsonSerializer.Deserialize<UserSettings>(JsonSerializer.Serialize(new UserSettings() with { SetTextApart = false }))!.SetTextApart);
+    }
+
+    [Fact]
+    public void AutoScreenTextIsOffByDefaultAndKeepsTheUsersChoiceAfterMigration()
+    {
+        Assert.False(new UserSettings().AutoScreenText);
+        Assert.False(JsonSerializer.Deserialize<UserSettings>("""{"SourceLanguage":"en"}""")!.AutoScreenText);
+        var on = JsonSerializer.Serialize(new UserSettings() with { AutoScreenText = true, AutoScreenTextReset = true });
+        Assert.True(JsonSerializer.Deserialize<UserSettings>(on)!.AutoScreenText);
+    }
+
+    [Fact]
+    public void Beta63AutoScreenTextIsTurnedOffOnceWithANotice()
+    {
+        // beta.63: ayar açık kaydedilmiş, göç işareti yok → kapanır, bir kez bilgi.
+        var beta63 = JsonSerializer.Deserialize<UserSettings>("""{"AutoScreenText":true}""")!;
+        var (migrated, notice) = AutoScreenTextMigration.Apply(beta63);
+        Assert.False(migrated.AutoScreenText);
+        Assert.True(migrated.AutoScreenTextReset);
+        Assert.True(notice);
+        // Yeni kurulum: zaten kapalı, bilgi yok.
+        var (fresh, freshNotice) = AutoScreenTextMigration.Apply(new UserSettings());
+        Assert.False(fresh.AutoScreenText);
+        Assert.False(freshNotice);
+        // Göçten sonra kullanıcı açtıysa bir daha kapatılmaz.
+        var (kept, keptNotice) = AutoScreenTextMigration.Apply(migrated with { AutoScreenText = true });
+        Assert.True(kept.AutoScreenText);
+        Assert.False(keptNotice);
+    }
+
+    [Fact]
+    public void ControllerTurnsBeta63AutoScreenTextOffAndShowsTheNoticeUntilChanged()
+    {
+        var settings = new MemorySettings();
+        settings.Save(new UserSettings { AutoScreenText = true });
+        using var controller = AppControllerTests.Make(new FakeServices(), settings: settings);
+        Assert.False(controller.Settings.AutoScreenText);
+        Assert.True(controller.ShowsAutoScreenTextNotice);
+        Assert.True(settings.Load().AutoScreenTextReset);
+        controller.Settings = controller.Settings with { AutoScreenText = true };
+        Assert.False(controller.ShowsAutoScreenTextNotice);
+        using var again = AppControllerTests.Make(new FakeServices(), settings: settings);
+        Assert.True(again.Settings.AutoScreenText);
+        Assert.False(again.ShowsAutoScreenTextNotice);
+    }
+
+    [Fact]
+    public void KeepCenteredIsKeptByTheController()
+    {
+        var store = new MemorySettings();
+        var controller = AppControllerTests.Make(settings: store);
+        controller.Settings = controller.Settings with { KeepAreaCentered = false };
+        Assert.False(store.Saved?.KeepAreaCentered);
+        Assert.False(AppControllerTests.Make(settings: store).Settings.KeepAreaCentered);
+    }
+
+    [Fact]
     public void ChoosingAPresetSetsTheRegion()
     {
         var top = new UserSettings().WithAreaPreset(AreaPreset.Top);

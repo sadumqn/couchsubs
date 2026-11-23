@@ -22,6 +22,22 @@ produce the bundled libraries, is available at https://github.com/yorulmazsinan/
 | .NET runtime (Mac TV install helper, Native AOT) | MIT | https://github.com/dotnet/runtime |
 | pocket-tts (Turkish dubbing voice engine, unmodified release binary; includes xn-ptts, Apache-2.0, and SentencePiece, Apache-2.0) | MIT, Copyright (c) Kyutai | https://github.com/kyutai-labs/pocket-tts |
 
+The Android phone app (`couchsubs-android`, experimental "install the TV app from this phone") contains a Kotlin port of
+the TizenSdb.Core sdb protocol and package signing and of the Apps2Samsung sign-in and certificate flow
+(`app/src/main/java/com/couchsubs/mobile/tv/samsung/`), under the same MIT terms below. For installing on Android TV it
+bundles Bouncy Castle (`bctls`, `bcpkix`, `bcprov`, `bcutil`; MIT, Copyright (c) The Legion of the Bouncy Castle Inc.,
+https://www.bouncycastle.org) for the TLS 1.3 of ADB wireless debugging, and the released Android TV app
+(`CouchSubs-androidtv.apk`, part of CouchSubs). For installing on LG TVs it bundles JSch (mwiede/jsch fork; BSD-3-Clause,
+Copyright (c) 2002-2018 ymnk, JCraft, Inc., https://github.com/mwiede/jsch) for the developer-mode SSH connection, and the
+released LG TV app (`com.couchsubs.tv_*_all.ipk`, part of CouchSubs).
+
+The iPhone app (`couchsubs-ios`, "install the TV app from this phone") contains a Swift port of the same TizenSdb.Core and
+Apps2Samsung code (`CouchSubs/TVInstall/`), under the same MIT terms below. It uses only Apple's frameworks (Security,
+CryptoKit, CommonCrypto, Network) for TLS and signing. For LG TVs it contains its own minimal SSH client
+(`CouchSubs/TVInstall/SshClient.swift`, part of CouchSubs under AGPL-3.0; written from RFC 4253/4252/4254, no third-party
+SSH code), negotiating the same algorithms JSch uses with LG TVs. It bundles the released Android TV and LG TV apps and the Samsung CA
+certificates below.
+
 Samsung developer CA certificates (`vd_tizen_dev_author_ca`, `author_ca`, `vd_tizen_dev_public2`, `public2`) are
 redistributed unmodified from Tizen Studio, solely so that the TV app can be signed for the user's own Samsung TV. They
 are the property of Samsung Electronics Co., Ltd. and are not covered by the CouchSubs license.
@@ -46,12 +62,6 @@ glossary of the Elden Ring Turkish fan translation by mehmetkrn
 ([elden-ring-turkce-yama](https://github.com/mehmetkrn/elden-ring-turkce-yama), MIT License, Copyright (c) mehmetkrn).
 ELDEN RING is a trademark of FromSoftware, Inc. and BANDAI NAMCO Entertainment Inc.
 
-The Death Stranding Director's Cut pack (`death-stranding-directors-cut.json.gz`) was translated with Claude (Claude ile
-çevrildi) from the fan-made English transcript at
-[Game Scripts Wiki](https://game-scripts-wiki.blogspot.com/2019/12/death-stranding-full-transcript.html); its terms
-follow the Death Stranding 2 pack. DEATH STRANDING is a trademark of Kojima Productions Co., Ltd. / Sony Interactive
-Entertainment LLC.
-
 The Marvel's Spider-Man 2 pack (`marvels-spider-man-2.json.gz`) was translated with Claude (Claude ile çevrildi) from
 the English [Marvel's Spider-Man 2 script](https://marvels-spider-man.fandom.com/wiki/Marvel%27s_Spider-Man_2_script)
 and [menu transcript](https://marvels-spider-man.fandom.com/wiki/Marvel%27s_Spider-Man_2_menu_transcript) on the
@@ -61,22 +71,54 @@ a trademark of Marvel and Sony Interactive Entertainment LLC.
 
 ## Windows app only
 
+The Turkish command glossary in `UiCommands.cs` and the controller-icon detection in
+`ButtonIcons.MarkFree` were adapted on 2026-11-20 from [GameTranslator's UiPrompts](https://gitlab.com/sefflex/GameTranslator/-/blob/2492049b8435962b05933075978dd52084c67bfc/windows/src/GameTranslator.Core/UiPrompts.cs)
+and [IconWords](https://gitlab.com/sefflex/GameTranslator/-/blob/2492049b8435962b05933075978dd52084c67bfc/windows/src/GameTranslator.Core/IconWords.cs), by emir-kaya (Sefflex).
+IconWords credits [Nino Game Translator's VisionReader](https://github.com/yunusdemirbag/nino-game-translator/blob/83c138fbf87292c800082270e4b33e771bae3df1/core/Sources/CouchSubsCore/Pipeline/VisionReader.swift)
+for the `withIcons` and `withEdgeIcons` rules by Yunus Demirbağ. Both projects are based on
+CouchSubs, Copyright (C) 2026 Sinan Yorulmaz. These adaptations are licensed under AGPL-3.0-only (see [LICENSE](LICENSE)).
+
 | Component | License | Source |
 |---|---|---|
 | FFmpeg 7.1.2 (`libavcodec` H.264 decoder, `libswscale`; statically linked) | LGPL-2.1-or-later | https://ffmpeg.org |
 | .NET runtime and WPF | MIT | https://github.com/dotnet |
-| ONNX Runtime | MIT | https://github.com/microsoft/onnxruntime |
+| Html Agility Pack (reads GitHub release notes as text and links) | MIT, ZZZ Projects | https://github.com/zzzprojects/html-agility-pack |
+| CTranslate2 4.9.0 (Windows CPU and NVIDIA CUDA inference) | MIT | https://github.com/OpenNMT/CTranslate2 |
+| Python 3.12 embedded runtime | Python Software Foundation License | https://www.python.org/downloads/release/python-31210/ |
+| NumPy (CTranslate2 wheel dependency) | BSD-3-Clause | https://github.com/numpy/numpy |
+| PyYAML (CTranslate2 wheel dependency) | MIT | https://github.com/yaml/pyyaml |
 | Microsoft.ML.Tokenizers | MIT | https://github.com/dotnet/machinelearning |
 | System.Security.Cryptography.ProtectedData | MIT | https://github.com/dotnet/runtime |
 | Microsoft WebView2 SDK | BSD-3-Clause | https://www.nuget.org/packages/Microsoft.Web.WebView2 |
+| Greenlight protocol reference | MIT | https://github.com/unknownskl/greenlight |
+| Node.js 22.14.0 runtime (Xbox helper) | MIT and bundled third-party licenses | https://github.com/nodejs/node |
+| xal-node (Xbox Microsoft device-code authentication) | MIT | https://github.com/unknownskl/xal-node |
+| xbox-webapi (home console discovery) | MIT | https://github.com/unknownskl/xbox-webapi |
+| xbox-xcloud-player (WebRTC video reception) | MIT | https://github.com/unknownskl/xbox-xcloud-player |
+| ip-address (ICE/Teredo address handling) | MIT | https://github.com/beaugunderson/ip-address |
+| jose (Xbox token handling, bundled dependency) | MIT | https://github.com/panva/jose |
+| uuid (bundled dependency) | MIT | https://github.com/uuidjs/uuid |
+| uuid4 (bundled dependency) | ISC | https://www.npmjs.com/package/uuid4 |
+| events (bundled browser EventEmitter) | MIT | https://github.com/browserify/events |
 | SSH.NET (LG TV connection) | MIT | https://github.com/sshnet/SSH.NET |
 | BouncyCastle.Cryptography (used by SSH.NET) | MIT | https://github.com/bcgit/bc-csharp |
 | Microsoft.Extensions.Logging.Abstractions (used by SSH.NET) | MIT | https://github.com/dotnet/runtime |
-| Microsoft Visual C++ 2015–2022 runtime (`vcruntime140*.dll`, `msvcp140*.dll`, `concrt140.dll`; needed by ONNX Runtime) | Microsoft Visual Studio license terms, "Distributable Code" (redist.txt) | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
+| QRCoder 1.6.0 (QR code of the "Show on another device" address) | MIT | https://github.com/codebude/QRCoder |
+| ONNX Runtime 1.24.4 (`onnxruntime.dll`, `Microsoft.ML.OnnxRuntime.DirectML`; advanced text recognition) | MIT | https://github.com/microsoft/onnxruntime |
+| DirectML 1.15.4 (`DirectML.dll`, from the `Microsoft.AI.DirectML` package; GPU for advanced text recognition) | Microsoft Software License Terms (Microsoft DirectX Machine Learning) | https://www.nuget.org/packages/Microsoft.AI.DirectML/1.15.4 |
+| Microsoft Visual C++ 2015–2022 runtime (`vcruntime140*.dll`, `msvcp140*.dll`, `concrt140.dll`; needed by CTranslate2) | Microsoft Visual Studio license terms, "Distributable Code" (redist.txt) | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
+
+The full copyright and license notices for Greenlight, the Xbox helper's bundled libraries, and the bundled Node.js
+runtime are in `windows/xbox-bridge/licenses/` in the source tree and `xbox-bridge/licenses/` in the Windows package.
+The Xbox helper adapts Greenlight's home-streaming protocol sequence; the full Greenlight application is not bundled.
 
 The Visual C++ runtime DLLs are Microsoft's redistributable files, copied unmodified from the Visual Studio
 `VC\Redist\MSVC\…\x64\Microsoft.VC14x.CRT` folder and placed next to `CouchSubs.exe` (app-local deployment, as
 Microsoft documents). They are system libraries in the sense of the GPL and are not covered by CouchSubs' AGPL license.
+
+`DirectML.dll` is Microsoft's redistributable file from the `Microsoft.AI.DirectML` NuGet package, distributed
+unmodified next to `CouchSubs.exe`. Its license terms (in the package as `LICENSE.txt`) allow redistribution only in
+applications for Windows and Xbox; it is not covered by CouchSubs' AGPL license.
 
 FFmpeg is built from the unmodified upstream release with the configuration in
 `.github/workflows/windows.yml`. You can rebuild `couchsubs_native.dll` with your own FFmpeg build using
@@ -86,9 +128,13 @@ FFmpeg is built from the unmodified upstream release with the configuration in
 
 | Component | License | Source |
 |---|---|---|
-| OPUS-MT English→Turkish translation model (`opus-mt-tc-big-en-tr`, ONNX export) | CC BY 4.0 | Language Technology Research Group, University of Helsinki — https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr, ONNX conversion https://huggingface.co/onnx-community/opus-mt-tc-big-en-tr |
+| OPUS-MT English→Turkish translation model (`opus-mt-tc-big-en-tr`, CTranslate2 conversion) | CC BY 4.0 | Language Technology Research Group, University of Helsinki — https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr, conversion https://huggingface.co/Unbakedcookie/live-translator-models |
+| PP-OCRv6 small text detection and recognition models (advanced text recognition, Windows option only) | Apache-2.0, Baidu / PaddlePaddle | https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx, https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx (pinned revision) |
+| NVIDIA CUDA 12.8 cuBLAS and runtime (Windows GPU option only) | NVIDIA CUDA Toolkit license; downloaded license at `cuda-12.8/CUDA-LICENSE.txt` | https://developer.download.nvidia.com/compute/cuda/redist/ |
 
-The model is used unmodified (int8 quantised ONNX files as published by onnx-community).
+The model is downloaded as a SHA-256-verified CTranslate2 float16 conversion from the pinned source above. CouchSubs uses int8 computation on CPU and float16 on a compatible NVIDIA CUDA GPU.
+
+The PP-OCRv6 models are downloaded unmodified from the pinned revisions above and verified with SHA-256 before use.
 
 ## Downloaded on first use of Turkish dubbing (Mac)
 
@@ -102,6 +148,26 @@ synthetic and are not recordings of real people.
 ## Mac app
 
 Text recognition (Vision) and translation (Translation framework) are provided by macOS.
+
+## Android app
+
+| Component | License | Source |
+|---|---|---|
+| ZXing core 3.5.3 (`com.google.zxing:core`; QR code of the "Show on another device" address) | Apache-2.0 | https://github.com/zxing/zxing |
+
+The Mac and iPhone apps draw the same QR code with the system's Core Image (`CIQRCodeGenerator`).
+
+## Phone apps: Xbox home streaming (Beta)
+
+| Component | License | Source |
+|---|---|---|
+| WebRTC for Android (`io.github.webrtc-sdk:android`, Google libwebrtc build) | BSD-3-Clause with WebRTC patent grant | https://github.com/webrtc-sdk/webrtc |
+| WebRTC for iOS and macOS (`stasel/WebRTC`, Google libwebrtc build) | BSD-3-Clause with WebRTC patent grant | https://github.com/stasel/WebRTC |
+| Protocol constants and sequence from xal-node, xbox-webapi, xbox-xcloud-player and Greenlight (ported to Kotlin and Swift) | MIT | https://github.com/unknownskl |
+
+The Android, iPhone and Mac apps do not bundle the Node.js helper or the JavaScript player. They send the same requests
+as the Windows helper and open WebRTC with the platform library; H.264 is decoded by the device's hardware decoder. The MIT
+notices for the ported projects are in `windows/xbox-bridge/licenses/`.
 
 ## Trademarks
 

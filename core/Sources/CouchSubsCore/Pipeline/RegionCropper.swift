@@ -3,7 +3,7 @@
 import CoreGraphics
 
 /// Görüntüde altyazının arandığı bölge, kenarlara oranla (0–1, üstten ve soldan).
-public struct CropRegion: Codable, Equatable {
+public struct CropRegion: Codable, Equatable, Sendable {
     public var top = 0.62
     public var bottom = 0.97
     public var left = 0.14

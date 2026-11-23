@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -48,8 +49,21 @@ public sealed class TranslationCache
     public string? Engine { get; }
 
     /// <summary>Motor ve dil çiftine göre dosya: <c>v1-opus_mt-en-tr.jsonl</c>.</summary>
-    public static string FileFor(string directory, string engine, string source, string target) =>
-        Path.Combine(directory, string.Join('-', new[] { $"v{FormatVersion}", engine, source, target }.Select(Safe)) + ".jsonl");
+    public static string FileFor(string directory, string engine, string source, string target)
+    {
+        // Basit, zaten yayımlanmış motor adlarının disk önbelleği korunur.
+        if (new[] { engine, source, target }.All(LegacySafe))
+            return Path.Combine(directory, string.Join('-', new[] { $"v{FormatVersion}", engine, source, target }.Select(Safe)) + ".jsonl");
+
+        // Noktalama karakterlerini '_' yapmak iki farklı model kimliğini aynı dosyada birleştiriyordu.
+        // Karmaşık kimlikler için sabit uzunluklu, motor ve dil çiftine özgü dosya adı kullanılır.
+        var key = string.Join("\0", new[] { engine, source, target });
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))).ToLowerInvariant();
+        return Path.Combine(directory, $"v{FormatVersion}h-{digest}.jsonl");
+    }
+
+    private static bool LegacySafe(string part) =>
+        part.Length > 0 && part.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-');
 
     /// <summary>Aynı dosya için hep aynı önbellek döner; çevirmen her oturumda yeniden kurulsa da dosya bir kez okunur.</summary>
     public static TranslationCache Shared(string directory, string engine, string source, string target) =>
@@ -190,6 +204,7 @@ public sealed class TranslationProbe
     private readonly object gate = new();
     private readonly List<string> fresh = [];
     private int hits;
+    private string? fallbackReason;
 
     public static TranslationProbe? Current
     {
@@ -201,6 +216,9 @@ public sealed class TranslationProbe
 
     internal void NoteFresh(string? engine) { lock (gate) fresh.Add(engine ?? ""); }
 
+    /// <summary>Çevrimiçi motor satırı ücretsiz yedeğe bıraktı; neden günlükte görünür (anahtar ve yanıt yazılmaz).</summary>
+    public void NoteFallback(string reason) { lock (gate) fallbackReason = reason; }
+
     public int Hits { get { lock (gate) return hits; } }
 
     /// <summary>"çeviri:&lt;motor&gt;" (motor yeni çevirdi), "önbellek" (her parça önbellekten geldi) ya da bilinmiyorsa "çeviri:&lt;yedek ad&gt;".</summary>
@@ -208,8 +226,9 @@ public sealed class TranslationProbe
     {
         lock (gate)
         {
-            if (fresh.Count > 0) return "çeviri:" + (fresh[^1].Length == 0 ? fallbackEngine : fresh[^1]);
-            return hits > 0 ? "önbellek" : "çeviri:" + fallbackEngine;
+            var result = fresh.Count > 0 ? "çeviri:" + (fresh[^1].Length == 0 ? fallbackEngine : fresh[^1])
+                : hits > 0 ? "önbellek" : "çeviri:" + fallbackEngine;
+            return fallbackReason is null ? result : $"{result}, ücretsiz yedek: {fallbackReason}";
         }
     }
 }

@@ -132,6 +132,18 @@ public sealed class TranslationIntegrationTests(LoadedTranslator loaded, ITestOu
     }
 
     [ModelFact]
+    public async Task GpuChoiceUsesCpuWhenCudaIsUnavailable()
+    {
+        var fallback = 0;
+        using var translator = new MarianTranslator(TestModels.Directory, useGpu: true,
+            onGpuFallback: () => Interlocked.Increment(ref fallback));
+        var translated = await translator.TranslateAsync("Wait!");
+        Assert.Contains("!", translated);
+        if (Environment.GetEnvironmentVariable("COUCHSUBS_TEST_EXPECT_GPU_FALLBACK") == "1")
+            Assert.Equal(1, fallback);
+    }
+
+    [ModelFact]
     public async Task ConcurrentCallsMatchSequentialResults()
     {
         // Dört sözcük ve üstü: kısa satır önceki satırla çevrilir, paralel sırada bağlamı değişirdi.

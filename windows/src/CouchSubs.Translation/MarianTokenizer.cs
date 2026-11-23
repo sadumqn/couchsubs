@@ -75,6 +75,13 @@ public sealed class MarianTokenizer
         return ids.ToArray();
     }
 
+    /// <summary>CTranslate2, kimlik yerine SentencePiece belirteçlerini alır.</summary>
+    public string[] EncodeTokens(string text) => Encode(text).Select(id => _idToPiece[id]).ToArray();
+
+    /// <summary>CTranslate2'nin çıktı belirteçlerini mevcut Türkçe çözümleyiciyle açar.</summary>
+    public string DecodeTokens(IEnumerable<string> tokens) => Decode(tokens.Select(token =>
+        _vocab.TryGetValue(token, out var id) ? id : UnkId));
+
     /// <summary>Kod çözücü çıktısını metne çevirir; özel belirteçler atlanır.</summary>
     public string Decode(IEnumerable<int> ids)
     {

@@ -40,3 +40,12 @@ public sealed class Not : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not true;
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => value is not true;
 }
+
+/// <summary>Yüksekliğin yarısı köşe (hap biçimi); <c>{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource Pill}}</c>.</summary>
+public sealed class PillCorner : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        new CornerRadius(value is double height && height > 0 ? height / 2 : 0);
+
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}

@@ -73,6 +73,33 @@ public enum PSNAccount {
         return describe(error: error, description: description, code: code)
     }
 
+    /// Tarayıcıda giriş yapan kullanıcının yapıştırdığı (ya da panoya kopyaladığı) metinden yönlendirme adresi. Adres
+    /// çubuğundan kopyalanan metnin başında ya da sonunda boşluk, tırnak, ya da adresin önünde başka yazı olabilir; adres
+    /// remoteplay.dl.playstation.net yönlendirmesi değilse ya da içinde kod veya Sony hatası yoksa nil. Windows'taki
+    /// `PsnAccount.RedirectFromPastedText` ve Android'deki `redirectFromText` ile aynı kural.
+    public static func redirect(fromPastedText text: String?) -> URL? {
+        guard let text, let start = text.range(of: redirectPrefix, options: .caseInsensitive) else { return nil }
+        let rest = text[start.upperBound...].prefix { !$0.isWhitespace && !"\"'<>".contains($0) }
+        guard let url = URL(string: redirectPrefix + rest) else { return nil }
+        if let code = code(fromRedirect: url), !code.isEmpty { return url }
+        return error(fromRedirect: url) != nil ? url : nil
+    }
+
+    /// Sony'nin giriş sayfası arka plan çağrısı başarısız olunca "Can't connect to the server" yazar. Uygulama içi
+    /// tarayıcıda bu görülürse giriş sistem tarayıcısına taşınır; tarayıcıda aynı giriş çalışıyor. Windows'taki
+    /// `PsnAccount.LooksServerUnreachable` ile aynı kural.
+    public static func looksServerUnreachable(_ pageText: String?) -> Bool {
+        guard let pageText else { return false }
+        return pageText.range(of: #"(?:(?:can|could)(?:\s?not|n?[\u2019']t)|unable to) connect to the server"#,
+                              options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    /// Sayfa metni yalnız Sony'nin kendi sayfalarından dinlenir.
+    public static func isSonyHost(_ host: String?) -> Bool {
+        guard let host = host?.lowercased() else { return false }
+        return ["sony.com", "sonyentertainmentnetwork.com", "playstation.com", "playstation.net"].contains { host.hasSuffix($0) }
+    }
+
     /// Giriş penceresinin yakaladığı yönlendirmeden hesap kimliği. Sony'nin hatası, HTTP hatası, ağ hatası ve anlaşılamayan
     /// yanıt ayrı ayrı `PSNError` olur.
     public static func accountId(fromRedirect url: URL) async throws -> Data {

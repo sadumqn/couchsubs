@@ -52,7 +52,7 @@ public sealed class PocketTtsServer(string executable, string config, string def
         Process process;
         try
         {
-            process = Process.Start(start) ?? throw new PocketTtsException("pocket-tts başlamadı");
+            process = ChildProcessGuard.Start(start) ?? throw new PocketTtsException("pocket-tts başlamadı");
         }
         catch (System.ComponentModel.Win32Exception error)
         {
@@ -74,8 +74,6 @@ public sealed class PocketTtsServer(string executable, string config, string def
         process.BeginErrorReadLine();
         _process = process;
         _port = port;
-        ChildProcessGuard.Attach(process);
-
         var deadline = DateTime.UtcNow.AddSeconds(90);
         while (DateTime.UtcNow < deadline)
         {

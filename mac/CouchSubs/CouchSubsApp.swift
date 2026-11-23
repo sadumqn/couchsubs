@@ -7,11 +7,21 @@ import Sparkle
 #endif
 import SwiftUI
 
+/// Uygulama `--ocr-helper` ile açıldıysa pencere açmaz: yedek okuyucu olarak çalışır (`OcrHelper`, #679).
 @main
+enum Launcher {
+    static func main() {
+        if CommandLine.arguments.contains(OcrHelper.argument) { OcrHelper.runAsHelper() }
+        CouchSubsApp.main()
+    }
+}
+
 struct CouchSubsApp: App {
     @StateObject private var model = Self.makeModel()
     /// Bilgisayar ekranındaki altyazı penceresi.
     @State private var overlay = SubtitleOverlayController()
+    /// Yayın programlarının yakaladığı düz zeminli altyazı penceresi (Ayarlar > OBS'ten açılır).
+    @State private var stream = StreamWindowController()
     #if !APP_STORE
     /// Sparkle: her açılışta ve uygulama açıkken saatte bir GitHub'daki son sürüme bakar; testlerde başlamaz.
     private let updater = SPUStandardUpdaterController(
@@ -19,9 +29,21 @@ struct CouchSubsApp: App {
         updaterDelegate: nil, userDriverDelegate: nil)
     #endif
 
+    /// Hakkında'daki "Güncellemeleri Denetle…" (Mac App Store sürümünde yok).
+    private var checkForUpdates: (() -> Void)? {
+        #if APP_STORE
+        nil
+        #else
+        { [updater] in updater.checkForUpdates(nil) }
+        #endif
+    }
+
     /// Testler uygulamanın içinde çalışır. Gerçek Anahtarlığa dokunmazlar: imza farklı olunca macOS parola sorar ve test takılır.
     private static func makeModel() -> AppModel {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil ? AppModel() : AppModel(store: EphemeralStore())
+        // Testlerde ayarlar da gerçek kayda (com.couchsubs.mac) yazılmaz.
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+            ? AppModel()
+            : AppModel(store: EphemeralStore(), defaults: UserDefaults(suiteName: "couchsubs-test-host") ?? .standard)
     }
 
     var body: some Scene {
@@ -29,25 +51,30 @@ struct CouchSubsApp: App {
             RootView()
                 .environmentObject(model)
                 // Sparkle kendi takviminde günde bir bakar; yeni sürüm her açılışta fark edilsin diye açılışta da sessizce bakılır.
+                .environment(\.checkForUpdates, checkForUpdates)
                 .task {
                     overlay.attach(model)
+                    stream.attach(model)
+                    CrashNotice.shared.checkOnce()
                     #if !APP_STORE
                     guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
                     updater.updater.checkForUpdatesInBackground()
                     #endif
                 }
                 .appSurface()
-                .frame(minWidth: Theme.size("windowWidth"), idealWidth: Theme.size("windowWidth"), maxWidth: Theme.size("windowWidth") * 1.25,
-                       minHeight: Theme.size("windowHeight"), idealHeight: Theme.size("windowHeight"))
+                // Yeni arayüz: en küçük 1200 × 760, büyüyünce sütunlar oransal genişler (içerik en fazla 1680, ortalı).
+                .frame(minWidth: DS.size("windowWidth"), idealWidth: DS.size("windowWidth"), maxWidth: .infinity,
+                       minHeight: DS.size("windowHeight"), idealHeight: DS.size("windowHeight"), maxHeight: .infinity)
                 // Başlık çubuğu da pencere zemininin rengini alır (macOS 15 ve sonrası; öncesinde sistem rengi).
-                .windowBackground(Color.csBackground)
+                .windowBackground(Color.dsBackground)
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About CouchSubs") { model.showAbout = true }
+                Button("Release Notes") { model.showReleaseNotes = true }
                 #if !APP_STORE
-                Button("Check for updates…") { updater.checkForUpdates(nil) }
+                Button("Check for Updates…") { updater.checkForUpdates(nil) }
                 #endif
             }
             CommandGroup(replacing: .appSettings) {
@@ -57,16 +84,12 @@ struct CouchSubsApp: App {
             }
         }
         // Altyazı bilgisayar ekranındayken menü çubuğundan pencereye ulaşılır ("Tıklamalar geçsin" açıkken geri dönüş yolu).
+        // Yeni arayüzde pencere biçiminde (tuval 17): durum, Çeviriyi Başlat/Durdur, Tıklamalar Geçsin, Konumlandır, Aç.
         MenuBarExtra("CouchSubs", systemImage: "captions.bubble",
                      isInserted: Binding(get: { model.step == .done && model.settings.output.showsOnComputer }, set: { _ in })) {
-            Toggle("Clicks pass through", isOn: Binding(get: { model.settings.overlayClickThrough },
-                                                        set: { model.settings.overlayClickThrough = $0 }))
-            Button("Adjust the subtitle window") { model.overlayAdjusting = true }
-            Divider()
-            Button("Open CouchSubs") {
-                if #available(macOS 14, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
-            }
+            MenuBarPanel().environmentObject(model)
         }
+        .menuBarExtraStyle(.window)
     }
 }
 
@@ -75,9 +98,12 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if model.step == .done { MainView() } else { OnboardingView() }
+            // Deneme modu kurulumdan bağımsızdır: sihirbazın hangi adımından açılırsa açılsın ana pencere görünür.
+            if model.step == .done || model.demoMode { AppShell() } else { WizardView() }
         }
-        .sheet(isPresented: $model.showAbout) { AboutView().appSurface() }
+        .onAppear { model.adoptNewDesign() }
+        .sheet(isPresented: $model.showAbout) { NewAboutView() }
+        .sheet(isPresented: $model.showReleaseNotes) { ReleaseNotesView() }
     }
 }
 

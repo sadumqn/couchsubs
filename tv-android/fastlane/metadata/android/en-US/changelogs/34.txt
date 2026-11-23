@@ -1,0 +1,1 @@
+0.9.31: In Android TV overlay mode the "cover the English subtitle" background now fully covers the English line, even when the TV zooms the picture. Installing on 2016 Samsung TVs no longer fails with error 118.

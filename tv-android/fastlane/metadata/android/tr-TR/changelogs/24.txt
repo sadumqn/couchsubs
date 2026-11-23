@@ -1,0 +1,1 @@
+0.9.21: PS5 oynarken TV ekranı artık açık kalıyor ve TV oyun moduna (düşük gecikme) geçmesi isteniyor. Bekleme ekranı telefondan da başlatılabildiğini ve bilgisayar gerekmediğini söylüyor. Mağaza açıklaması güncellendi: telefon ya da bilgisayar yeter.

@@ -11,6 +11,8 @@ private final class FakeServer: @unchecked Sendable {
     /// Durum kodu ve başlıklar; nil: sunucuya ulaşılamadı.
     var replies: [(Int, [String: String])?] = []
     var fallback: (Int, [String: String])? = (200, [:])
+    /// Yanıt gövdeleri, sırayla; bitince boş gövde.
+    var bodies: [Data] = []
 
     var received: [URLRequest] { lock.withLock { requests } }
 
@@ -23,12 +25,13 @@ private final class FakeServer: @unchecked Sendable {
     }
 
     func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        let reply: (Int, [String: String])? = lock.withLock {
+        let (reply, body): ((Int, [String: String])?, Data) = lock.withLock {
             requests.append(request)
-            return replies.isEmpty ? fallback : replies.removeFirst()
+            let body = bodies.isEmpty ? Data() : bodies.removeFirst()
+            return (replies.isEmpty ? fallback : replies.removeFirst(), body)
         }
         guard let (status, headers) = reply else { throw URLError(.cannotConnectToHost) }
-        return (Data(), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!)
+        return (body, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!)
     }
 }
 
@@ -134,6 +137,44 @@ final class LinePoolTests: XCTestCase {
         XCTAssertEqual(again, [])
     }
 
+    /// PS5'te çalışan oyun bilinince satırla gider; bilinmiyorsa alanlar hiç yazılmaz (eski sunucu ve eski kuyruk dosyası).
+    func testRunningGameTravelsWithTheLine() async throws {
+        let pool = makePool()
+        await pool.offer("Who is that over there?")
+        await pool.setGame(RunningGame(titleId: "ppsa12345", name: "  Grand Theft Auto VI\n"))
+        await pool.offer("Get in the car, Lucia.")
+        await pool.setGame(nil)
+        await pool.offer("Keep your head down, Jason.")
+        await pool.flush()
+        let lines = server.batches[0]
+        XCTAssertEqual(Set(lines[0].keys), ["text", "key", "firstSeen"])
+        XCTAssertEqual(lines[1]["titleId"] as? String, "PPSA12345")
+        XCTAssertEqual(lines[1]["game"] as? String, "Grand Theft Auto VI")
+        XCTAssertNil(lines[2]["titleId"])
+    }
+
+    func testQueuedGameSurvivesRestart() async {
+        server.fallback = nil
+        let pool = makePool()
+        await pool.setGame(RunningGame(titleId: "PPSA12345", name: "Grand Theft Auto VI"))
+        await pool.offer("Get in the car, Lucia.")
+        await pool.save()
+        let reopened = makePool()
+        let queued = await reopened.queued
+        XCTAssertEqual(queued.first?.titleId, "PPSA12345")
+        XCTAssertEqual(queued.first?.game, "Grand Theft Auto VI")
+    }
+
+    func testRunningGameValidatesTheTitleId() {
+        XCTAssertEqual(RunningGame(titleId: "CUSA00419_00", name: nil)?.titleId, "CUSA00419_00")
+        XCTAssertNil(RunningGame(titleId: "PPSA1234", name: "x"))
+        XCTAssertNil(RunningGame(titleId: "PPSA01234_0", name: "x"))
+        XCTAssertNil(RunningGame(titleId: "", name: "x"))
+        XCTAssertNil(RunningGame(titleId: nil, name: "x"))
+        XCTAssertNil(RunningGame(titleId: "PPSA01234", name: " \u{0} ")?.name)
+        XCTAssertEqual(RunningGame(titleId: "PPSA01234", name: String(repeating: "x", count: 300))?.name?.count, 120)
+    }
+
     func testQueueSurvivesRestartAndUnreachableServer() async {
         server.fallback = nil
         let pool = makePool()
@@ -165,6 +206,67 @@ final class LinePoolTests: XCTestCase {
         XCTAssertEqual(server.received.count, 2)
         let queued = await pool.queued
         XCTAssertEqual(queued, [])
+    }
+
+    private func reply(saturated: [String]) -> Data {
+        try! JSONSerialization.data(withJSONObject: ["accepted": 1, "recorded": 0, "saturated": saturated])
+    }
+
+    func testSaturatedKeysAreRememberedAndNotSentAgain() async {
+        let key = PackKey.key("Don Torrisi wants you.")!
+        server.bodies = [reply(saturated: [key.uppercased()])]
+        let pool = makePool()
+        await pool.offer("Don Torrisi wants you.")
+        await pool.offer("Who is that over there?")
+        await pool.flush()
+        // Doymuş satır bir daha kuyruğa girmez; öteki de gönderildi sayılır.
+        await pool.offer("Don Torrisi wants you.")
+        await pool.offer("Who is that over there?")
+        let queued = await pool.queued
+        XCTAssertEqual(queued, [])
+        // Yeniden başlatınca da hatırlanır.
+        let reopened = makePool()
+        await reopened.offer("Don Torrisi wants you.")
+        let afterRestart = await reopened.queued
+        XCTAssertEqual(afterRestart, [])
+    }
+
+    func testSaturatedKeysDropTheSameLinesStillWaitingInTheQueue() async {
+        // 201 satır: ilk parça (200) gider; sunucu ikinci parçadaki satırı doymuş bildirirse o satır atılır.
+        let lines = (0..<201).map { "Get in the car number \($0), Lucia." }
+        let last = PackKey.key(lines[200])!
+        server.bodies = [reply(saturated: [last])]
+        let pool = makePool()
+        for line in lines { await pool.offer(line) }
+        await pool.flush()
+        XCTAssertEqual(server.received.count, 1, "doymuş satırın tek başına kalan ikinci parçası gönderilmez")
+        let queued = await pool.queued
+        XCTAssertEqual(queued, [])
+    }
+
+    func testMalformedSaturatedListIsIgnored() async {
+        server.bodies = [try! JSONSerialization.data(withJSONObject: ["saturated": ["zz", "123", 5]])]
+        let pool = makePool()
+        await pool.offer("Don Torrisi wants you.")
+        await pool.flush()
+        server.bodies = [Data("{\"saturated\": 3}".utf8)]
+        await pool.offer("Who is that over there?")
+        await pool.flush()
+        let queued = await pool.queued
+        XCTAssertEqual(queued, [])
+        XCTAssertEqual(LinePool.saturatedKeys(Data("not json".utf8)), [])
+        XCTAssertEqual(LinePool.saturatedKeys(Data(#"{"saturated":["zz","ABCDEF0123456789"]}"#.utf8)), ["abcdef0123456789"])
+    }
+
+    func testRejectedBatchIsRememberedSoItIsNotSentAgain() async {
+        server.replies = [(400, [:])]
+        let pool = makePool()
+        await pool.offer("Don Torrisi wants you.")
+        await pool.flush()
+        await pool.offer("Don Torrisi wants you.")
+        let queued = await pool.queued
+        XCTAssertEqual(queued, [])
+        XCTAssertEqual(server.received.count, 1)
     }
 
     func testQueueKeepsTheNewestFiveThousand() async {

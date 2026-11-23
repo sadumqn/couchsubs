@@ -28,6 +28,15 @@ public class SpeechTextTests
         Assert.Equal("ne? kapı açıldı!", SpeechText.Prepare("Ne?! Kapı açıldı!!"));
     }
 
+    /// <summary>Hızlı dublajda (Windows'un kendi sesi) duygu etiketi okunmaz.</summary>
+    [Fact]
+    public void SystemVoiceDoesNotReadTheEmotionTag()
+    {
+        Assert.Equal("geri çekil!", SpeechText.WithoutEmotion(SpeechText.Prepare("Geri çekil!", SpeechEmotion.Angry)));
+        Assert.Equal("[not] bir etiket", SpeechText.WithoutEmotion("[not] bir etiket"));
+        Assert.Equal("düz cümle.", SpeechText.WithoutEmotion("düz cümle."));
+    }
+
     [Fact]
     public void NumbersAreSpelledOut()
     {
@@ -142,5 +151,67 @@ public class PocketTtsExitTests
     public void ExitMessageWithoutOutputKeepsTheExitCode()
     {
         Assert.Equal("pocket-tts kapandı (çıkış kodu 3)", PocketTtsServer.ExitMessage(3, new Queue<string>()));
+    }
+}
+
+public class NativeToolPathTests
+{
+    private const string Tokenizer = @"C:\Users\Şafak\AppData\Local\CouchSubs\models\tts-tr\rev\tokenizer.model";
+    private const string Short = @"C:\Users\AFAK~1\AppData\Local\CouchSubs\models\tts-tr\rev\TOKENI~1.MOD";
+
+    [Fact]
+    public void AsciiPathIsKept()
+    {
+        const string path = @"C:\Users\Ali\AppData\Local\CouchSubs\models\tts-tr\rev\tokenizer.model";
+        Assert.Equal(path, NativeToolPath.Resolve(path, _ => throw new InvalidOperationException()));
+    }
+
+    [Fact]
+    public void NonAsciiPathUsesTheShortName()
+    {
+        var copied = false;
+        var result = NativeToolPath.Tokenizer(Tokenizer, _ => Short, [@"C:\ProgramData"], (_, _) => copied = true);
+        Assert.Equal(Short, result);
+        Assert.False(copied);
+    }
+
+    [Fact]
+    public void WithoutShortNamesTheTokenizerIsCopiedToAnAsciiFolder()
+    {
+        // 8.3 adları kapalı sürücüde kısa ad uzun adla aynı döner.
+        string? from = null, to = null;
+        var result = NativeToolPath.Tokenizer(Tokenizer, path => path, [@"C:\ProgramData"],
+            (source, target) => (from, to) = (source, target));
+        var expected = Path.Combine(@"C:\ProgramData", "CouchSubs", "models", "tts-tr", DubbingModel.Revision, "tokenizer.model");
+        Assert.Equal(expected, result);
+        Assert.Equal(Tokenizer, from);
+        Assert.Equal(expected, to);
+        Assert.True(NativeToolPath.IsAscii(result));
+    }
+
+    [Fact]
+    public void NonAsciiOrUnwritableRootsAreSkipped()
+    {
+        var result = NativeToolPath.Tokenizer(Tokenizer, _ => null, [null, @"D:\Veri\Şafak", @"C:\ProgramData", @"C:\Users\Public"],
+            (_, target) =>
+            {
+                if (target.StartsWith(@"C:\ProgramData", StringComparison.Ordinal)) throw new UnauthorizedAccessException();
+            });
+        Assert.StartsWith(@"C:\Users\Public", result);
+    }
+
+    [Fact]
+    public void WithNoUsableRootTheOriginalPathIsReturned()
+    {
+        Assert.Equal(Tokenizer, NativeToolPath.Tokenizer(Tokenizer, _ => null, [], (_, _) => { }));
+    }
+
+    [Fact]
+    public void LocalConfigUsesTheGivenTokenizerPath()
+    {
+        const string original = "weights_path: x\nflow_lm:\n  lookup_table:\n    tokenizer_path: y\n";
+        var local = DubbingModel.LocalConfig(original, @"C:\Users\Şafak\models", Short);
+        Assert.Contains("    tokenizer_path: '" + Short + "'", local);
+        Assert.Contains("Şafak", local);
     }
 }

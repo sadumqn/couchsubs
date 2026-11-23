@@ -7,7 +7,11 @@ import XCTest
 
 final class MemoryStore: AppStore {
     var values: [String: Data] = [:]
-    func save<T: Encodable>(_ value: T, for key: String) { values[key] = try? JSONEncoder().encode(value) }
+    var rejectedWrites: Set<String> = []
+    func save<T: Encodable>(_ value: T, for key: String) {
+        guard !rejectedWrites.contains(key) else { return }
+        values[key] = try? JSONEncoder().encode(value)
+    }
     func load<T: Decodable>(_ type: T.Type, for key: String) -> T? { values[key].flatMap { try? JSONDecoder().decode(type, from: $0) } }
     func remove(_ key: String) { values[key] = nil }
 }
@@ -17,7 +21,31 @@ extension UserDefaults {
     static func isolated() -> UserDefaults { UserDefaults(suiteName: "couchsubs-test-\(UUID())")! }
 }
 
+/// Testler gerçek Microsoft ve Xbox hizmetlerine gitmez: sahte verilmemişse her istek ağ hatasıdır.
+struct UnreachableXboxHTTP: XboxHTTP {
+    func request(_ method: String, _ url: String, headers: [String: String], body: String?) async throws -> XboxHTTPResponse {
+        throw XboxError(.network, "test: ağ yok")
+    }
+}
+
 final class FakeServices: AppServices {
+    /// PS Remote Play / chiaki-ng bu Mac'te kurulu mu (Ayarlar'daki indirme satırları, ana ekran uyarısı).
+    var remotePlayInstalledResult = true
+    func remotePlayInstalled(_ app: RemotePlayApp) -> Bool { remotePlayInstalledResult }
+    /// Seçilen pencereden okuma: gerçek ScreenCaptureKit'e gidilmez; açık pencereler ve izin elle verilir.
+    var captureWindowStreams: [WindowCaptureTarget] = []
+    var openCaptureWindows: [WindowCaptureTarget] = []
+    var screenRecordingAllowedResult = true
+    var screenRecordingSettingsOpened = 0
+    func makeCaptureWindowStream(target: WindowCaptureTarget) -> StreamControlling {
+        captureWindowStreams.append(target)
+        let stream = FakeStream()
+        streams.append(stream)
+        return stream
+    }
+    func captureWindows() async -> [WindowCaptureTarget] { screenRecordingAllowedResult ? openCaptureWindows : [] }
+    func screenRecordingAllowed() -> Bool { screenRecordingAllowedResult }
+    func openScreenRecordingSettings() { screenRecordingSettingsOpened += 1 }
     var consoles = [ConsoleInfo(host: "192.168.1.253", name: "PS5-789", isAwake: true)]
     var tvs = [LGTV(name: "LG TV", host: "192.168.1.153")]
     var registered: RegisteredConsole?
@@ -47,6 +75,21 @@ final class FakeServices: AppServices {
         return aiResult
     }
 
+    // Xbox (Beta): Microsoft ve Xbox uçları sahte HTTP'den yanıtlanır; oturum sahte akıştır.
+    var xboxHTTP: XboxHTTP?
+    var xboxStreams: [(console: XboxConsole, playAudio: Bool, stream: FakeStream)] = []
+    func makeXboxAuth(userToken: XboxUserToken?, onUserToken: @escaping @Sendable (XboxUserToken?) -> Void) -> XboxAuth {
+        XboxAuth(http: xboxHTTP ?? UnreachableXboxHTTP(), sleep: { _ in }, userToken: userToken, onUserToken: onUserToken)
+    }
+    func xboxConsoles(auth: XboxAuth) async throws -> [XboxConsole] {
+        try await XboxHome(auth: auth, http: xboxHTTP ?? UnreachableXboxHTTP()).consoles()
+    }
+    func makeXboxStream(auth: XboxAuth, console: XboxConsole, playAudio: Bool) -> StreamControlling {
+        let stream = FakeStream()
+        xboxStreams.append((console, playAudio, stream))
+        return stream
+    }
+
     func discoverConsoles() async -> [ConsoleInfo] { consoles }
     var loginError: Error?
     func accountId(fromRedirect url: URL) async throws -> Data {
@@ -62,21 +105,32 @@ final class FakeServices: AppServices {
         return console
     }
     func discoverTVs() async -> [LGTV] { tvs }
-    func pairTV(_ tv: LGTV, key: String?, server: String) async throws -> TVPairing {
+    func pairTV(_ tv: LGTV, key: String?, server: String, accessKey: String) async throws -> TVPairing {
         launchedServer = server
         pairCount += 1
-        return TVPairing(key: "tv-key", launched: appOnTV != nil)
+        return TVPairing(key: pairKey, launched: appOnTV != nil)
     }
-    func makeStream(console: RegisteredConsole, accountId: Data) -> StreamControlling {
+    /// TV'nin eşleşmede döndüğü jeton (Samsung jetonla gelen bağlantıda boş dönebilir).
+    var pairKey = "tv-key"
+    func identifyTV(host: String) async -> LGTV? { LGTV(name: "LG OLED", host: host, brand: .lg) }
+    var onKey: (@Sendable (String) -> Void)?
+    var onOpenResult: (@Sendable (TVOpenProblem?) -> Void)?
+    var streamPasscodes: [String?] = []
+    func makeStream(console: RegisteredConsole, accountId: Data, loginPasscode: String?) -> StreamControlling {
+        streamPasscodes.append(loginPasscode)
         let stream = FakeStream()
         streams.append(stream)
         return stream
     }
     func makeKeeper(tv: LGTV, key: String?, params: [String: Any], appConnected: @escaping @Sendable () -> Bool,
-                    onMoved: @escaping (LGTV) -> Void) -> KeeperControlling {
+                    onMoved: @escaping (LGTV) -> Void, onKey: @escaping @Sendable (String) -> Void,
+                    consolePort: @escaping @Sendable () -> Int?,
+                    onOpenResult: @escaping @Sendable (TVOpenProblem?) -> Void) -> KeeperControlling {
         let keeper = FakeKeeper()
         keepers.append(keeper)
         self.onMoved = onMoved
+        self.onKey = onKey
+        self.onOpenResult = onOpenResult
         return keeper
     }
     var bundledTVAppVersion: String? = "0.6.1"
@@ -112,6 +166,9 @@ final class FakeServices: AppServices {
     var brandInstalls: [(brand: TVBrand, host: String)] = []
     func bundledApp(for brand: TVBrand) -> BundledTVApp? { bundled[brand] }
     func isSamsungDevModeOn(host: String) async -> Bool { samsungDevMode }
+    /// Samsung TV'nin 8001 yanıtı ve TV'ye giden yolun bu Mac'teki adresi.
+    var samsungCheck = SamsungPreflight(info: nil, computerAddress: nil)
+    func checkSamsung(host: String) async -> SamsungPreflight { samsungCheck }
     /// Samsung TV'de kurulu sürüm (sahte TV'nin vd_applist'i); nil: uygulama yok.
     var samsungOnTV: String?
     func installSamsungApp(host: String, app: BundledTVApp,
@@ -125,7 +182,10 @@ final class FakeServices: AppServices {
     }
     func isAndroidDebugOn(host: String) async -> Bool { androidHosts.contains(host) }
     func scanAndroidTVs() async -> [String] { androidHosts }
-    func installAndroidApp(host: String, app: BundledTVApp, onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws -> String {
+    /// Her Android kurulumunda "güncelse de aç" istendi mi.
+    var androidOpenRequests: [Bool] = []
+    func installAndroidApp(host: String, app: BundledTVApp, open: Bool, onEvent: @escaping @Sendable (TVInstallEvent) -> Void) async throws -> String {
+        androidOpenRequests.append(open)
         events.forEach(onEvent)
         if let installError { throw installError }
         brandInstalls.append((.androidTV, host))
@@ -140,14 +200,21 @@ final class FakeStream: StreamControlling {
     var started = false
     func start() { started = true }
     func stop() { started = false }
-    func reconnectNow() {}
+    var reconnects = 0
+    func reconnectNow() { reconnects += 1 }
+    /// Oturum yeniden denemeyi bıraktı (PS5'te Uzaktan Oynatma çöktü, Xbox denemeleri bitti).
+    var hasGivenUp = false
+    /// Çeviri sürerken verilen ses ayarları (Xbox).
+    var playAudioChanges: [Bool] = []
+    func setPlayAudio(_ enabled: Bool) { playAudioChanges.append(enabled) }
 }
 
 final class FakeKeeper: KeeperControlling {
     var running = false
+    var reconnects = 0
     func start(interval: Duration) { running = true }
     func stop() { running = false }
-    func reconnect() {}
+    func reconnect() { reconnects += 1 }
 }
 
 @MainActor
@@ -156,7 +223,7 @@ final class AppModelTests: XCTestCase {
 
     func testFreshInstallStartsAtWelcome() {
         let model = AppModel(services: FakeServices(), store: MemoryStore(), defaults: .isolated())
-        XCTAssertEqual(model.step, .welcome)
+        XCTAssertNotEqual(model.step, .tv)
     }
 
     func testCompleteSetupOpensMainScreen() {
@@ -172,7 +239,7 @@ final class AppModelTests: XCTestCase {
     /// Sihirbazda PS5'e kadar gelinmiş bir kurulum (hesap ve konsol kayıtlı).
     private func wizardUpToTV(_ store: MemoryStore, _ defaults: UserDefaults) -> AppModel {
         let model = AppModel(services: FakeServices(), store: store, defaults: defaults)
-        XCTAssertEqual(model.step, .welcome)
+        XCTAssertNotEqual(model.step, .tv)
         let accountId = Data(repeating: 1, count: 8)
         model.accountId = accountId
         model.console = console
@@ -201,11 +268,57 @@ final class AppModelTests: XCTestCase {
         let defaults = UserDefaults.isolated()
         let model = wizardUpToTV(store, defaults)
         try await model.pair(LGTV(name: "Samsung", host: "192.168.1.20", brand: .samsung))
+        // TV → TV girişi → daha iyi çeviri → deneme → bitti.
+        model.advance()
         model.advance()
         model.advance()
         model.advance()
         XCTAssertEqual(model.step, .done)
         XCTAssertEqual(AppModel(services: FakeServices(), store: store, defaults: defaults).step, .done)
+    }
+
+    /// "İkinci hesap yok mu?": PSN girişi ve PS5 olmadan kurulum biter; görüntü Remote Play penceresinden, altyazı
+    /// bilgisayar ekranında. Yeniden açılınca sihirbaz çıkmaz.
+    func testNoSecondAccountReadsRemotePlayWindowAndCompletesSetup() {
+        let store = MemoryStore()
+        let defaults = UserDefaults.isolated()
+        let model = AppModel(services: FakeServices(), store: store, defaults: defaults)
+        model.advance()
+        XCTAssertEqual(model.step, .secondAccount)
+        model.useRemotePlayWindow()
+        XCTAssertEqual(model.step, .done)
+        XCTAssertEqual(model.settings.frameSource, .remotePlayWindow)
+        XCTAssertEqual(model.settings.output, .computer)
+        XCTAssertNil(model.accountId)
+        XCTAssertTrue(model.canStart)
+        XCTAssertEqual(AppModel(services: FakeServices(), store: store, defaults: defaults).step, .done)
+    }
+
+    /// Pencere modunda kurulmuş, sonra Ayarlar'da PS5 seçilmiş: "Hesabı bağla" görünür, sihirbaz ikinci hesap adımından açılır.
+    func testLinkPS5AccountOpensWizardAtSecondAccount() {
+        let model = AppModel(services: FakeServices(), store: MemoryStore(), defaults: UserDefaults.isolated())
+        model.advance()
+        model.useRemotePlayWindow()
+        XCTAssertFalse(model.needsPS5Link)
+        model.settings.frameSource = .ps5
+        XCTAssertTrue(model.needsPS5Link)
+        XCTAssertFalse(model.canStart)
+        model.linkPS5Account()
+        XCTAssertEqual(model.step, .secondAccount)
+    }
+
+    /// Remote Play uygulaması kurulu değilse ana ekran bunu ve nereden indirileceğini söyler.
+    func testMissingRemotePlayAppIsReported() {
+        let services = FakeServices()
+        services.remotePlayInstalledResult = false
+        let model = AppModel(services: services, store: MemoryStore(), defaults: UserDefaults.isolated())
+        model.advance()
+        model.useRemotePlayWindow()
+        XCTAssertTrue(model.remotePlayMissing)
+        XCTAssertEqual(model.ps5StatusText, String(localized: "The Remote Play app isn't installed on this Mac. Download it in Settings › Picture source."))
+        services.remotePlayInstalledResult = true
+        XCTAssertFalse(model.remotePlayMissing)
+        XCTAssertEqual(model.ps5StatusText, String(localized: "Reads the Remote Play window on this Mac when you start translating."))
     }
 
     /// "TV'm yok, bilgisayar ekranında göster" de kurulumu bitirir.
@@ -330,6 +443,7 @@ final class AppModelTests: XCTestCase {
             (.wrongCode, .wrongCode), (.noAnswer, .consoleNoAnswer), (.noReply, .consoleNoReply), (.canceled, .consoleNoReply),
             (.inUse, .consoleInUse), (.consoleCrashed, .consoleCrashed), (.versionMismatch, .consoleVersion),
             (.badAddress, .badAddress), (.localNetworkBlocked, .localNetworkBlocked),
+            (.pairingClosed, .consolePairingClosed), (.connectFailed, .consoleConnectFailed), (.noFreePort, .noFreePort),
         ]
         for (kind, expected) in cases {
             let error = await registrationError(Registration.RegistrationError(kind))
@@ -415,6 +529,30 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(failed.localizedDescription.contains("offline"))
     }
 
+    /// Elle yazılan PS5 adresi temizlenir; adres olmayan yazı libchiaki'ye gitmeden "bu adreste PS5 yok" iletisi alır.
+    func testManualConsoleAddressIsCleanedOrRejected() async throws {
+        for (typed, expected) in [("192.168.1.253:9295", "192.168.1.253"), ("http://192.168.1.253/", "192.168.1.253"),
+                                  ("192,168,1,253", "192.168.1.253")] {
+            let services = FakeServices()
+            let model = AppModel(services: services, store: MemoryStore(), defaults: .isolated())
+            model.accountId = Data(repeating: 1, count: 8)
+            try await model.register(host: typed, pin: "12345678")
+            XCTAssertEqual(services.registered?.host, expected, typed)
+        }
+        for typed in ["192.168.1.256", "192.168.1. 253", "PS5 salon", "fe80::1"] {
+            let services = FakeServices()
+            let model = AppModel(services: services, store: MemoryStore(), defaults: .isolated())
+            model.accountId = Data(repeating: 1, count: 8)
+            do {
+                try await model.register(host: typed, pin: "12345678")
+                XCTFail("Geçersiz adresle kayıt başlamamalı: \(typed)")
+            } catch {
+                XCTAssertEqual(error as? AppError, .badAddress, typed)
+                XCTAssertNil(services.registered, typed)
+            }
+        }
+    }
+
     /// PS5 seçilmeden ya da adres yazılmadan bağlanılırsa "PS5 bulunamadı" denir.
     func testMissingConsoleIsExplained() async {
         let model = AppModel(services: FakeServices(), store: MemoryStore(), defaults: .isolated())
@@ -452,9 +590,72 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(store.load(String.self, for: StoreKey.tvKey), "tv-key")
     }
 
+    /// PR #870 incelemesi: TV'nin başlattığı eşleşme onaylanınca TV kaydedilmiyordu (bekçi ve TV kartı çalışmıyordu). Onaylanan
+    /// TV elle seçilmiş gibi eşlenir: adres, marka ve izin kayıtlı.
+    func testApprovedTVRequestSavesTheTV() async throws {
+        let services = FakeServices()
+        let store = MemoryStore()
+        let model = AppModel(services: services, store: store, defaults: .isolated())
+        await model.openTVPairing()
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(model.serverPort)/pair")!)
+        request.httpMethod = "POST"
+        _ = try await URLSession.shared.data(for: request)
+        for _ in 0..<100 where model.tvPairingRequest == nil { try await Task.sleep(nanoseconds: 10_000_000) }
+        let pending = try XCTUnwrap(model.tvPairingRequest)
+        model.resolveTVPairing(SubtitlePairing.Ticket(id: pending.id, code: pending.code, host: "192.168.1.40"), accept: true)
+        for _ in 0..<100 where !model.hasTV { try await Task.sleep(nanoseconds: 20_000_000) }
+        XCTAssertTrue(model.hasTV)
+        XCTAssertEqual(model.tv, LGTV(name: "LG OLED", host: "192.168.1.40", brand: .lg))
+        XCTAssertEqual(store.load(String.self, for: StoreKey.tvKey), "tv-key")
+        XCTAssertEqual(services.pairCount, 1)
+    }
+
+    /// "TV'de test et": TV uygulaması bağlı değilse önce TV'de açılır (Samsung 65S95F'de TV'ye hiçbir şey gelmiyordu);
+    /// çeviri sürmüyorsa geçici bekçi bekleme bitince kapanır.
+    func testTestOnTVOpensTheTVAppWhenItIsNotConnected() async {
+        let services = FakeServices()
+        let store = MemoryStore()
+        store.save(LGTV(name: "Samsung", host: "127.0.0.1", brand: .samsung), for: StoreKey.tv)
+        store.save("tv-key", for: StoreKey.tvKey)
+        let model = AppModel(services: services, store: store, defaults: .isolated())
+        model.settings.output = .tv
+        model.testTVWait = .milliseconds(300)
+        await model.testSubtitle()
+        XCTAssertEqual(services.keepers.count, 1)
+        XCTAssertFalse(services.keepers[0].running)
+        XCTAssertFalse(model.openingTVAppForTest)
+    }
+
+    /// X @Eaglaris (20 Kas): çeviri sürmeden "TV'de test et"e basılınca Android TV 0.9.34'ün eşleştirme isteği 409 ile
+    /// reddediliyordu; TV "Eşleştirme tamamlanmadı" yazıyor, deneme altyazısı hiç çıkmıyordu. Deneme onay penceresini açar.
+    func testTestOnTVOpensThePairingWindowForAnAndroidTV() async throws {
+        let store = MemoryStore()
+        store.save(LGTV(name: "Android TV", host: "127.0.0.1", brand: .androidTV), for: StoreKey.tv)
+        let model = AppModel(services: FakeServices(), store: store, defaults: .isolated())
+        model.settings.output = .tv
+        model.testPairWait = .milliseconds(300)
+        await model.testSubtitle()
+        XCTAssertFalse(model.openingTVAppForTest)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(model.serverPort)/pair")!)
+        request.httpMethod = "POST"
+        let (_, response) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+    }
+
+    /// #40: Samsung jetonla gelen bağlantıda jeton göndermeyince saklı jeton silinmemeli (yoksa TV her seferinde izin sorar).
+    func testPairingWithoutNewTokenKeepsSavedToken() async throws {
+        let services = FakeServices()
+        services.pairKey = ""
+        let store = MemoryStore()
+        store.save("samsung-token", for: StoreKey.tvKey)
+        let model = AppModel(services: services, store: store, defaults: .isolated())
+        try await model.pair(LGTV(name: "Samsung", host: "192.168.1.20", brand: .samsung))
+        XCTAssertEqual(store.load(String.self, for: StoreKey.tvKey), "samsung-token")
+    }
+
     func testOnboardingWalksAllStepsInOrder() async throws {
         let model = AppModel(services: FakeServices(), store: MemoryStore(), defaults: .isolated())
-        XCTAssertEqual(model.step, .welcome); model.advance()
+        XCTAssertNotEqual(model.step, .tv); model.advance()
         XCTAssertEqual(model.step, .secondAccount); model.advance()
         XCTAssertEqual(model.step, .psnLogin)
         try await model.completePSNLogin(redirect: URL(string: "https://remoteplay.dl.playstation.net/remoteplay/redirect?code=x")!)
@@ -463,11 +664,15 @@ final class AppModelTests: XCTestCase {
         try await model.register(host: "192.168.1.253", pin: "12345678"); model.advance()
         XCTAssertEqual(model.step, .tv)
         try await model.pair(LGTV(name: "LG TV", host: "192.168.1.153")); model.advance()
-        XCTAssertEqual(model.step, .test); model.advance()
+        XCTAssertEqual(model.step, .hdmi); model.advance()
         XCTAssertEqual(model.step, .betterTranslation)
         XCTAssertTrue(model.canAdvance)
         model.advance()
+        XCTAssertEqual(model.step, .test); model.advance()
         XCTAssertEqual(model.step, .done)
+        model.step = .betterTranslation; model.back()
+        XCTAssertEqual(model.step, .hdmi); model.back()
+        XCTAssertEqual(model.step, .tv)
     }
 
     /// "Daha iyi çeviri" adımı isteğe bağlıdır: geçilirse ücretsiz çeviri kalır; anahtar kabul edilirse Gemini seçilir.
@@ -477,12 +682,13 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.usesFreeGemini)
         XCTAssertTrue(model.canAdvance)
         model.advance()
-        XCTAssertEqual(model.step, .done)
+        XCTAssertEqual(model.step, .test)
         XCTAssertEqual(model.settings.translationEngine, .free)
         model.back()
         XCTAssertEqual(model.step, .betterTranslation)
+        // TV yok: TV girişi adımı atlanır.
         model.back()
-        XCTAssertEqual(model.step, .test)
+        XCTAssertEqual(model.step, .tv)
     }
 
     func testBetterTranslationStepSavesTheKeyAndSelectsGemini() async {
@@ -501,7 +707,21 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.settings.translationEngine, .gemini)
         XCTAssertTrue(model.usesFreeGemini)
         model.advance()
+        XCTAssertEqual(model.step, .test)
+        model.advance()
         XCTAssertEqual(model.step, .done)
+    }
+
+    func testSuccessfulClaudeCheckDoesNotReportKeySavedWhenStorageRejectsIt() async {
+        let store = MemoryStore()
+        store.rejectedWrites.insert(StoreKey.claudeKey)
+        let model = AppModel(services: FakeServices(), store: store, defaults: .isolated())
+
+        let result = await model.setAIKey("example-claude-key", for: .claude)
+
+        XCTAssertEqual(result, .failure(.keychainWriteFailed))
+        XCTAssertFalse(model.hasKey(.claude))
+        XCTAssertEqual(model.settings.translationEngine, .free)
     }
 
     /// Yerel model anahtarsız hazırdır; "Bağlantıyı dene" ayardaki adres ve modelle gider, yazılan anahtarı yalnız sunucu
@@ -519,7 +739,7 @@ final class AppModelTests: XCTestCase {
         model.settings.localAIModel = " qwen2.5-7b-instruct "
         let result = await model.testLocalAI()
         XCTAssertEqual(result, .success("KRATOS: Gidiyoruz."))
-        XCTAssertEqual(services.localTests.first?.server.chatURL.absoluteString, "http://localhost:1234/v1/chat/completions")
+        XCTAssertEqual(services.localTests.first?.server.chatURL.absoluteString, "http://127.0.0.1:1234/v1/chat/completions")
         XCTAssertEqual(services.localTests.first?.server.model, "qwen2.5-7b-instruct")
         XCTAssertEqual(services.localTests.first?.key, "")
         XCTAssertNil(store.load(String.self, for: StoreKey.localAIKey))
@@ -629,6 +849,41 @@ final class AppModelRunTests: XCTestCase {
         return AppModel(services: services, store: store, defaults: .isolated())
     }
 
+    /// Mobil sürümü deneyen kullanıcı (21 Kas): "ilk başta olmadı, TV'den de uygulamayı açmak lazımmış". Bekçinin açma
+    /// sonucu ana ekrana gelir; "Otomatik açmayı dene" bekçiyi beklemeden yeniden denetir.
+    func testAutoOpenProblemIsShownAndRetried() async throws {
+        let services = FakeServices()
+        let model = readyModel(services)
+        model.settings.output = .tv
+        await model.start()
+        let keeper = try XCTUnwrap(services.keepers.first)
+        services.onOpenResult?(.unreachable)
+        for _ in 0..<50 where model.tvOpenProblem == nil { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.tvOpenProblem, .unreachable)
+        model.retryTVOpen()
+        XCTAssertNil(model.tvOpenProblem)
+        XCTAssertEqual(keeper.reconnects, 1)
+        model.stop()
+        XCTAssertNil(model.tvOpenProblem)
+    }
+
+    /// Bekçi TV'yi yeni adreste bulunca (onMoved) açma sonucu yine ana ekrana gelir; yalnız yerine yenisi kurulan
+    /// bekçinin geç sonucu yok sayılır (#985).
+    func testOpenResultOfAMovedKeeperIsStillShown() async throws {
+        let services = FakeServices()
+        let model = readyModel(services)
+        model.settings.output = .tv
+        await model.start()
+        services.onMoved?(LGTV(name: "LG TV", host: "127.0.0.2"))
+        for _ in 0..<50 where model.tv?.host != "127.0.0.2" { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.tv?.host, "127.0.0.2")
+        services.onOpenResult?(.unreachable)
+        for _ in 0..<50 where model.tvOpenProblem == nil { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.tvOpenProblem, .unreachable)
+        XCTAssertEqual(services.keepers.count, 1)
+        model.stop()
+    }
+
     func testDoubleStartCreatesOneSession() async {
         let services = FakeServices()
         let model = readyModel(services)
@@ -639,6 +894,120 @@ final class AppModelRunTests: XCTestCase {
         XCTAssertEqual(services.keepers.count, 1)
         XCTAssertTrue(model.isRunning)
         model.stop()
+    }
+
+    /// Bağlantı kopunca uygulamayı kapatıp açmak gerekmiyor: "Yeniden bağlan" süren denemelerde 45 sn sonra görünür,
+    /// konsol oturumu yeniden kurulur, çeviri sürer; kapatılan eski oturumun geç gelen durumu yenisini ezmez (iPhone,
+    /// Android ve Windows ile aynı).
+    func testReconnectOfferAndReconnectKeepTranslating() async throws {
+        let services = FakeServices()
+        let model = readyModel(services)
+        await model.start()
+        defer { model.stop() }
+        let first = try XCTUnwrap(services.streams.first)
+        first.onState?(.streaming)
+        for _ in 0..<50 where model.sessionState != .streaming { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(model.offersReconnect(now: Date().addingTimeInterval(600)))
+        let dropped = Date()
+        first.onState?(.disconnected(.network))
+        for _ in 0..<50 where model.sessionState == .streaming { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(model.offersReconnect(now: dropped.addingTimeInterval(30)))
+        XCTAssertTrue(model.offersReconnect(now: dropped.addingTimeInterval(ReconnectOffer.after + 1)))
+
+        let keeperReconnects = services.keepers.map(\.reconnects).reduce(0, +)
+        model.reconnect()
+        XCTAssertEqual(services.streams.count, 2)
+        let second = services.streams[1]
+        XCTAssertFalse(first.started)
+        XCTAssertTrue(second.started)
+        XCTAssertTrue(model.isRunning)
+        XCTAssertEqual(model.sessionState, .connecting)
+        XCTAssertFalse(model.offersReconnect(now: Date().addingTimeInterval(30)))
+        XCTAssertEqual(services.keepers.map(\.reconnects).reduce(0, +), keeperReconnects + 1)
+
+        first.onState?(.disconnected(.stopped))
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(model.sessionState, .connecting, "eski oturumun geç gelen durumu yenisini ezmez")
+        second.onState?(.streaming)
+        for _ in 0..<50 where model.sessionState != .streaming { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.sessionState, .streaming)
+    }
+
+    /// Oturum yeniden denemeyi bıraktıysa düğme hemen görünür; uykudan uyanınca yeni oturum açılır (kayıt ya da giriş
+    /// şifresi sorununda açılmaz).
+    func testGivenUpSessionOffersReconnectAndWakeReopensIt() async throws {
+        let services = FakeServices()
+        let model = readyModel(services)
+        await model.start()
+        defer { model.stop() }
+        let stream = try XCTUnwrap(services.streams.first)
+        model.systemWoke()
+        XCTAssertEqual(services.streams.count, 1)
+        XCTAssertEqual(stream.reconnects, 1)
+
+        stream.hasGivenUp = true
+        stream.onState?(.disconnected(.loginPasscodeIncorrect))
+        for _ in 0..<50 where model.sessionState == .connecting || model.sessionState == .disconnected(.stopped) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(model.offersReconnect())
+        model.systemWoke()
+        XCTAssertEqual(services.streams.count, 1, "yanlış şifre yeniden gönderilmez")
+
+        stream.onState?(.disconnected(.consoleRemotePlayCrashed))
+        for _ in 0..<50 where model.sessionState != .disconnected(.consoleRemotePlayCrashed) { try await Task.sleep(for: .milliseconds(10)) }
+        model.systemWoke()
+        XCTAssertEqual(services.streams.count, 2)
+    }
+
+    func testReconnectsOnReturnUnlessRetryingEndsTheSameWay() {
+        for reason in [DisconnectReason.registrationInvalid, .loginPasscode, .loginPasscodeIncorrect, .stopped, .consoleClosedRepeatedly] {
+            XCTAssertFalse(AppModel.reconnectsOnReturn(after: .disconnected(reason)), "\(reason)")
+        }
+        for reason in [DisconnectReason.consoleRemotePlayCrashed, .noPicture, .network, .reconnectGaveUp] {
+            XCTAssertTrue(AppModel.reconnectsOnReturn(after: .disconnected(reason)), "\(reason)")
+        }
+        XCTAssertTrue(AppModel.reconnectsOnReturn(after: .connecting))
+    }
+
+    /// #40: bekçinin bağlantısında TV yeni jeton verirse saklanır; sonraki açılışta TV yeniden izin sormaz.
+    func testKeeperSavesNewTvToken() async throws {
+        let services = FakeServices()
+        let store = MemoryStore()
+        store.save(Data(repeating: 1, count: 8), for: StoreKey.accountId)
+        store.save(RegisteredConsole(host: "192.168.1.253", name: "PS5", registKey: Data(repeating: 0x31, count: 16), morning: Data(repeating: 2, count: 16)), for: StoreKey.console)
+        store.save(LGTV(name: "Samsung", host: "127.0.0.1", brand: .samsung), for: StoreKey.tv)
+        store.save("", for: StoreKey.tvKey)
+        let model = AppModel(services: services, store: store, defaults: .isolated())
+        await model.start()
+        let onKey = try XCTUnwrap(services.onKey)
+        onKey("new-token")
+        await Task.yield()
+        for _ in 0..<20 where store.load(String.self, for: StoreKey.tvKey) != "new-token" { await Task.yield() }
+        XCTAssertEqual(store.load(String.self, for: StoreKey.tvKey), "new-token")
+        model.stop()
+    }
+
+    /// Ayarlar'daki PS5 giriş şifresi oturuma verilir; yalnız 4 hane kaydedilir, kurulum sıfırlanınca silinir.
+    func testLoginPasscodeIsSavedAndPassedToTheSession() async {
+        let services = FakeServices()
+        let model = readyModel(services)
+        XCTAssertFalse(model.hasLoginPasscode)
+        XCTAssertFalse(model.setLoginPasscode("12a4"))
+        XCTAssertFalse(model.hasLoginPasscode)
+        XCTAssertTrue(model.setLoginPasscode(" 4321 "))
+        XCTAssertTrue(model.hasLoginPasscode)
+        await model.start()
+        XCTAssertEqual(services.streamPasscodes, ["4321"])
+        model.stop()
+        model.removeLoginPasscode()
+        XCTAssertFalse(model.hasLoginPasscode)
+        await model.start()
+        XCTAssertEqual(services.streamPasscodes, ["4321", nil])
+        model.stop()
+        XCTAssertTrue(model.setLoginPasscode("1111"))
+        model.resetSetup()
+        XCTAssertFalse(model.hasLoginPasscode)
     }
 
     func testRunningPreventsIdleSleep() async {
@@ -699,14 +1068,48 @@ final class AppModelRunTests: XCTestCase {
 
     func testLoginPasscodeIsExplained() {
         XCTAssertEqual(AppModel.statusText(.disconnected(.loginPasscode), running: true),
-                       String(localized: "The second user has a login passcode on the PS5. Turn it off in Settings › Users and Accounts."))
+                       String(localized: "The PS5 asks for this account's login passcode. Enter it in Settings, or turn off this account's login passcode on the PS5."))
+        XCTAssertEqual(AppModel.statusText(.disconnected(.loginPasscodeIncorrect), running: true),
+                       String(localized: "The PS5 didn't accept the login passcode in Settings. Correct it, or turn off this account's login passcode on the PS5."))
+    }
+
+    /// X, 21 Kas: PS5 akışı kendisi kapatınca (oyun sırasında kullanıcı değişti) "kabloyla bağlayın" değil, nedeni söylenir.
+    func testConsoleClosedStatusNamesUserSwitch() {
+        XCTAssertEqual(AppModel.statusText(.disconnected(.consoleClosed("x")), running: true),
+                       String(localized: "The PS5 ended Remote Play. This usually happens when the user is switched on the PS5 during the game. Reconnecting…"))
+    }
+
+    /// GitHub #353: PS5 yeniden bağlanmadan sonra da kapatınca durulur; ana hesapla oynaması söylenir.
+    func testStoppedReconnectingIsExplained() {
+        XCTAssertEqual(AppModel.statusText(.disconnected(.consoleClosedRepeatedly), running: true),
+                       String(localized: "The PS5 ended Remote Play. While playing, choose your own main account on the PS5; don't play with the second account CouchSubs uses."))
+        XCTAssertEqual(AppModel.statusText(.disconnected(.reconnectGaveUp), running: true),
+                       String(localized: "The connection to the PS5 kept dropping, so reconnecting stopped. Make sure the PS5 is on and on the same network, then press Reconnect."))
+    }
+
+    /// GitHub #519: İngilizce "Remote Play on Console has crashed" yerine yerelleştirilmiş yönlendirme.
+    func testConsoleRemotePlayCrashIsExplained() {
+        XCTAssertEqual(AppModel.statusText(.disconnected(.consoleRemotePlayCrashed), running: true),
+                       String(localized: "Remote Play on the PS5 has crashed. Turn the PS5 off completely (not rest mode) and back on, then connect again."))
     }
 
     func testDisconnectReasonsAreExplained() {
         XCTAssertEqual(AppModel.statusText(.disconnected(.consoleAsleep), running: true), String(localized: "Turn on your PS5"))
         XCTAssertEqual(AppModel.statusText(.disconnected(.inUse), running: true), String(localized: "Remote Play is in use on another device"))
-        XCTAssertEqual(AppModel.statusText(.disconnected(.refused), running: true), String(localized: "The PS5 refused the connection. Set up the PS5 again."))
-        XCTAssertEqual(AppModel.statusText(.disconnected(.network), running: true), String(localized: "Can't reach the PS5. Reconnecting…"))
+        XCTAssertEqual(AppModel.statusText(.disconnected(.refused), running: true), String(localized: "The PS5 did not accept the connection yet. It may still be starting up, or its network address may have changed. Reconnecting and searching for the PS5… If this keeps happening, make sure the PS5 is on and on the same network."))
+        XCTAssertEqual(AppModel.statusText(.disconnected(.network), running: true),
+                       String(localized: "Lost the connection to the PS5. Reconnecting… If this keeps happening, connect the PS5 to the router with a cable."))
+        // 0x80108b12: PS5'te Uzaktan Oynatma kapalı (GitHub #9); genel "başka Remote Play açık olabilir" metni yanıltıyordu.
+        let disabled = AppModel.statusText(.disconnected(.rejected(DisconnectReason.remotePlayDisabled)), running: true)
+        XCTAssertTrue(disabled.contains("0x80108b12"))
+        XCTAssertNotEqual(disabled, AppModel.statusText(.disconnected(.rejected(0x80108bff)), running: true))
+        XCTAssertEqual(AppModel.statusText(.disconnected(.registrationInvalid), running: true),
+                       String(localized: "The PS5 didn't accept this pairing. Pair the PS5 again with the second account in Settings."))
+        // PS5 oturum isteğini reddetti: kod metinde, libchiaki'nin "Unknown Session Request Error"u değil (GitHub #33, #202).
+        let rejected = AppModel.statusText(.disconnected(.rejected(0x80108bff)), running: true)
+        XCTAssertTrue(rejected.contains("0x80108bff"))
+        XCTAssertFalse(rejected.contains("Unknown Session Request"))
+        XCTAssertFalse(AppModel.statusText(.disconnected(.rejected(nil)), running: true).contains("Unknown Session Request"))
         XCTAssertTrue(AppModel.statusText(.disconnected(.notFound("192.168.1.70")), running: true).contains("192.168.1.70"))
         XCTAssertTrue(AppModel.statusText(.disconnected(.other("Session Request RP Version Mismatch")), running: true)
             .contains("Session Request RP Version Mismatch"))
@@ -833,14 +1236,14 @@ final class TVAppInstallTests: XCTestCase {
         XCTAssertEqual(model.tvApp, .failed(.installFailed, reason: "Invalid package (errorCode -5)"))
         // Boş alan yalnız TV öyle dediğinde suçlanır.
         XCTAssertFalse(TVAppCard.message(for: .installFailed, brand: .lg, reason: "Invalid package").contains("free space"))
-        XCTAssertTrue(TVAppCard.message(for: .installFailed, brand: .lg, reason: "Invalid package").hasSuffix("Invalid package"))
+        XCTAssertTrue(TVAppCard.message(for: .installFailed, brand: .lg, reason: "Invalid package").contains(String(localized: "TV says:") + " Invalid package"))
     }
 
     /// Samsung kısa basışta tam kapanmaz: "yeniden başlatın" diyen hatada güç tuşunun basılı tutulacağı yazar. Kurulum
     /// sırasında bağlantı koparsa HDMI-CEC (Anynet+) ve otomatik kaynak değiştirme anlatılır.
     func testSamsungFailureExplainsRestartAndSourceSwitching() {
         // Bilgisayarın diline göre İngilizce ya da Türkçe gelir; ipucu metni de aynı dilde aranır.
-        let restart = String(localized: "To restart a Samsung TV fully, hold the power button on the remote for about 2 seconds until it turns off; a short press only puts it on standby.")
+        let restart = String(localized: "To restart a Samsung TV fully, hold the power button on the remote until the TV turns off and comes back on with the Samsung logo (about 5 seconds), or unplug it for 30 seconds. Letting go when it turns off only puts it on standby.")
         let unreachable = TVAppCard.message(for: .unreachable, brand: .samsung, reason: nil)
         XCTAssertTrue(unreachable.contains(restart))
         XCTAssertFalse(unreachable.contains("Anynet+"))
@@ -893,6 +1296,203 @@ final class TVAppInstallTests: XCTestCase {
         XCTAssertEqual(model.tvApp, .unknown)
     }
 
+    /// #884, #891: anahtar bu Mac'te yokken TV'deki LG uygulaması eski kalıyor, hiç uyarı çıkmıyordu. TV sürümünü
+    /// altyazı akışıyla bildirir (bildirmeyen eski sayılır); ana ekran "TV uygulamasını güncelle" der.
+    func testOldLGAppReportedOnTheStreamAsksForAnUpdate() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        let model = model(services)
+        try await model.pair(tv)
+        XCTAssertEqual(model.tvApp, .unknown)
+        model.tvAppReported("")
+        XCTAssertEqual(model.tvAppOutdated, TVAppOutdated(installed: TVAppOutdated.unreported, bundled: "0.6.1"))
+        model.tvAppReported("0.5.0")
+        XCTAssertEqual(model.tvAppOutdated, TVAppOutdated(installed: "0.5.0", bundled: "0.6.1"))
+        let step = model.step
+        await model.updateTVApp()
+        XCTAssertEqual(model.step, step, "TV adımına (eşleştirme/test) gidilmez")
+        XCTAssertTrue(model.tvAppUpdating, "İlerleme ana ekrandaki kartta")
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: nil))
+        await model.installTVApp(passphrase: "ABC123")
+        XCTAssertEqual(services.installs, 1)
+        XCTAssertNil(model.tvAppOutdated)
+        model.tvAppReported("0.6.1")
+        XCTAssertNil(model.tvAppOutdated)
+    }
+
+    /// Eski TV uygulaması bağlı (eksik değil) ve geliştirici modu kapalı: TV adımında Developer Mode adımları görünür.
+    /// Önceden kart boş kalıyor (`.unknown`), "TV uygulamasını güncelle" yalnız eşleştirme/test gösteriyordu (döngü).
+    func testOldLGAppWithDevModeOffShowsTheDevModeSteps() async throws {
+        let services = FakeServices()
+        let model = model(services)
+        try await model.pair(tv)
+        XCTAssertEqual(model.tvApp, .unknown, "Güncel bilinen uygulamada kart boş")
+        model.tvAppReported("")
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .devModeOff)
+        let step = model.step
+        await model.updateTVApp()
+        XCTAssertEqual(model.step, step, "TV adımına (eşleştirme/test) gidilmez")
+        XCTAssertTrue(model.tvAppUpdating, "İlerleme ana ekrandaki kartta")
+        XCTAssertEqual(model.tvApp, .devModeOff)
+        // TV adımının bekleme döngüsü yeniden denetler; kart boşalmaz.
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .devModeOff)
+        services.devMode = true
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: nil))
+    }
+
+    // MARK: "TV uygulamasını güncelle" senaryoları (ana ekranda; TV adımına gidilmez, her adım tvinstall.log'da)
+
+    private func updateScenario(_ services: FakeServices, key: Bool, reported: String? = "") async throws -> AppModel {
+        let store = MemoryStore()
+        if key { store.save("dev-key", for: StoreKey.tvDevKey) }
+        let model = model(services, store: store)
+        model.tv = tv
+        model.tvClients = 1
+        if let reported { model.tvAppReported(reported) }
+        // tvAppReported'ın başlattığı sessiz deneme bitsin.
+        try await Task.sleep(nanoseconds: 100_000_000)
+        for _ in 0..<100 where model.tvApp == .working { try await Task.sleep(nanoseconds: 10_000_000) }
+        try? FileManager.default.removeItem(at: TVInstallLog.file)
+        return model
+    }
+
+    /// Eski + her şey hazır (geliştirici modu açık, anahtar kayıtlı): basınca güncelleme hemen kurulur, sonuç kartta.
+    func testUpdateWithEverythingReadyInstallsAtOnce() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        services.appOnTV = "0.5.0"
+        let model = try await updateScenario(services, key: true, reported: nil)
+        await model.updateTVApp()
+        XCTAssertNotEqual(model.step, .tv)
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+        XCTAssertTrue(model.tvAppUpdating)
+        XCTAssertNil(model.tvAppOutdated)
+        let log = TVInstallLog.tail(of: TVInstallLog.file)
+        XCTAssertTrue(log.contains("Ana ekrandan") && log.contains("Kurulum tamam."), log)
+        model.dismissTVAppUpdate()
+        XCTAssertFalse(model.tvAppUpdating)
+    }
+
+    /// Eski + geliştirici modu kapalı: Developer Mode adımları; açılınca kullanıcı bir şey yapmadan kurulum sürer.
+    func testUpdateWithDevModeOffContinuesByItselfOnceItIsOn() async throws {
+        let services = FakeServices()
+        services.appOnTV = "0.5.0"
+        let model = try await updateScenario(services, key: true)
+        await model.updateTVApp()
+        XCTAssertEqual(model.tvApp, .devModeOff)
+        XCTAssertEqual(services.installs, 0)
+        XCTAssertTrue(TVInstallLog.tail(of: TVInstallLog.file).contains("geliştirici modu kapalı"))
+        services.devMode = true
+        // Kartın 3 sn'lik bekleme döngüsü.
+        await model.refreshTVApp()
+        XCTAssertEqual(services.installs, 1)
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+    }
+
+    /// Eski + anahtar yok: Passphrase kartı; yazılınca kurulur.
+    func testUpdateWithoutAKeyAsksThePassphraseThenInstalls() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        services.appOnTV = "0.5.0"
+        let model = try await updateScenario(services, key: false)
+        await model.updateTVApp()
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: nil))
+        XCTAssertTrue(TVInstallLog.tail(of: TVInstallLog.file).contains("Passphrase isteniyor"))
+        await model.installTVApp(passphrase: "ABC123")
+        XCTAssertEqual(services.installs, 1)
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+    }
+
+    /// Uygulama TV'den silinmiş (uyarı bağlantı kalkınca düştü): "Yeniden kur" de aynı yoldan, ana ekranda kurar.
+    func testReinstallingADeletedAppFromHomeInstallsIt() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        services.appOnTV = nil
+        let model = try await updateScenario(services, key: true, reported: nil)
+        model.tvClients = 0
+        XCTAssertNil(model.tvAppOutdated)
+        await model.updateTVApp()
+        XCTAssertNotEqual(model.step, .tv)
+        XCTAssertEqual(services.installs, 1)
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+        XCTAssertTrue(TVInstallLog.tail(of: TVInstallLog.file).contains("TV'deki CouchSubs: yok"))
+    }
+
+    /// Kurulum başarısız: neden kartta ("Tekrar dene" kartın düğmesi, refreshTVApp); yeniden deneyince kurulur.
+    func testFailedUpdateShowsWhyAndRetrySucceeds() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        services.appOnTV = "0.5.0"
+        services.lgInstallError = DevModeFailure(.installFailed, detail: "disk dolu")
+        let model = try await updateScenario(services, key: true, reported: nil)
+        model.tvAppReported("0.5.0")
+        for _ in 0..<100 where model.tvApp == .working { try await Task.sleep(nanoseconds: 10_000_000) }
+        await model.updateTVApp()
+        XCTAssertEqual(model.tvApp, .failed(.installFailed, reason: "disk dolu"))
+        XCTAssertTrue(TVInstallLog.tail(of: TVInstallLog.file).contains("HATA installFailed: disk dolu"))
+        services.lgInstallError = nil
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+    }
+
+    /// Eski TV uygulaması bağlı, geliştirici modu açık, anahtar bu Mac'te yok: Passphrase kartı görünür.
+    func testOldLGAppWithoutKeyShowsThePassphraseCard() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        let model = model(services)
+        try await model.pair(tv)
+        XCTAssertEqual(model.tvApp, .unknown)
+        model.tvAppReported("0.5.0")
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: nil))
+    }
+
+    /// TV'den silinen (ya da kapanan) eski uygulamanın "TV uygulamasını güncelle" uyarısı bellekte kalmıyordu.
+    func testOutdatedWarningClearsWhenTheTVAppDisconnects() async throws {
+        let model = model(FakeServices())
+        model.tv = tv
+        model.tvClients = 1
+        model.tvAppReported("")
+        XCTAssertNotNil(model.tvAppOutdated)
+        model.tvClients = 0
+        XCTAssertNil(model.tvAppOutdated)
+    }
+
+    /// TV'den silinen uygulama için "Yeniden kur": geliştirici modu açık, anahtar yok → Passphrase kartı; neden kurulum
+    /// günlüğüne yazılır (önceden tvinstall.log'a hiç satır düşmüyordu).
+    func testReinstallForADeletedLGAppAsksThePassphraseAndLogsWhy() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        let model = model(services)
+        try await model.pair(tv)
+        XCTAssertEqual(model.tvApp, .unknown)
+        try? FileManager.default.removeItem(at: TVInstallLog.file)
+        await model.reinstallTVApp()
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: nil))
+        let written = TVInstallLog.tail(of: TVInstallLog.file)
+        XCTAssertTrue(written.contains("yeniden kurma/güncelleme istendi"), written)
+        XCTAssertTrue(written.contains("Passphrase isteniyor"), written)
+        XCTAssertFalse(TVInstallLog.file.path.contains("Library/Logs"), "Testler gerçek günlüğe yazmaz")
+    }
+
+    func testOldLGAppReportedOnTheStreamIsUpdatedWithTheSavedKey() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        services.appOnTV = "0.5.0"
+        let store = MemoryStore()
+        store.save("dev-key", for: StoreKey.tvDevKey)
+        let model = model(services, store: store)
+        model.tv = tv
+        model.tvAppReported("")
+        for _ in 0..<200 where services.installs == 0 || model.tvApp == .working { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(services.installs, 1)
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+        XCTAssertNil(model.tvAppOutdated)
+    }
+
     func testOtherBrandsAreNotInstalledThroughLGDeveloperMode() async throws {
         let services = FakeServices()
         services.appOnTV = nil
@@ -926,6 +1526,36 @@ final class TVAppInstallTests: XCTestCase {
         await model.refreshTVApp()
         XCTAssertEqual(model.tvApp, .devModeOff)
         XCTAssertTrue(model.canInstallTVApp)
+    }
+
+    // #343: TV'deki Host PC IP başka bir adres; sdb denenmez, iki adres de söylenir.
+    func testSamsungWithAnotherHostPcIpSaysWhichAddressToType() async {
+        let services = FakeServices()
+        services.samsungDevMode = true
+        services.samsungCheck = SamsungPreflight(info: SamsungDeveloperInfo(developerMode: true, developerIp: "192.168.1.50"),
+                                                 computerAddress: "192.168.1.34")
+        services.bundled[.samsung] = app
+        let model = model(services)
+        model.tv = samsung
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .hostPcMismatch(tvIp: "192.168.1.50", computer: "192.168.1.34"))
+        XCTAssertTrue(services.brandInstalls.isEmpty)
+
+        services.samsungCheck = SamsungPreflight(info: SamsungDeveloperInfo(developerMode: true, developerIp: "192.168.1.34"),
+                                                 computerAddress: "192.168.1.34")
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+    }
+
+    func testSamsungSayingDeveloperModeIsOffShowsTheSteps() async {
+        let services = FakeServices()
+        services.samsungDevMode = true
+        services.samsungCheck = SamsungPreflight(info: SamsungDeveloperInfo(developerMode: false, developerIp: nil), computerAddress: "192.168.1.34")
+        services.bundled[.samsung] = app
+        let model = model(services)
+        model.tv = samsung
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .devModeOff)
     }
 
     func testSamsungInstallOpensSignInAndRemembersTheVersion() async {
@@ -962,6 +1592,21 @@ final class TVAppInstallTests: XCTestCase {
         await model.refreshTVApp()
         XCTAssertEqual(services.brandInstalls.count, 1)
         XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+    }
+
+    /// Bu Mac'in kaydı güncel dese de TV eski sürümü bildirdiyse geliştirici modu kapalıyken adımlar görünür.
+    func testOldSamsungAppReportedOnTheStreamWithDevModeOffShowsTheSteps() async {
+        let services = FakeServices()
+        services.bundled[.samsung] = app
+        let store = MemoryStore()
+        store.save("0.7.0", for: StoreKey.tvAppVersion)
+        let model = model(services, store: store)
+        model.tv = samsung
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+        model.tvAppReported("0.6.0")
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .devModeOff)
     }
 
     func testCurrentSamsungAppOnTheTVIsNotReinstalled() async {
@@ -1025,9 +1670,14 @@ final class TVAppInstallTests: XCTestCase {
         for error in [DevModeError.certificateMismatch, .certificateRejected, .tvClockWrong, .packageBlocked, .connectionLost] {
             XCTAssertNotEqual(TVAppCard.message(for: error, brand: .samsung), generic, "\(error)")
         }
-        // Ayrıntısı olmasa da Samsung hatası günlük dosyasını söyler; LG'de değişiklik yok.
+        // Ayrıntısı olmasa da Samsung hatası günlük dosyasını söyler. LG ve Android TV hatası da söyler (önceden yalnız
+        // Samsung); Samsung'a özgü ipuçları onlara eklenmez.
         XCTAssertTrue(TVAppCard.message(for: .signInFailed, brand: .samsung, reason: nil).contains(TVInstallLog.displayPath))
-        XCTAssertFalse(TVAppCard.message(for: .installFailed, brand: .lg, reason: nil).contains(TVInstallLog.displayPath))
+        for brand in [TVBrand.lg, .androidTV] {
+            let text = TVAppCard.message(for: .installFailed, brand: brand, reason: "Invalid package")
+            XCTAssertTrue(text.hasSuffix(TVInstallLog.displayPath), "\(brand)")
+            XCTAssertFalse(text.contains("Samsung"), "\(brand)")
+        }
     }
 
     func testSamsungPairingSaysWhetherThePermissionBoxWasMissedOrRefused() {
@@ -1081,6 +1731,32 @@ final class TVAppInstallTests: XCTestCase {
         XCTAssertEqual(TVInstallLog.displayPath, "~/Library/Logs/CouchSubs/tvinstall.log")
     }
 
+    /// "Günlüğü kopyala": günlüğün sonu panoya gider (telefonlardaki "Kurulum günlüğünü paylaş" gibi).
+    func testLogTailIsTheEndOfTheLog() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("tvinstall.log")
+        XCTAssertEqual(TVInstallLog.tail(of: file), "", "Dosya yoksa boş")
+        TVInstallLog.write("bir", to: file)
+        TVInstallLog.write("iki", to: file)
+        XCTAssertEqual(TVInstallLog.tail(of: file), try String(contentsOf: file, encoding: .utf8))
+        XCTAssertEqual(TVInstallLog.tail(of: file, limit: 6), "] iki\n")
+    }
+
+    /// LG kurulumunun adımları ve hatası günlüğe telefonlardaki satırlarla yazılır.
+    func testLGInstallLinesMatchThePhones() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("tvinstall.log")
+        TVInstallLog.lgKeyRequest(host: "192.168.1.20", to: file)
+        TVInstallLog.lgStart(host: "192.168.1.20", package: "0.9.43", to: file)
+        TVInstallLog.failure(DevModeFailure(.installFailed, detail: "FAILED_IPKG_INSTALL"), to: file)
+        TVInstallLog.failure(DevModeError.wrongPassphrase, to: file)
+        let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n").map { String($0.drop { $0 != "]" }.dropFirst(2)) }
+        XCTAssertEqual(lines, [
+            "--- LG kurulumu başlıyor: TV 192.168.1.20, Key Server'dan anahtar isteniyor",
+            "--- LG kurulumu başlıyor: TV 192.168.1.20, paket 0.9.43",
+            "HATA installFailed: FAILED_IPKG_INSTALL",
+            "HATA wrongPassphrase",
+        ])
+    }
+
     func testAndroidTVIsFoundOnTheNetworkAndRemembered() async {
         let services = FakeServices()
         services.bundled[.androidTV] = BundledTVApp(url: URL(fileURLWithPath: "/tmp/couchsubs-androidtv_0.7.0.apk"), version: "0.7.0")
@@ -1095,6 +1771,145 @@ final class TVAppInstallTests: XCTestCase {
         XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
         XCTAssertEqual(model.tv?.host, "192.168.1.40")
         XCTAssertEqual(store.load(LGTV.self, for: StoreKey.tv)?.host, "192.168.1.40")
+    }
+
+    // #352, #389: TV'den kaldırılan uygulama; TV sihirbazda yeniden seçilince adres boşalıyor, kayıtlı sürüm kalıyordu.
+    // Kart "hazır" diyor, ağda TV aranmıyor, kurulum hiç denenmiyordu.
+    func testReselectedAndroidTVWithARememberedVersionIsCheckedOnTheTV() async {
+        let services = FakeServices()
+        services.bundled[.androidTV] = BundledTVApp(url: URL(fileURLWithPath: "/tmp/a_0.7.0.apk"), version: "0.7.0")
+        services.androidHosts = ["192.168.1.40"]
+        let store = MemoryStore()
+        store.save("0.7.0", for: StoreKey.tvAppVersion)
+        let model = model(services, store: store)
+        model.tv = LGTV(name: "Android TV", host: "", brand: .androidTV)
+        await model.refreshTVApp()
+        XCTAssertEqual(services.brandInstalls.map { $0.host }, ["192.168.1.40"])
+        XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+    }
+
+    func testReselectedAndroidTVThatCannotBeFoundShowsTheDebuggingSteps() async {
+        let services = FakeServices()
+        services.bundled[.androidTV] = BundledTVApp(url: URL(fileURLWithPath: "/tmp/a_0.7.0.apk"), version: "0.7.0")
+        let store = MemoryStore()
+        store.save("0.7.0", for: StoreKey.tvAppVersion)
+        let model = model(services, store: store)
+        model.tv = LGTV(name: "Android TV", host: "", brand: .androidTV)
+        await model.refreshTVApp()
+        XCTAssertEqual(model.tvApp, .devModeOff)
+    }
+
+    func testReinstallForgetsTheVersionChecksTheTVAndOpensTheApp() async {
+        let services = FakeServices()
+        services.bundled[.androidTV] = BundledTVApp(url: URL(fileURLWithPath: "/tmp/a_0.7.0.apk"), version: "0.7.0")
+        services.androidHosts = ["192.168.1.40"]
+        let store = MemoryStore()
+        store.save("0.7.0", for: StoreKey.tvAppVersion)
+        let model = model(services, store: store)
+        model.tv = LGTV(name: "Android TV", host: "192.168.1.40", brand: .androidTV)
+        XCTAssertTrue(model.canReinstallTVApp)
+        await model.reinstallTVApp()
+        XCTAssertEqual(services.androidOpenRequests, [true])
+        XCTAssertEqual(model.tvApp, .upToDate("0.7.0"))
+        // "Açılsın" isteği bir kerelik.
+        await model.refreshTVApp()
+        XCTAssertEqual(services.androidOpenRequests, [true, false])
+    }
+
+    func testReinstallWithoutDebuggingShowsTheDebuggingSteps() async {
+        let services = FakeServices()
+        services.bundled[.androidTV] = BundledTVApp(url: URL(fileURLWithPath: "/tmp/a_0.7.0.apk"), version: "0.7.0")
+        let store = MemoryStore()
+        store.save("0.7.0", for: StoreKey.tvAppVersion)
+        let model = model(services, store: store)
+        model.tv = LGTV(name: "Android TV", host: "192.168.1.40", brand: .androidTV)
+        await model.reinstallTVApp()
+        XCTAssertNil(store.load(String.self, for: StoreKey.tvAppVersion))
+        XCTAssertEqual(model.tvApp, .devModeOff)
+    }
+
+    /// "Yeniden kur" üç markada da var (önceden yalnız Samsung ve Android TV); TV uygulaması bağlıyken çıkmaz.
+    func testReinstallIsOfferedForAllThreeBrandsWhileTheTVAppIsNotConnected() {
+        let services = FakeServices()
+        services.bundled[.androidTV] = BundledTVApp(url: URL(fileURLWithPath: "/tmp/a_0.7.0.apk"), version: "0.7.0")
+        let model = model(services)
+        model.tv = LGTV(name: "LG TV", host: "192.168.1.153")
+        XCTAssertTrue(model.canReinstallTVApp)
+        model.tv = LGTV(name: "Android TV", host: "", brand: .androidTV)
+        XCTAssertTrue(model.canReinstallTVApp)
+        model.tvClients = 1
+        XCTAssertFalse(model.canReinstallTVApp)
+    }
+
+    /// LG paketi uygulamayla gelmediyse yeniden kurulamaz; TV adımına "TV'ye bağlan" götürür (#662). Paket varken aynı
+    /// yere "TV'yi değiştir" götürür; iki düğme birden çıkmaz, TV uygulaması bağlıyken de "TV'yi değiştir" kalır.
+    func testChangeTVIsOfferedWheneverATVIsPaired() async throws {
+        let services = FakeServices()
+        let model = model(services)
+        XCTAssertFalse(model.canReconnectTV)
+        XCTAssertFalse(model.canChangeTV)
+        try await model.pair(LGTV(name: "LG TV", host: "192.168.1.153"))
+        XCTAssertTrue(model.canReinstallTVApp)
+        XCTAssertFalse(model.canReconnectTV)
+        XCTAssertTrue(model.canChangeTV)
+        model.tvClients = 1
+        XCTAssertFalse(model.canReinstallTVApp)
+        XCTAssertTrue(model.canChangeTV, "TV uygulaması bağlıyken de TV değiştirilebilir")
+        model.tvClients = 0
+        services.bundledTVAppVersion = nil
+        XCTAssertFalse(model.canReinstallTVApp)
+        XCTAssertTrue(model.canReconnectTV)
+        XCTAssertFalse(model.canChangeTV)
+    }
+
+    /// LG'de "yeniden kur": kayıtlı anahtar varsa Passphrase sorulmadan, TV'deki sürüm güncel olsa da yeniden kurulur.
+    func testLGReinstallWithASavedKeyInstallsAgainWithoutAskingThePassphrase() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        let store = MemoryStore()
+        store.save("dev-key", for: StoreKey.tvDevKey)
+        let model = model(services, store: store)
+        try await model.pair(LGTV(name: "LG TV", host: "192.168.1.153"))
+        XCTAssertEqual(services.installs, 0, "TV'deki sürüm güncel: açılışta kurulmaz")
+        await model.reinstallTVApp()
+        XCTAssertEqual(services.installs, 1)
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+        // İstek bir kerelik: sonraki denetim güncel uygulamayı yeniden kurmaz.
+        await model.refreshTVApp()
+        XCTAssertEqual(services.installs, 1)
+    }
+
+    /// Kayıtlı anahtar yoksa Passphrase adımı açılır; parola yazılınca güncel uygulama da yeniden kurulur. Geliştirici
+    /// modu kapalıysa adımları görünür.
+    func testLGReinstallWithoutAKeyAsksThePassphraseThenInstallsAgain() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        let model = model(services)
+        try await model.pair(LGTV(name: "LG TV", host: "192.168.1.153"))
+        await model.reinstallTVApp()
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: nil))
+        XCTAssertEqual(services.installs, 0)
+        await model.installTVApp(passphrase: "ABC123")
+        XCTAssertEqual(services.installs, 1)
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+
+        services.devMode = false
+        await model.reinstallTVApp()
+        XCTAssertEqual(model.tvApp, .devModeOff)
+    }
+
+    /// TV kayıtlı anahtarı reddederse (geliştirici modu yeniden açılmış) anahtar bırakılır ve Passphrase adımı açılır.
+    func testLGReinstallWithARefusedKeyFallsBackToThePassphraseStep() async throws {
+        let services = FakeServices()
+        services.devMode = true
+        services.refuseKey = true
+        let store = MemoryStore()
+        store.save("eski-anahtar", for: StoreKey.tvDevKey)
+        let model = model(services, store: store)
+        try await model.pair(LGTV(name: "LG TV", host: "192.168.1.153"))
+        await model.reinstallTVApp()
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: nil))
+        XCTAssertNil(store.load(String.self, for: StoreKey.tvDevKey))
     }
 
     func testInstalledAndroidAppNeedsNothingWhenDebuggingIsOff() async {

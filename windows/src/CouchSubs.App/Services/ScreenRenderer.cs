@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -19,15 +20,17 @@ namespace CouchSubs.App.Services;
 /// </summary>
 public static class ScreenRenderer
 {
-    /// <summary>Uygulama penceresinin boyu (tokens.json › size.windowWidth / windowHeight).</summary>
-    private static int Width => (int)DesignTokens.Shared.Size["windowWidth"];
-    private static int Height => (int)DesignTokens.Shared.Size["windowHeight"];
+    /// <summary>Uygulama penceresinin en küçük boyu (1200 × 760; Theme/Palette.cs).</summary>
+    private static int Width => (int)Palette.Size["windowWidth"];
+    private static int Height => (int)Palette.Size["windowHeight"];
 
     public static void Run(Application app, string folder)
     {
         Directory.CreateDirectory(folder);
         // Açılan ilk pencere kendiliğinden ana pencere sayılır; kapanınca uygulama da kapanmasın.
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        // Görüntüler durağan karelerle alınır (ortam ışığı, nabız, arama halkası; hareket kapısı kapalı).
+        MotionGate.Forced = false;
         var log = Path.Combine(folder, "errors.txt");
         // Bir ekranın hatası diğerlerini durdurmasın; hatalar dosyaya yazılır.
         app.DispatcherUnhandledException += (_, e) =>
@@ -39,18 +42,107 @@ public static class ScreenRenderer
         {
             ThemeManager.Apply(app.Resources, dark);
             var suffix = dark ? "koyu" : "acik";
+            // Yeni arayüzün ortak bileşenleri (tasarım sistemi).
+            Save(() => new DesignGallery(), Width, Height, Path.Combine(folder, $"bilesenler-{suffix}.png"));
             foreach (var step in Enum.GetValues<OnboardingStep>().Where(s => s != OnboardingStep.Done))
             {
                 var controller = Demo(step);
                 Save(() => new OnboardingView(controller), Width, Height, Path.Combine(folder, $"adim-{(int)step + 1}-{step}-{suffix}.png"));
             }
+            // TV kurulum ekranının durumları (Mac kurulum-tv-1…6 ile aynı sahte liste): boş, taranıyor, bulundu, onay bekleniyor, hata.
+            LgTv lg = new("LG OLED55C3", "192.168.1.153"), samsung = new("Samsung QE55Q80", "192.168.1.160", TvBrand.Samsung);
+            var tvStates = new (string Name, Views.Steps.TvStep.Preview State)[]
+            {
+                ("1-bos", new([])),
+                ("2-tariyor", new([], Searching: true)),
+                ("3-bulundu", new([lg, samsung])),
+                ("4-onay", new([lg, samsung], PairingHost: lg.Host)),
+                ("6-hata", new([lg, samsung], PairError: TvAppMessages.PairingProblem(new TimeoutException(), TvBrand.Samsung, Localizer.Current))),
+            };
+            foreach (var (name, state) in tvStates)
+            {
+                Views.Steps.TvStep.PreviewState = state;
+                Save(() => new OnboardingView(Demo(OnboardingStep.Tv)), Width, Height, Path.Combine(folder, $"kurulum-tv-{name}-{suffix}.png"));
+            }
+            // Eşleşmiş TV'li durumlar (Mac kurulum-tv-5 / tv-7): TV uygulaması kuruluyor; Samsung'da geliştirici modu kapalı
+            // (ön koşul listesi). TV adımı eşleşmiş TV'yi kayıttan okur; uygulama durumu yalnız bu araçta doğrudan verilir.
+            foreach (var (name, paired, tvApp) in new[]
+                     {
+                         ("5-kuruluyor", lg, new TvAppState(TvAppKind.Working)),
+                         ("7-samsung-onkosul", samsung, new TvAppState(TvAppKind.DevModeOff)),
+                     })
+            {
+                Views.Steps.TvStep.PreviewState = new([paired]);
+                Save(() =>
+                {
+                    var controller = Demo(OnboardingStep.Tv, paired);
+                    typeof(AppController).GetProperty(nameof(AppController.TvApp))!.GetSetMethod(nonPublic: true)!.Invoke(controller, [tvApp]);
+                    return new OnboardingView(controller);
+                }, Width, Height, Path.Combine(folder, $"kurulum-tv-{name}-{suffix}.png"));
+            }
+            Views.Steps.TvStep.PreviewState = null;
             Save(() => new MainView(Demo(OnboardingStep.Done)), Width, Height, Path.Combine(folder, $"ana-{suffix}.png"));
+            Save(() => new HistoryView(Demo(OnboardingStep.Done)), Width, Height, Path.Combine(folder, $"gecmis-{suffix}.png"));
             // Uygulamanın gerçek penceresi: XAML'ı (simge dahil) açılıştaki gibi yüklenir.
             Save(() => Detach(new ShellWindow(Demo(OnboardingStep.Done))), Width, Height, Path.Combine(folder, $"pencere-{suffix}.png"));
-            Save(() => Detach(new SettingsWindow(Demo(OnboardingStep.Done))), 1000, Height, Path.Combine(folder, $"ayarlar-{suffix}.png"));
+            // Perde: pencerenin tamamı (cam üst çubuk, reklam şeridi), Mac mac-*.png karşılıkları. Ana ekran çeviri sürerken
+            // (CANLI, Canlı Akış satırları), Geçmiş, "Hangi Oyun?", Ayarlar'ın bütün sayfaları ve geniş pencere.
+            Save(() => Detach(Shell(Running(), ShellTab.Home)), Width, Height, Path.Combine(folder, $"pencere-ana-{suffix}.png"));
+            Save(() => Detach(Shell(Running(), ShellTab.Home)), 1680, 945, Path.Combine(folder, $"pencere-genis-ana-{suffix}.png"));
+            Save(() => Detach(Shell(Running(), ShellTab.History)), Width, Height, Path.Combine(folder, $"pencere-gecmis-{suffix}.png"));
+            Save(() =>
+            {
+                var controller = Running();
+                var window = Shell(controller, ShellTab.Home);
+                controller.AskGame();
+                return Detach(window);
+            }, Width, Height, Path.Combine(folder, $"pencere-oyun-sor-{suffix}.png"));
+            foreach (var (index, name) in SettingsPages)
+                Save(() => Detach(Shell(Demo(OnboardingStep.Done), ShellTab.Settings, index)), Width, Height, Path.Combine(folder, $"pencere-ayarlar-{name}-{suffix}.png"));
+            Save(() => new SettingsView(Demo(OnboardingStep.Done)), Width, Height, Path.Combine(folder, $"ayarlar-{suffix}.png"));
+            // Ayarların diğer sayfaları (Mac ayarlar-*.png ile aynı adlar).
+            foreach (var (index, name) in SettingsPages.Skip(1))
+                Save(() =>
+                {
+                    var page = new SettingsView(Demo(OnboardingStep.Done));
+                    page.ShowPage(index);
+                    return page;
+                }, Width, Height, Path.Combine(folder, $"ayarlar-{name}-{suffix}.png"));
             Save(() => Detach(new AboutWindow()), 460, 640, Path.Combine(folder, $"hakkinda-{suffix}.png"));
         }
         app.Shutdown();
+    }
+
+    /// <summary>Ayarlar'ın sayfaları (sıra numarası ve Mac ayarlar-*.png adı).</summary>
+    private static readonly (int Index, string Name)[] SettingsPages =
+        [(0, "basics"), (1, "appearance"), (2, "advanced"), (3, "area"), (4, "packs"), (5, "dubbing"), (6, "outputs"), (7, "shortcuts"), (8, "console")];
+
+    /// <summary>Bir ekran görüntüsünde çizilen PNG sayısı (iki tema): sürekli tümleştirme bu sayıyı bekler.</summary>
+    public const int ExpectedCount = 86;
+
+    /// <summary>Uygulama penceresi, istenen sekme (ve Ayarlar sayfası) açık.</summary>
+    private static ShellWindow Shell(AppController controller, ShellTab tab, int? settingsPage = null)
+    {
+        var window = new ShellWindow(controller);
+        window.ShowForRender(tab, settingsPage);
+        return window;
+    }
+
+    /// <summary>Çeviri sürüyormuş gibi örnek oturum (Mac mac-ana ile aynı satırlar): CANLI, son çeviri ve Canlı Akış.</summary>
+    private static AppController Running()
+    {
+        var controller = Demo(OnboardingStep.Done);
+        var history = (SubtitleHistory)typeof(AppController).GetField("history", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(controller)!;
+        foreach (var (source, translation) in new[]
+                 {
+                     ("I gotta tell you this, Franklin.", "Bunu sana söylemem lazım, Franklin."),
+                     ("Take out the Lost.", "Lost üyelerini ortadan kaldır."),
+                     ("Are you listening to me?", "Dinliyor musun beni?"),
+                 })
+            history.Add(source, translation, LineOrigin.Engine);
+        typeof(AppController).GetProperty(nameof(AppController.IsRunning))!.GetSetMethod(nonPublic: true)!.Invoke(controller, [true]);
+        typeof(AppController).GetProperty(nameof(AppController.LastTranslation))!.GetSetMethod(nonPublic: true)!.Invoke(controller, ["Dinliyor musun beni?"]);
+        return controller;
     }
 
     /// <summary>Pencerenin içeriğini başka bir pencerede çizebilmek için kendi penceresinden ayırır.</summary>
@@ -61,9 +153,9 @@ public static class ScreenRenderer
         return content;
     }
 
-    private static AppController Demo(OnboardingStep step)
+    internal static AppController Demo(OnboardingStep step, LgTv? pairedTv = null)
     {
-        var controller = new AppController(new DemoServices(), new DemoStore(step == OnboardingStep.Done), new DemoSettings(), new DemoSleep(),
+        var controller = new AppController(new DemoServices(), new DemoStore(step == OnboardingStep.Done, pairedTv),new DemoSettings(), new DemoSleep(),
             Localizer.Current, action => action());
         if (step != OnboardingStep.Done) controller.Step = step;
         return controller;
@@ -84,15 +176,17 @@ public static class ScreenRenderer
     private static void Render(FrameworkElement view, int width, int height, string path)
     {
         // Görüntüye pencere zemini de girsin (içerik saydam zemin üzerinde çizilir).
-        var root = new System.Windows.Controls.Border { Child = view };
+        var root = new System.Windows.Controls.Border { Child = view, Width = width, Height = height };
         root.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "windowBackgroundBrush");
         root.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "textPrimaryBrush");
         var window = new Window
         {
-            Content = root, Width = width, Height = height, WindowStyle = WindowStyle.None, ShowInTaskbar = false,
+            Content = new System.Windows.Controls.Canvas { Children = { root } }, Width = width, Height = height, WindowStyle = WindowStyle.None, ShowInTaskbar = false,
             Left = -10000, Top = -10000, ShowActivated = false,
         };
         window.SetResourceReference(Window.BackgroundProperty, "backgroundBrush");
+        // WPF pencereyi ekrandan büyük açmaz (CI'daki sanal ekran 1024 × 768). Görüntü istenen boyda (1200 × 760, geniş
+        // 1680 × 945) çizilsin diye içerik, sınır koymayan bir Canvas içinde kendi boyunda yerleşir ve doğrudan çizilir.
         window.Show();
         window.UpdateLayout();
         // Yükleme sırasında başlayan arama vb. işlerin ekrana yansıması için kısa bekleme.
@@ -103,7 +197,7 @@ public static class ScreenRenderer
         System.Windows.Threading.Dispatcher.PushFrame(frame);
 
         var bitmap = new RenderTargetBitmap(width * 2, height * 2, 192, 192, PixelFormats.Pbgra32);
-        bitmap.Render((Visual)window.Content);
+        bitmap.Render(root);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(path);
@@ -118,9 +212,11 @@ public static class ScreenRenderer
         public Task<byte[]> AccountIdFromRedirectAsync(Uri redirect) => Task.FromResult(new byte[8]);
         public Task<RegisteredConsole> RegisterAsync(string host, byte[] accountId, uint pin) => throw new NotSupportedException();
         public Task<IReadOnlyList<LgTv>> DiscoverTvsAsync() => Task.FromResult<IReadOnlyList<LgTv>>([new("[LG] webOS TV", "192.168.1.30")]);
-        public Task<TvPairing> PairTvAsync(LgTv tv, string? key, string server) => throw new NotSupportedException();
-        public IStreamSession MakeStream(RegisteredConsole console, byte[] accountId) => throw new NotSupportedException();
-        public IKeeper MakeKeeper(LgTv tv, string? key, IReadOnlyDictionary<string, string> parameters, Func<bool> appConnected, Action<LgTv> onMoved) => throw new NotSupportedException();
+        public Task<TvPairing> PairTvAsync(LgTv tv, string? key, string server, string accessKey) => throw new NotSupportedException();
+        public IStreamSession MakeStream(RegisteredConsole console, byte[] accountId, string? loginPasscode) => throw new NotSupportedException();
+        public IKeeper MakeKeeper(LgTv tv, string? key, IReadOnlyDictionary<string, string> parameters, Func<bool> appConnected, Action<LgTv> onMoved,
+                                  Action<string> onKey, Func<int?>? consolePort = null,
+                       Action<TvOpenProblem?>? onOpenResult = null) => throw new NotSupportedException();
         public string? BundledTvAppVersion => null;
         public Task<bool> IsDevModeOnAsync(string host) => Task.FromResult(false);
         public Task<string> FetchDevKeyAsync(string host, string passphrase) => throw new NotSupportedException();
@@ -129,10 +225,10 @@ public static class ScreenRenderer
         public Task<int?> RenewDevSessionAsync(string host, string devKey) => Task.FromResult<int?>(null);
         public BundledTvApp? BundledApp(TvBrand brand) => null;
         public Task<bool> IsSamsungDevModeOnAsync(string host) => Task.FromResult(false);
-        public Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent) => throw new NotSupportedException();
+        public Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, bool openIfInstalled, Action<TvInstallEvent> onEvent) => throw new NotSupportedException();
         public Task<bool> IsAndroidDebugOnAsync(string host) => Task.FromResult(false);
         public Task<IReadOnlyList<string>> ScanAndroidTvsAsync() => Task.FromResult<IReadOnlyList<string>>([]);
-        public Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent) => throw new NotSupportedException();
+        public Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, bool openIfInstalled, Action<TvInstallEvent> onEvent) => throw new NotSupportedException();
         public ITextReader? MakeReader(string language) => null;
     }
 
@@ -144,10 +240,12 @@ public static class ScreenRenderer
         public ITextTranslator Create(string source, string target) => throw new NotSupportedException();
     }
 
-    private sealed class DemoStore(bool ready) : IAppStore
+    private sealed class DemoStore(bool ready, LgTv? pairedTv = null) : IAppStore
     {
         public void Save<T>(string key, T value) { }
-        public T? Load<T>(string key) => !ready ? default : key switch
+        public T? Load<T>(string key) => pairedTv is not null && key is StoreKeys.Tv or StoreKeys.TvKey
+            ? (T)(key == StoreKeys.Tv ? pairedTv : (object)"key")
+            : !ready ? default : key switch
         {
             StoreKeys.AccountId => (T)(object)new byte[8],
             StoreKeys.Console => (T)(object)new RegisteredConsole("192.168.1.20", "PS5-123", new byte[16], new byte[16]),
@@ -166,7 +264,7 @@ public static class ScreenRenderer
 
     private sealed class DemoSleep : ISleepGuard
     {
-        public void Begin() { }
+        public void Begin(bool keepDisplayOn) { }
         public void End() { }
     }
 }

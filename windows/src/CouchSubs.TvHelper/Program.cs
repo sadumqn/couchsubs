@@ -54,12 +54,30 @@ try
 
         case "android-install":
         {
+            void Approve() => Emit("approve");
             var installer = new AndroidTvInstaller(Option("--host"), Option("--key-dir"))
             {
-                OnApprovalNeeded = () => Emit("approve"),
+                OnApprovalNeeded = Approve,
+                // CouchSubs TV Play'de ve TV'de Play Store varsa TV'de Play sayfası açılır.
+                PlayListed = AndroidTvInstaller.IsListedOnPlayAsync,
+                OnPlayOpened = () => Emit("progress", ("step", "play")),
+                // --replace-foreign: kullanıcı "Kaldırıp Kur" dedi; yoksa başka imzalı uygulamada ForeignApp hatası döner.
+                ReplaceForeign = args.Contains("--replace-foreign"),
             };
-            var (version, installed) = await installer.EnsureInstalledAsync(Option("--package"), Option("--version"), cancel.Token);
+            // TV'den kaldırılıp kaydı kalan uygulama da kurulur; --open: güncel uygulama da açılır ("yeniden kur").
+            var (version, installed) = await AndroidTvApp.EnsureInstalledAsync(installer, Option("--host"), Option("--key-dir"),
+                Option("--package"), Option("--version"), args.Contains("--open"), Approve, log.Write, cancel.Token);
             Emit("done", ("version", version), ("installed", installed));
+            return 0;
+        }
+
+        case "android-open":
+        {
+            // Çeviri başlarken Mac'in bekçisi kurulu TV uygulamasını Mac'in adresiyle açar; TV onay sorarsa beklenmez
+            // (NotApproved), ADB kapalıysa Unreachable.
+            var started = await AndroidTvInstaller.OpenAsync(Option("--host"), Option("--key-dir"),
+                args.SkipWhile(a => a != "--params").Skip(1).FirstOrDefault(), cancellationToken: cancel.Token);
+            Emit("done", ("version", started), ("installed", true));
             return 0;
         }
 
@@ -70,6 +88,7 @@ try
             {
                 Log = log,
                 Progress = step => Emit("progress", ("step", step)),
+                ReplaceForeign = args.Contains("--replace-foreign"),
                 // Tarayıcıyı Mac uygulaması açar; giriş geri dönüşünü burası dinler.
                 SignIn = token => SamsungLogin.SignInAsync(url =>
                 {
@@ -83,6 +102,16 @@ try
             return 0;
         }
 
+        case "samsung-open":
+        {
+            // Bekçi kurulu TV uygulamasını geliştirici bağlantısıyla (sdb, was_execute) açar; "installed" açıldı mı.
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var installer = new SamsungTvInstaller(Option("--host"), Option("--profiles"), new SamsungCertificates(http, log)) { Log = log };
+            var opened = await installer.OpenAsync(cancel.Token);
+            Emit("done", ("version", ""), ("installed", opened));
+            return 0;
+        }
+
         case "self-test":
             // Yayın derlemesinde XML imzasının AOT ile çalıştığını doğrular (scripts/build-tv-helper.sh).
             await SelfTestAsync();
@@ -90,7 +119,7 @@ try
             return 0;
 
         default:
-            Console.Error.WriteLine("kullanım: couchsubs-tv-helper android-scan | android-install --host IP --package APK --version V --key-dir DİZİN | samsung-install --host IP --package WGT --version V --profiles DİZİN [--log DOSYA] | self-test");
+            Console.Error.WriteLine("kullanım: couchsubs-tv-helper android-scan | android-install --host IP --package APK --version V --key-dir DİZİN [--open] [--replace-foreign] | android-open --host IP --key-dir DİZİN [--params JSON] | samsung-install --host IP --package WGT --version V --profiles DİZİN [--log DOSYA] [--replace-foreign] | samsung-open --host IP --profiles DİZİN [--log DOSYA] | self-test");
             return 2;
     }
 }

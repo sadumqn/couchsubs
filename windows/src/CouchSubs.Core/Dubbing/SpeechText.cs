@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -82,6 +83,17 @@ public static partial class SpeechText
         text = StackedExclamation().Replace(text, "!");
         text = LowercaseSentenceStarts(text);
         return emotion is { } value ? $"[{value.Tag()}] {text}" : text;
+    }
+
+    /// <summary>
+    /// Baştaki duygu etiketini ("[kızgın] ") kaldırır. Etiket yalnız Pocket TTS içindir; Windows'un kendi sesi ("Hızlı"
+    /// dublaj) onu yüksek sesle okuyordu.
+    /// </summary>
+    public static string WithoutEmotion(string text)
+    {
+        if (!text.StartsWith('[')) return text;
+        var end = text.IndexOf("] ", StringComparison.Ordinal);
+        return end > 0 && Enum.GetValues<SpeechEmotion>().Any(emotion => emotion.Tag() == text[1..end]) ? text[(end + 2)..] : text;
     }
 
     /// <summary>Her cümlenin ilk harfini Türkçe kurala göre küçültür (I → ı, İ → i); model böyle eğitilmiş.</summary>

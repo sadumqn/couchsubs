@@ -31,6 +31,26 @@ public class LocalizerTests
         Assert.Contains("İngilizce", tr.Format("The %@–%@ language pack is not downloaded yet.", "İngilizce", "Türkçe"));
     }
 
+    /// Görüntü modu ipucu (SettingsView.xaml ile aynı anahtar): uygulama içinde oyun modu ya da HDR kaybolursa
+    /// Katman önerilir (Sony Bravia, LG). Anahtar XAML'da değişip katalogda kalmazsa ipucu İngilizce görünürdü.
+    [Fact]
+    public void PictureModeHintSuggestsOverlayForLostGameModeAndHdr()
+    {
+        const string key = "Automatic uses Overlay whenever the TV app allows it: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. On some TVs the picture stays black inside the CouchSubs TV app. To show the PS5 inside the CouchSubs TV app instead, choose Inside the app; if no picture arrives there, the TV app switches to Overlay by itself. With Overlay the TV also keeps its picture mode, Game mode and HDR: inside the app the TV handles the PS5 picture as an app, not as its HDMI input.";
+        var tr = Localizer.ForLanguage("tr")[key];
+        Assert.NotEqual(key, tr);
+        Assert.Contains("oyun modu ya da HDR", tr);
+        var xaml = File.ReadAllText(Path.Combine(RepoRoot(), "windows", "src", "CouchSubs.App", "Views", "SettingsView.xaml"));
+        Assert.Contains(key, xaml);
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "mac", "CouchSubs"))) dir = dir.Parent;
+        return dir?.FullName ?? throw new DirectoryNotFoundException("depo kökü bulunamadı");
+    }
+
     [Fact]
     public void EveryEntryHasTurkish()
     {

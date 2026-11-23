@@ -4,7 +4,17 @@
 # geliştirici modu açık TV'ye kendileri kurar.
 set -e
 cd "$(dirname "$0")/.."
-rm -rf dist/tv-app
+# Do not delete the shared installer directory: Samsung WGT and Android APK
+# are stored here too. Build the LG package off to the side first.
 mkdir -p dist/tv-app
-ares-package tv-webos -o dist/tv-app -n
-ls dist/tv-app/*.ipk
+STAGED=$(mktemp -d dist/.tv-webos-XXXXXX)
+trap 'rm -rf "$STAGED"' EXIT
+ares-package tv-webos -o "$STAGED" -n
+set -- "$STAGED"/*.ipk
+[ "$#" -eq 1 ] && [ -f "$1" ] || { echo "LG IPK paketi oluşturulamadı" >&2; exit 1; }
+TARGET="dist/tv-app/$(basename "$1")"
+mv -f "$1" "$TARGET"
+for old in dist/tv-app/*.ipk; do
+  [ "$old" = "$TARGET" ] || rm -f "$old"
+done
+ls "$TARGET"

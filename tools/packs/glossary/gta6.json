@@ -1,0 +1,532 @@
+{
+ "game": "Grand Theft Auto VI",
+ "source": "gta-v paketi (GTA TR (TechnoGame) + Claude Haiku 5.5), 190566 satır; API kullanılmadı",
+ "register": "Varsayılan 'sen'; 'siz' yalnız resmî hitapta (polis, görevli, yabancı yetişkin). Küfür aynı şiddette kalır. Arayüz yazıları (ÖLDÜN, YAKALANDIN) GTA V paketindeki gibi büyük harf.",
+ "keep": [
+  "Lucia",
+  "Jason",
+  "Vice City",
+  "Leonida",
+  "Leonida Keys",
+  "Grassrivers",
+  "Port Gellhorn",
+  "Ambrosia",
+  "Mount Kalaga",
+  "Los Santos",
+  "Liberty City",
+  "San Andreas",
+  "Rockstar",
+  "FIB",
+  "IAA",
+  "LSPD",
+  "VCPD",
+  "Ammu-Nation",
+  "Lifeinvader",
+  "Pay 'n' Spray",
+  "Cluckin' Bell",
+  "Burger Shot",
+  "Sprunk",
+  "eCola"
+ ],
+ "address": [
+  {
+   "en": "dude",
+   "tr": "ahbap",
+   "gta_v": "Ahbap!"
+  },
+  {
+   "en": "man",
+   "tr": "dostum",
+   "gta_v": "Dostum...",
+   "note": "cümle sonunda 'adamım' da olur (GTA V'te ikisi de sık)"
+  },
+  {
+   "en": "bro",
+   "tr": "kardeş",
+   "gta_v": "Kardeş."
+  },
+  {
+   "en": "homie",
+   "tr": "kardeşim",
+   "gta_v": "Kardeşim!!!"
+  },
+  {
+   "en": "buddy",
+   "tr": "dostum",
+   "gta_v": "Dostum?"
+  },
+  {
+   "en": "my friend",
+   "tr": "dostum",
+   "gta_v": "Dostum,"
+  },
+  {
+   "en": "nigga",
+   "tr": "kanka",
+   "gta_v": "Kanka...",
+   "note": "küfür değil hitap; GTA V'te de 'kanka'"
+  },
+  {
+   "en": "sir",
+   "tr": "efendim",
+   "gta_v": "Efendim.",
+   "note": "resmî; polisler ve görevliler"
+  },
+  {
+   "en": "ma'am",
+   "tr": "hanımefendi",
+   "gta_v": null
+  },
+  {
+   "en": "boss",
+   "tr": "patron",
+   "gta_v": "Patron."
+  },
+  {
+   "en": "honey",
+   "tr": "canım",
+   "gta_v": "Canım!"
+  },
+  {
+   "en": "baby",
+   "tr": "bebeğim",
+   "gta_v": "Bebek.",
+   "note": "sevgililer arası hitapta"
+  },
+  {
+   "en": "partner",
+   "tr": "ortak",
+   "gta_v": null
+  },
+  {
+   "en": "kid",
+   "tr": "evlat",
+   "gta_v": null
+  },
+  {
+   "en": "son",
+   "tr": "evlat",
+   "gta_v": null
+  }
+ ],
+ "insults": [
+  {
+   "en": "fuck",
+   "tr": "siktir",
+   "gta_v": "Siktir."
+  },
+  {
+   "en": "shit",
+   "tr": "siktir",
+   "gta_v": "Siktir!",
+   "note": "ünlem; nesne olarak 'bok'"
+  },
+  {
+   "en": "damn",
+   "tr": "lanet olsun",
+   "gta_v": "Lanet olsun..."
+  },
+  {
+   "en": "what the fuck",
+   "tr": "bu da ne amına koyayım",
+   "gta_v": "Bu da ne amına koyayım?"
+  },
+  {
+   "en": "holy shit",
+   "tr": "ha siktir",
+   "gta_v": "Ha siktir!"
+  },
+  {
+   "en": "son of a bitch",
+   "tr": "orospunun evladı",
+   "gta_v": "Orospunun evladı!"
+  },
+  {
+   "en": "fuck you",
+   "tr": "siktir git",
+   "gta_v": "Siktir git!"
+  },
+  {
+   "en": "fuck off",
+   "tr": "siktir git",
+   "gta_v": "Siktir git!"
+  },
+  {
+   "en": "motherfucker",
+   "tr": "orospu çocuğu",
+   "gta_v": "Orospu çocuğu!"
+  },
+  {
+   "en": "asshole",
+   "tr": "orospu çocuğu",
+   "gta_v": "Orospu çocuğu!",
+   "note": "hafif bağlamda 'pislik'"
+  },
+  {
+   "en": "bitch",
+   "tr": "orospu",
+   "gta_v": "Orospu!",
+   "note": "erkeğe hakarette 'kaltak/ibne' değil, bağlama göre 'pislik'"
+  },
+  {
+   "en": "pussy",
+   "tr": "korkak",
+   "gta_v": "Korkak."
+  },
+  {
+   "en": "idiot",
+   "tr": "geri zekalı",
+   "gta_v": "Geri zekalı!"
+  },
+  {
+   "en": "fool",
+   "tr": "salak",
+   "gta_v": "Salak"
+  },
+  {
+   "en": "jerk",
+   "tr": "lavuk",
+   "gta_v": "Lavuk"
+  },
+  {
+   "en": "punk",
+   "tr": "serseri",
+   "gta_v": "Serseri"
+  },
+  {
+   "en": "snitch",
+   "tr": "muhbir",
+   "gta_v": "Muhbir"
+  },
+  {
+   "en": "rat",
+   "tr": "sıçan",
+   "gta_v": "Sıçan",
+   "note": "ihbarcı anlamında"
+  }
+ ],
+ "crime": [
+  {
+   "en": "cops",
+   "tr": "polisler",
+   "gta_v": "Polisler",
+   "note": "argoda 'aynasızlar'"
+  },
+  {
+   "en": "pigs",
+   "tr": "domuzlar",
+   "gta_v": "Domuzlar"
+  },
+  {
+   "en": "feds",
+   "tr": "federaller",
+   "gta_v": "Federaller..."
+  },
+  {
+   "en": "heist",
+   "tr": "soygun",
+   "gta_v": "Soygun"
+  },
+  {
+   "en": "crew",
+   "tr": "ekip",
+   "gta_v": "Ekip"
+  },
+  {
+   "en": "gang",
+   "tr": "çete",
+   "gta_v": "Çete"
+  },
+  {
+   "en": "job",
+   "tr": "iş",
+   "gta_v": "İş"
+  },
+  {
+   "en": "score",
+   "tr": "vurgun",
+   "gta_v": "SKOR",
+   "note": "soygun bağlamında; GTA V'te arayüzde 'SKOR'"
+  },
+  {
+   "en": "getaway car",
+   "tr": "kaçış aracı",
+   "gta_v": "Kaçış Aracı"
+  },
+  {
+   "en": "stash",
+   "tr": "zula",
+   "gta_v": "Zula"
+  },
+  {
+   "en": "weed",
+   "tr": "ot",
+   "gta_v": "Ot"
+  },
+  {
+   "en": "meth",
+   "tr": "met",
+   "gta_v": "Uyuşturucu",
+   "note": "GTA V'te 'uyuşturucu' da kullanılmış"
+  },
+  {
+   "en": "coke",
+   "tr": "kokain",
+   "gta_v": null
+  },
+  {
+   "en": "dealer",
+   "tr": "satıcı",
+   "gta_v": "Satıcı"
+  },
+  {
+   "en": "armored truck",
+   "tr": "zırhlı araç",
+   "gta_v": "ZIRHLI ARAÇ"
+  },
+  {
+   "en": "safehouse",
+   "tr": "sığınak",
+   "gta_v": "Ev",
+   "note": "GTA V'te bazen 'ev'"
+  },
+  {
+   "en": "ammo",
+   "tr": "mühimmat",
+   "gta_v": "Mühimmat"
+  },
+  {
+   "en": "shotgun",
+   "tr": "pompalı tüfek",
+   "gta_v": "Pompalı Tüfek"
+  },
+  {
+   "en": "pistol",
+   "tr": "tabanca",
+   "gta_v": "Tabanca"
+  },
+  {
+   "en": "rifle",
+   "tr": "tüfek",
+   "gta_v": "Tüfek"
+  },
+  {
+   "en": "lawyer",
+   "tr": "avukat",
+   "gta_v": "Avukat"
+  },
+  {
+   "en": "prison",
+   "tr": "hapishane",
+   "gta_v": "Hapishane"
+  },
+  {
+   "en": "bail",
+   "tr": "kefalet",
+   "gta_v": null
+  },
+  {
+   "en": "parole",
+   "tr": "şartlı tahliye",
+   "gta_v": null
+  },
+  {
+   "en": "cartel",
+   "tr": "kartel",
+   "gta_v": null
+  }
+ ],
+ "game_ui": [
+  {
+   "en": "wasted",
+   "tr": "ÖLDÜN",
+   "gta_v": "ÖLDÜN"
+  },
+  {
+   "en": "busted",
+   "tr": "YAKALANDIN",
+   "gta_v": "YAKALANDIN"
+  },
+  {
+   "en": "mission passed",
+   "tr": "Görev Başarılı",
+   "gta_v": "Görev Başarılı"
+  },
+  {
+   "en": "mission failed",
+   "tr": "Görev Başarısız",
+   "gta_v": "Görev Başarısız"
+  },
+  {
+   "en": "wanted level",
+   "tr": "Aranma Seviyesi",
+   "gta_v": "Aranma Seviyesi"
+  },
+  {
+   "en": "lose the cops",
+   "tr": "Polislerden kurtul.",
+   "gta_v": "Polislerden kurtul."
+  },
+  {
+   "en": "get in the car",
+   "tr": "Arabaya bin.",
+   "gta_v": "Arabaya bin."
+  },
+  {
+   "en": "checkpoint",
+   "tr": "Kontrol Noktası",
+   "gta_v": "Kontrol Noktası"
+  },
+  {
+   "en": "destination",
+   "tr": "Varış Yeri",
+   "gta_v": "Varış Yeri"
+  },
+  {
+   "en": "waypoint",
+   "tr": "Varış Noktası",
+   "gta_v": "Varış Noktası"
+  },
+  {
+   "en": "objective",
+   "tr": "Hedef",
+   "gta_v": "Hedef"
+  }
+ ],
+ "phrases": [
+  {
+   "en": "come on",
+   "tr": "hadi",
+   "gta_v": "Hadi!"
+  },
+  {
+   "en": "let's go",
+   "tr": "gidelim",
+   "gta_v": "Gidelim."
+  },
+  {
+   "en": "hurry up",
+   "tr": "acele et",
+   "gta_v": "Acele et."
+  },
+  {
+   "en": "watch out",
+   "tr": "dikkat",
+   "gta_v": "Dikkat!"
+  },
+  {
+   "en": "shut up",
+   "tr": "kapa çeneni",
+   "gta_v": "Kapa çeneni."
+  },
+  {
+   "en": "calm down",
+   "tr": "sakinleş",
+   "gta_v": "Sakinleş."
+  },
+  {
+   "en": "take it easy",
+   "tr": "ağır ol",
+   "gta_v": "Ağır ol."
+  },
+  {
+   "en": "get down",
+   "tr": "yere yat",
+   "gta_v": "Yere yat!"
+  },
+  {
+   "en": "freeze",
+   "tr": "olduğun yerde kal",
+   "gta_v": "Olduğun yerde kal."
+  },
+  {
+   "en": "copy that",
+   "tr": "anlaşıldı",
+   "gta_v": "Anlaşıldı."
+  },
+  {
+   "en": "you got it",
+   "tr": "tamamdır",
+   "gta_v": "Artık senin!",
+   "note": "GTA V'teki 'Artık senin!' bağlama uymaz"
+  },
+  {
+   "en": "see ya",
+   "tr": "görüşürüz",
+   "gta_v": "Görüşürüz!"
+  },
+  {
+   "en": "follow me",
+   "tr": "beni takip et",
+   "gta_v": "Beni takip et."
+  }
+ ],
+ "places": [
+  {
+   "en": "strip club",
+   "tr": "striptiz kulübü",
+   "gta_v": "Striptiz Kulübü"
+  },
+  {
+   "en": "gas station",
+   "tr": "benzinci",
+   "gta_v": "Benzinci"
+  },
+  {
+   "en": "liquor store",
+   "tr": "içki dükkânı",
+   "gta_v": "Likör Dükkanı",
+   "note": "GTA V'te 'Likör Dükkanı' (yanlış çeviri)"
+  },
+  {
+   "en": "downtown",
+   "tr": "şehir merkezi",
+   "gta_v": "Şehir Merkezi"
+  },
+  {
+   "en": "docks",
+   "tr": "rıhtım",
+   "gta_v": "Rıhtım"
+  },
+  {
+   "en": "swamp",
+   "tr": "bataklık",
+   "gta_v": "Bataklık"
+  },
+  {
+   "en": "marina",
+   "tr": "marina",
+   "gta_v": "Marina"
+  },
+  {
+   "en": "yacht",
+   "tr": "yat",
+   "gta_v": "Yat"
+  },
+  {
+   "en": "mansion",
+   "tr": "malikâne",
+   "gta_v": "Malikane"
+  }
+ ],
+ "address_frequency_gta_v": {
+  "dostum": 2339,
+  "adamım": 1802,
+  "kanka": 1401,
+  "kardeşim": 625,
+  "lan": 1102,
+  "ahbap": 313,
+  "evlat": 264,
+  "oğlum": 119,
+  "patron": 817,
+  "bebeğim": 468,
+  "tatlım": 121,
+  "efendim": 195,
+  "hanımefendi": 70,
+  "birader": 30,
+  "moruk": 13,
+  "aynasızlar": 40,
+  "polisler": 437
+ },
+ "found_in_gta_v": 83
+}

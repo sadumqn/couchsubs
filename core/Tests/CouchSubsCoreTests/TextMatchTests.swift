@@ -4,6 +4,55 @@ import XCTest
 @testable import CouchSubsCore
 
 final class TextMatchTests: XCTestCase {
+    /// Olumsuzluk ya da sayı farkı karakterce küçüktür ama anlamı tersine çevirir: yeniden okuma sayılmamalı
+    /// (Windows: TextMatchTests.MeaningChangingRereadIsNotSameSubtitle).
+    func testMeaningChangingRereadIsNotSameSubtitle() {
+        let pairs = [
+            ("I can't do that for you right now.", "I can do that for you right now."),
+            ("I said that I would never help you with this.", "I said that I would help you with this."),
+            ("He is not coming back tonight.", "He is coming back tonight."),
+            ("Meet me at the docks at 6.", "Meet me at the docks at 5."),
+        ]
+        for (reread, sent) in pairs {
+            XCTAssertFalse(TextMatch.isSameSubtitle(TextMatch.normalize(reread), TextMatch.normalizeRows(sent)), reread)
+        }
+    }
+
+    /// Olumsuzluk korunurken yalnız yazımı farklı okunan satır yine aynı altyazıdır.
+    func testSpellingNoiseKeepsNegatedLineSame() {
+        let pairs = [
+            ("I can’t do that for you right now.", "I can't do that for you right now."),
+            ("I dont know what to do.", "I don't know what to do."),
+            ("He is n0t coming back tonight.", "He is not coming back tonight."),
+        ]
+        for (reread, sent) in pairs {
+            XCTAssertTrue(TextMatch.isSameSubtitle(TextMatch.normalize(reread), TextMatch.normalizeRows(sent)), reread)
+        }
+    }
+
+    /// Yalnız eklenen işaret sayılır; kesmenin "t"si yalnız bilinen olumsuz kısaltmayı tamamlar.
+    func testAddsMeaningCountsOnlyAddedMarks() {
+        let cases: [(String, String, Bool)] = [
+            ("I can't do that.", "I can do that.", true),
+            ("I can do that.", "I can't do that.", false),
+            ("Meet me at 6.", "Meet me at 5.", true),
+            ("Meet me at", "Meet me at 5.", false),
+            ("He is n0t here.", "He is here.", true),
+            ("I dont know.", "I don't know.", false),
+            ("Buy a t shirt.", "Buy a shirt.", false),
+            ("Buy a cotton t shirt.", "Buy a cotton shirt.", false),
+            ("I won t go.", "I will go.", true),
+            ("We haven t left.", "We have left.", true),
+            ("Bring 5 and 5.", "Bring 5.", true),
+            ("Bring 5.", "Bring 5 and 5.", false),
+            ("It costs $500 now.", "It costs $500.", false),
+            ("1 can do that.", "I can do that.", false),
+        ]
+        for (reread, sent, expected) in cases {
+            XCTAssertEqual(TextMatch.addsMeaning(reread, to: sent), expected, reread)
+        }
+    }
+
     func testNormalizeStripsPunctuationAndCase() {
         XCTAssertEqual(TextMatch.normalize("Kratos: We do NOT have time, boy."), "kratos we do not have time boy")
     }

@@ -43,6 +43,10 @@ final class OcrNoiseTests: XCTestCase {
             ("l'm telling you, l saw him.", "I'm telling you, I saw him."),
             ("|'ll be right back.", "I'll be right back."),
             ("You and l've been here before.", "You and I've been here before."),
+            ("Who am l?", "Who am I?"),
+            ("Where are you, |?", "Where are you, I?"),
+            ("I don't know, l!", "I don't know, I!"),
+            ("Leave it. l.", "Leave it."),
         ]
         for (raw, clean) in cases { XCTAssertEqual(OcrNoise.clean(raw), clean, raw) }
     }
@@ -60,6 +64,8 @@ final class OcrNoiseTests: XCTestCase {
         XCTAssertGreaterThan(OcrNoise.score("CESARE: Wait for me!"), OcrNoise.score("- CESAREiVJütt'h!"))
         XCTAssertGreaterThan(OcrNoise.score("We go to McDonald's now."), 0)
         XCTAssertLessThan(OcrNoise.score("T hats the[lil Should be quiet now."), OcrNoise.score("That should be quiet now."))
+        XCTAssertGreaterThan(OcrNoise.score("Get to the gate now."), OcrNoise.score("Gtt to the gate now."))
+        for word in ["Hmm", "Shh", "Brr", "Psst", "Mmm"] { XCTAssertGreaterThan(OcrNoise.score("\(word)!"), 0, word) }
     }
 
     /// Geçişte üst üste solan iki altyazının karışık okuması çöp sayılır; olağan cümleler, kısaltmalar ve "Hmm" sayılmaz.

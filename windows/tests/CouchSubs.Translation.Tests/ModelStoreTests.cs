@@ -172,14 +172,14 @@ public sealed class ModelStoreTests : IDisposable
     public void DefaultFilesArePinnedAndChecksummed()
     {
         var store = new ModelStore(_dir);
-        Assert.Equal(4, store.Files.Count);
+        Assert.Equal(2, store.Files.Count);
         Assert.All(store.Files, f =>
         {
             Assert.Matches("^[0-9a-f]{64}$", f.Sha256);
             Assert.Contains("/resolve/ce128ea834a090aca240e4e113e7756e06cc78e0/", f.Url.AbsoluteUri);
             Assert.True(f.Size > 0);
         });
-        Assert.InRange(store.TotalBytes, 500_000_000, 560_000_000);
+        Assert.InRange(store.TotalBytes, 2_000_000, 3_000_000);
     }
 
     /// <summary>İlerlemeyi eşzamanlı toplar (Progress&lt;T&gt; olayları sonradan, başka iş parçacığında atar).</summary>

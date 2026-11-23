@@ -19,7 +19,11 @@ internal static class TestModels
         File.Exists(Path.Combine(Directory, ModelStore.SourceSpmFile)) &&
         File.Exists(Path.Combine(Directory, ModelStore.VocabFile)) || Available.Value;
 
-    public static bool ModelAvailable => Available.Value;
+    public static bool ModelAvailable => Available.Value && File.Exists(Path.Combine(RuntimeDirectory, "python.exe"))
+        && File.Exists(Path.Combine(RuntimeDirectory, "worker.py"));
+
+    public static string RuntimeDirectory => Environment.GetEnvironmentVariable("COUCHSUBS_CT2_RUNTIME")
+        ?? Path.Combine(AppContext.BaseDirectory, "ct2");
 
     private static string ResolveDirectory()
     {
@@ -28,12 +32,12 @@ internal static class TestModels
         var cacheRoot = OperatingSystem.IsMacOS()
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches")
             : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(cacheRoot, "couchsubs-test-models", "en-tr");
+        return Path.Combine(cacheRoot, "couchsubs-test-models", "en-tr-ct2");
     }
 
     private static bool Prepare()
     {
-        var store = new ModelStore(Directory);
+        var store = new Ct2ModelStore(Directory);
         if (store.IsInstalled) return true;
         if (Environment.GetEnvironmentVariable("COUCHSUBS_DOWNLOAD_TEST_MODELS") != "1") return false;
         store.DownloadAsync(null, CancellationToken.None).GetAwaiter().GetResult();

@@ -1,0 +1,1 @@
+0.9.35: On Samsung ultrawide monitors the PS5 picture window is requested within the size Samsung accepts; the info panel shows the window attempts.

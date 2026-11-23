@@ -20,19 +20,33 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CSGAApiSecret</key>
+	<string>$(GA_API_SECRET)</string>
+	<key>CSGAMeasurementID</key>
+	<string>$(GA_MEASUREMENT_ID)</string>
+	<key>CSPacksBaseURL</key>
+	<string>$(PACKS_API_BASE_URL)</string>
+	<key>CSPacksFallbackURL</key>
+	<string>$(PACKS_API_FALLBACK_URL)</string>
+	<key>CSPacksAppSecret</key>
+	<string>$(PACKS_APP_SECRET)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
+	<key>NSCameraUsageDescription</key>
+	<string>CouchSubs does not use the camera. The video library used for Xbox streaming includes camera support, which stays off.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>AGPL-3.0. Uses chiaki-ng (AGPL-3.0).</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CouchSubs finds your PS5 and TV on the local network to send translated subtitles.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CouchSubs never records or sends your voice. The streaming library used for Xbox includes microphone support, which stays off.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>3600</integer>
 	<key>SUFeedURL</key>
 	<string>https://github.com/yorulmazsinan/couchsubs/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>GRsdOlnDQSm2yPnUTF/VoD/0202u2J0GPmJ8CCzVdfc=</string>
+	<string>hZ5yMZAZtlZZuf2lmp46zoV7K5BPyhcliz4J0b9ljQg=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
 </dict>
 </plist>

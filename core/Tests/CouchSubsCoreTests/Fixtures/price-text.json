@@ -1,0 +1,41 @@
+{
+  "comment": "Ekranı çevir: fiyat ve sayılar. Mac/iPhone PriceTextTests.swift, Windows PriceTextTests.cs ve Android PriceTextTest.kt aynı dosyayı okur (Android: app/src/test/resources/fixtures kopyası). repair: [okunan, düzeltilmiş]. money: [sözcük, fiyat mı]. protect: sent içindeki {0}, {1}… sırayla kullanılan adlardır; reply çevirmenin yanıtı, result yerine konmuş hali.",
+  "repair": [
+    ["S200", "$200"],
+    ["Buy for S1,250", "Buy for $1,250"],
+    ["TIP S10", "TIP $10"],
+    ["S2OO", "$200"],
+    ["S5K", "$5K"],
+    ["SSSS", "$$$$"],
+    ["$$S", "$$$"],
+    ["$S", "$$"],
+    ["$200", "$200"],
+    ["SS", "SS"],
+    ["SCROLL", "SCROLL"],
+    ["SEND", "SEND"],
+    ["Season 2", "Season 2"],
+    ["Sam S", "Sam S"],
+    ["MS200", "MS200"],
+    ["S.O.S.", "S.O.S."],
+    ["Pay S1.50.", "Pay $1.50."]
+  ],
+  "money": [
+    ["$200", true],
+    ["$$$$", true],
+    ["$1,250.50", true],
+    ["($10)", true],
+    ["200", false],
+    ["SEND", false],
+    ["S200", false]
+  ],
+  "protect": [
+    {"text": "Buy for $200", "sent": "Buy for {0}", "reply": "{0}'a satın al", "result": "$200'a satın al"},
+    {"text": "TIP $10", "sent": "TIP {0}", "reply": "{0} bahşiş ver", "result": "$10 bahşiş ver"},
+    {"text": "Pay $1,250 or $5K", "sent": "Pay {0} or {1}", "reply": "{0} ya da {1} öde", "result": "$1,250 ya da $5K öde"},
+    {"text": "Meet at 10:30", "sent": "Meet at {0}", "reply": "{0}'da buluş", "result": "10:30'da buluş"},
+    {"text": "Price $$$$", "sent": "Price {0}", "reply": "Fiyat {0}", "result": "Fiyat $$$$"},
+    {"text": "Glued $200", "sent": "Glued {0}", "reply": "{0}a yapışık", "result": "$200'a yapışık"},
+    {"text": "Dropped $200", "sent": "Dropped {0}", "reply": "Düşürüldü", "result": "Düşürüldü $200"},
+    {"text": "Wanted 3 stars", "sent": "Wanted 3 stars", "reply": "3 yıldızla aranıyor", "result": "3 yıldızla aranıyor"}
+  ]
+}

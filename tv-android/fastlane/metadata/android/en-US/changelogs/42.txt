@@ -1,0 +1,1 @@
+0.9.39: On Samsung 4K TVs the PS5 picture fills the screen again instead of a small top-left quarter; on ultrawide monitors the picture is resized correctly again when the PS5 goes from the menu into a game.

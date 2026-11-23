@@ -1,0 +1,1 @@
+0.9.30: Samsung ultrawide monitors (Odyssey G8, 21:9 / 32:9): the app now uses the whole screen instead of a 16:9 box. If the TV can't tell its own network address, the TV app now searches common home networks and finds CouchSubs on your phone or computer.

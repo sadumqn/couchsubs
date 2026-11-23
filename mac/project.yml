@@ -17,6 +17,14 @@ settings:
     # (build-chiaki-macos.sh); Debug yalnız bu Mac'in mimarisini derler.
     ARCHS: "arm64 x86_64"
     ONLY_ACTIVE_ARCH: NO
+    # Paket sunucusu (server/packs; sır değil, paketler herkese açık). Info.plist CSPacksBaseURL bununla dolar.
+    PACKS_API_BASE_URL: "https://couchsubs-packs.enmera.workers.dev"
+    # Yedek adres: workers.dev'e ulaşılamazsa (ağ hatası/zaman aşımı/5xx) denenir (#583); aynı Worker.
+    PACKS_API_FALLBACK_URL: "https://couchsubs-packs.enmeraapps.com"
+    # Kullanım verisi (GA4 Measurement Protocol): sır değerler depoda değil; scripts/package-mac.sh CI sırlarından
+    # (GA_MEASUREMENT_ID, GA_API_SECRET) verir. Boşsa ölçüm kapalı. Mac App Store hedefi bunları hiç almaz (APP_STORE).
+    GA_MEASUREMENT_ID: ""
+    GA_API_SECRET: ""
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES
@@ -38,6 +46,18 @@ targets:
       # Tasarım değerleri: Windows sürümüyle ortak tek kaynak.
       - path: ../design/tokens.json
         buildPhase: resources
+      # Yeni arayüzün tasarım değerleri (design/yeni-arayuz; Windows da aynı dosyayı okur).
+      - path: ../design/yeni-arayuz/tasarim.json
+        buildPhase: resources
+      # Alt reklam bandının reklamları ve uygulama simgeleri (Windows da aynı dosyaları okur).
+      - path: ../design/yeni-arayuz/reklamlar.json
+        buildPhase: resources
+      - path: ../design/yeni-arayuz/reklam
+        type: folder
+        buildPhase: resources
+      # Uygulama içindeki Sürüm Notları penceresi bu dosyanın "Bu sürümde yeni" bölümünü gösterir.
+      - path: ../docs/surum-notlari.md
+        buildPhase: resources
       # TV uygulaması paketi (scripts/package-tv.sh üretir; yoksa kurulum özelliği gizlenir).
       - path: ../dist/tv-app
         type: folder
@@ -58,6 +78,10 @@ targets:
     dependencies:
       - package: CouchSubsCore
       - package: RemotePlay
+        product: RemotePlay
+      # Xbox ev yayını (Beta): iPhone'la ortak oturum; Google libwebrtc'nin hazır derlemesini (stasel/WebRTC) getirir.
+      - package: RemotePlay
+        product: XboxStream
       - package: Sparkle
     info:
       path: CouchSubs/Info.plist
@@ -67,14 +91,25 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.utilities
         NSLocalNetworkUsageDescription: CouchSubs finds your PS5 and TV on the local network to send translated subtitles.
+        # WebRTC kitaplığı (Xbox ev yayını) kamera ve mikrofon arayüzlerini içerir; ikisi de açılmaz, Xbox'a ses gönderilmez.
+        NSMicrophoneUsageDescription: CouchSubs never records or sends your voice. The streaming library used for Xbox includes microphone support, which stays off.
+        NSCameraUsageDescription: CouchSubs does not use the camera. The video library used for Xbox streaming includes camera support, which stays off.
         NSHumanReadableCopyright: AGPL-3.0. Uses chiaki-ng (AGPL-3.0).
         # Sparkle: güncellemeler en son GitHub sürümündeki appcast.xml'den okunur, bu anahtarla imzalanmış olmalı
         # (özel anahtar depoda değil; scripts/package-mac.sh imzalar).
         SUFeedURL: https://github.com/yorulmazsinan/couchsubs/releases/latest/download/appcast.xml
-        SUPublicEDKey: GRsdOlnDQSm2yPnUTF/VoD/0202u2J0GPmJ8CCzVdfc=
+        SUPublicEDKey: hZ5yMZAZtlZZuf2lmp46zoV7K5BPyhcliz4J0b9ljQg=
         SUEnableAutomaticChecks: true
         # Uygulama uzun süre açık kalınca da yeni sürüm görünsün: saatte bir.
         SUScheduledCheckInterval: 3600
+        # Paket sunucusu (server/packs); derleme ayarı PACKS_API_BASE_URL boşsa paket indirme kapalı (PackUpdater).
+        CSPacksBaseURL: $(PACKS_API_BASE_URL)
+        CSPacksFallbackURL: $(PACKS_API_FALLBACK_URL)
+        # İstek imzası (PackSigning); depoda değil, derlemede PACKS_APP_SECRET=… ile verilir. Boşsa paket indirme kapalı.
+        CSPacksAppSecret: $(PACKS_APP_SECRET)
+        # Kullanım verisi (UsageMeasurement); boşsa kapalı.
+        CSGAMeasurementID: $(GA_MEASUREMENT_ID)
+        CSGAApiSecret: $(GA_API_SECRET)
     entitlements:
       path: CouchSubs/CouchSubs.entitlements
       properties:
@@ -98,6 +133,15 @@ targets:
         buildPhase: none
       - path: ../design/tokens.json
         buildPhase: resources
+      - path: ../design/yeni-arayuz/tasarim.json
+        buildPhase: resources
+      - path: ../design/yeni-arayuz/reklamlar.json
+        buildPhase: resources
+      - path: ../design/yeni-arayuz/reklam
+        type: folder
+        buildPhase: resources
+      - path: ../docs/surum-notlari.md
+        buildPhase: resources
       # TV uygulaması paketleri: TV kurulumu sandbox'ta da çalışıyor (ssh, ssh-keygen ve yardımcı uygulamanın
       # sandbox'ını miras alır; CouchSubsAppStoreTests/SandboxTests sınar).
       - path: ../dist/tv-app
@@ -119,6 +163,10 @@ targets:
     dependencies:
       - package: CouchSubsCore
       - package: RemotePlay
+        product: RemotePlay
+      # Xbox ev yayını (Beta): iPhone'la ortak oturum; Google libwebrtc'nin hazır derlemesini (stasel/WebRTC) getirir.
+      - package: RemotePlay
+        product: XboxStream
     postBuildScripts:
       # Gömülü programlar uygulamanın sandbox'ını miras almadan açılamaz (App Store da bunu ister): yalnız
       # app-sandbox + inherit yetkisiyle imzalanırlar. Uygulamanın kendi imzası Xcode'un son adımında atılır.
@@ -140,11 +188,19 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.utilities
         NSLocalNetworkUsageDescription: CouchSubs finds your PS5 and TV on the local network to send translated subtitles.
+        # WebRTC kitaplığı (Xbox ev yayını) kamera ve mikrofon arayüzlerini içerir; ikisi de açılmaz, Xbox'a ses gönderilmez.
+        NSMicrophoneUsageDescription: CouchSubs never records or sends your voice. The streaming library used for Xbox includes microphone support, which stays off.
+        NSCameraUsageDescription: CouchSubs does not use the camera. The video library used for Xbox streaming includes camera support, which stays off.
         NSHumanReadableCopyright: AGPL-3.0. Uses chiaki-ng (AGPL-3.0).
+        CSPacksBaseURL: $(PACKS_API_BASE_URL)
+        CSPacksFallbackURL: $(PACKS_API_FALLBACK_URL)
+        # İstek imzası (PackSigning); depoda değil, derlemede PACKS_APP_SECRET=… ile verilir. Boşsa paket indirme kapalı.
+        CSPacksAppSecret: $(PACKS_APP_SECRET)
     entitlements:
       path: AppStore/CouchSubs.entitlements
       properties:
         com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-only: true
         # PS5 (Remote Play, PSN girişi), TV (SSAP, Samsung, SSDP), çeviri hizmetleri, paketler ve dublaj modeli.
         com.apple.security.network.client: true
         # Altyazı sunucusu (8787: TV uygulaması ve OBS), Remote Play'in UDP portları, Samsung girişinin dönüşü.

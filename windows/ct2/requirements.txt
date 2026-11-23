@@ -1,0 +1,8 @@
+# Gömülü CTranslate2 çalışma zamanı (Windows, CPython 3.12, win_amd64). Sürümler sabit, özetler denetlenir:
+# pip install --require-hashes --only-binary=:all: -r windows/ct2/requirements.txt
+ctranslate2==4.9.0 \
+    --hash=sha256:ee930e984679ad16c5fb7bc8da2eaca8c269f86d02cb9eeec087baa1837b5bd2
+numpy==2.5.4 \
+    --hash=sha256:a7b1b6353e36a7e50de2973a38d705c88ee93adcf120673cee7f45a4a3fa223a
+pyyaml==6.0.3 \
+    --hash=sha256:5fcd34e47f6e0b794d17de1b4ff496c00986e1c83f7ab2fb8fcfe9616ff7477b

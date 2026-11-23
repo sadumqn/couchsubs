@@ -47,9 +47,9 @@ internal static class SpeechScript
     /// Önceki oturumdan önbellekte duran satır: cümleleri de önbellekteyse konuşmacılarıyla kurulur, değilse
     /// satırın tamamı tek cümle sayılır.
     /// </summary>
-    public static IReadOnlyList<SpokenLine> FromCache(string text, TranslationCache cache)
+    public static IReadOnlyList<SpokenLine> FromCache(string text, TranslationCache cache, Func<string, string>? cacheKey = null)
     {
-        if (!cache.TryGet(text, out var whole)) return [];
+        if (!cache.TryGet(cacheKey?.Invoke(text) ?? text, out var whole)) return [];
         var pieces = SubtitleSegmenter.Split(text);
         var translations = new List<string?>(pieces.Count);
         foreach (var piece in pieces)
@@ -59,7 +59,7 @@ internal static class SpeechScript
                 translations.Add(null);
                 continue;
             }
-            if (!cache.TryGet(piece.Text, out var sentence)) return [new SpokenLine(text, whole)];
+            if (!cache.TryGet(cacheKey?.Invoke(piece.Text) ?? piece.Text, out var sentence)) return [new SpokenLine(text, whole)];
             translations.Add(sentence);
         }
         return Lines(pieces, translations);

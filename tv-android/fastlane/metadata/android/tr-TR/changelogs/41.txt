@@ -1,0 +1,1 @@
+0.9.38: Ek alan çevirileri (telefon mesajı, ipucu) İngilizce yazıyı tam örtüyor ve ekrana sığıyor; sağ kenardaki dar etiketler ekran dışına taşmıyor.

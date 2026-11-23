@@ -1,0 +1,16 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<UserControl x:Class="CouchSubs.App.Views.FirewallSettingsCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:CouchSubs.App.Controls"
+             xmlns:t="clr-namespace:CouchSubs.App.Theme"
+             Visibility="Collapsed">
+    <c:Card Title="{t:T 'Windows Firewall'}">
+        <c:SpacedStack>
+            <TextBlock x:Name="Status" Style="{StaticResource HintText}" />
+            <c:Callout x:Name="PublicHint" Visibility="Collapsed"
+                       Text="{t:T 'Permission applies only to Private networks. If this is your trusted home network, set it to Private in Windows Settings.'}" />
+            <Button x:Name="Allow" HorizontalAlignment="Left" Content="{t:T 'Allow CouchSubs through Windows Firewall'}" Click="OnAllow" />
+        </c:SpacedStack>
+    </c:Card>
+</UserControl>

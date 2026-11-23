@@ -1,0 +1,1 @@
+0.9.23: If the TV does not give HDMI inputs to apps, the app explains what to do and offers overlay mode. The app no longer closes silently when switching to overlay mode.

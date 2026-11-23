@@ -1,0 +1,59 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- Xbox (yeni arayüz, tuval 15): solda Microsoft hesabı kartı (etiket, başlık, açıklama, kod ve kopyala, ana düğme), sağda
+     SES kartı (Xbox sesini bu bilgisayarda çal) ve Xbox uygulaması / play.xbox.com ile oynayanlar için oyun penceresi kartı. -->
+<UserControl x:Class="CouchSubs.App.Views.Steps.XboxLoginStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:CouchSubs.App.Controls"
+             xmlns:t="clr-namespace:CouchSubs.App.Theme">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="7*" />
+            <ColumnDefinition Width="24" />
+            <ColumnDefinition Width="5*" />
+        </Grid.ColumnDefinitions>
+        <Border Style="{StaticResource CardBorder}" VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="{t:T 'Xbox · Microsoft account'}" Style="{StaticResource CardTitleText}" />
+                <TextBlock Text="{t:T 'Sign In with Your Microsoft Account'}" Style="{StaticResource TitleText}" Margin="{t:Sp '0,unitGap,0,0'}" />
+                <TextBlock Text="{t:T 'Link your Xbox account with a Microsoft device code. The sign-in page opens in your default browser.'}"
+                           Style="{StaticResource HintText}" Margin="{t:Sp '0,titleBody,0,0'}" />
+                <Button Content="{t:T 'Signed In'}" Style="{StaticResource SuccessButton}" Margin="{t:Sp '0,m,0,0'}"
+                        Visibility="{Binding HasXboxAccount, Converter={StaticResource VisibleIf}}" />
+                <!-- Kod: tam yuvarlak kutuda büyük mono yazı, kopyala içte sağda. -->
+                <StackPanel x:Name="CodePanel" Visibility="Collapsed" Margin="{t:Sp '0,m,0,0'}">
+                    <!-- Kod tam yuvarlak kutuda (mono 22), kopyala simgesi kutunun içinde; ayrı "Kopyala" düğmesi yok (Mac DSCopyField). -->
+                    <c:CopyField x:Name="Code" FontSize="22" MaxWidth="320" HorizontalAlignment="Left" />
+                    <TextBlock Margin="{t:Sp '0,s,0,0'}">
+                        <Hyperlink x:Name="Link" RequestNavigate="OnOpenLink"><Run x:Name="LinkText" /></Hyperlink>
+                    </TextBlock>
+                    <TextBlock x:Name="Steps" Style="{StaticResource HintText}" Margin="{t:Sp '0,xs,0,0'}" />
+                </StackPanel>
+                <TextBlock x:Name="Status" Style="{StaticResource HintText}" Margin="{t:Sp '0,xs,0,0'}" />
+                <TextBlock x:Name="Error" Style="{StaticResource ErrorText}" Margin="{t:Sp '0,xs,0,0'}" />
+                <StackPanel Orientation="Horizontal" Margin="{t:Sp '0,l,0,0'}">
+                    <Button x:Name="SignIn" Content="{t:T 'Sign In with Microsoft'}" Style="{StaticResource PrimaryButton}" Click="OnSignIn" />
+                    <!-- Hata olunca Xbox satırlarının da yazıldığı günlük açılır (Mac ve PS5 adımındaki gibi). -->
+                    <Button Content="{t:T 'Show Log File'}" Margin="{t:Sp 's,0,0,0'}" Click="OnShowLog"
+                            Visibility="{Binding Text, ElementName=Error, Converter={StaticResource VisibleIf}}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        <StackPanel Grid.Column="2">
+            <c:Card Title="{t:T 'Sound'}">
+                <c:SwitchRow x:Name="XboxSound" Content="{t:T 'Play Xbox Sound on This Computer'}" Description="{t:T 'When off, sound comes only from the TV.'}"
+                             Divider="False" Checked="OnXboxSound" Unchecked="OnXboxSound" />
+            </c:Card>
+            <!-- #853: oyun bu bilgisayardaki Xbox uygulamasında / play.xbox.com'da oynanıyorsa yalnız seçilen pencere okunur. -->
+            <c:Card Margin="{t:Sp '0,l,0,0'}">
+                <StackPanel>
+                    <TextBlock Text="{t:T 'Playing with the Xbox App or play.xbox.com on This Computer?'}" Style="{StaticResource HeadlineText}" />
+                    <TextBlock Text="{t:T 'Then you don\'t need to sign in with Microsoft; just choose the game window.'}" Style="{StaticResource HintText}" Margin="{t:Sp '0,xxs,0,0'}" />
+                    <Button Content="{t:T 'Choose the Game Window'}" Margin="{t:Sp '0,m,0,0'}" Click="OnUseXboxWindow" />
+                    <TextBlock Text="{t:T 'CouchSubs is not affiliated with Microsoft. Xbox is a trademark of Microsoft Corporation.'}"
+                               Style="{StaticResource TertiaryText}" Margin="{t:Sp '0,m,0,0'}" />
+                </StackPanel>
+            </c:Card>
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -11,6 +11,9 @@ struct TVStep: View {
     @State private var error: String?
     /// Bağlanılan TV'nin markası (Samsung'da izin kutusu ayrıca anlatılır).
     @State private var pairingBrand: TVBrand?
+    /// Aramada çıkmayan TV'nin elle yazılan adresi (webOS 3.x gibi, #498).
+    @State private var manualHost = ""
+    @State private var adding = false
 
     var body: some View {
         StepLayout(title: "Connect your TV",
@@ -36,6 +39,15 @@ struct TVStep: View {
                             Button("Connect") { Task { await pair(tv) } }.buttonStyle(.primary).disabled(working)
                         }
                     }
+                    HintText(text: "TV not in the list? Enter its IP address (on the TV under Settings › Network).")
+                    HStack {
+                        TextField("IP address, e.g. 192.168.1.20", text: $manualHost)
+                            .textFieldStyle(CSTextFieldStyle())
+                            .onSubmit { Task { await addManual() } }
+                        Button("Add") { Task { await addManual() } }.buttonStyle(.secondary).disabled(adding)
+                    }
+                    // Alanın hangi TV'ler için olduğu: yazılan adresin türü TV'ye sorulur, Android TV de tanınır.
+                    HintText(text: "For LG, Samsung and Android TV / Google TV: CouchSubs asks the TV at this address which kind it is.")
                 }
                 Card {
                     HStack {
@@ -91,6 +103,26 @@ struct TVStep: View {
         searching = false
     }
 
+    /// Elle yazılan adres listeye eklenir; TV'nin türü (LG, Samsung, Android TV) TV'ye sorulur (`ManualTV`). Android TV'de
+    /// "Bağlan" Android TV akışını o adresle başlatır; önceden adres LG sayılıyor, LG eşleştirmesi "TV yanıt vermedi"
+    /// diyordu. Hiçbir yoklamaya yanıt gelmezse TV LG sayılır (webOS 3 cihaz tanımını her zaman vermiyor) ve bu söylenir.
+    private func addManual() async {
+        error = nil
+        guard let host = ManualAddress.normalize(manualHost) else {
+            error = String(localized: "This is not a valid IP address. Type it like 192.168.1.20, without http:// or a port number.")
+            return
+        }
+        guard !tvs.contains(where: { $0.host == host }) else { return }
+        adding = true
+        let manual = await ManualTV.tv(at: host)
+        tvs.append(manual.tv)
+        if !manual.recognised {
+            error = String(format: String(localized: "No TV at %@ answered as an LG, Samsung or Android TV, so it was added as an LG TV. If it is an Android TV / Google TV, press Select under Android TV / Google TV below."), host)
+        }
+        manualHost = ""
+        adding = false
+    }
+
     private func pair(_ tv: LGTV) async {
         working = true
         pairingBrand = tv.brand
@@ -109,6 +141,8 @@ struct TVStep: View {
                 return String(localized: "The TV refused the connection. Allow CouchSubs in Settings › General › External Device Manager › Device Connection Manager › Device List on the TV, then press Connect again.")
             case .cannotConnect:
                 return String(localized: "The TV's permission box was not accepted within 60 seconds. If no box appeared, open the TV's home screen and press Connect again. If CouchSubs was denied before, allow it in Settings › General › External Device Manager › Device Connection Manager › Device List.")
+            case .notInstalled:
+                break
             }
         }
         return String(localized: "The TV did not respond. Make sure it is on and on the same network.")

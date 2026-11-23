@@ -1,0 +1,1 @@
+0.9.57: No changes on Android TV. Fix for 2015 Samsung TVs (Tizen 2.3): the app no longer vanishes a few seconds after opening, and the translation is shown under the game picture.

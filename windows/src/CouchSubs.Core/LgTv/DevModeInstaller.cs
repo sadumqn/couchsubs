@@ -20,7 +20,7 @@ public interface ICommandRunner
 public enum DevModeError
 {
     Unreachable, KeyServerOff, WrongPassphrase, KeyRefused, InstallFailed, ToolMissing,
-    /// <summary>Samsung: TV Tizen 3.0'dan (2017) eski.</summary>
+    /// <summary>Samsung: TV Tizen 2.4'ten (2016) eski.</summary>
     TooOld,
     /// <summary>Samsung hesabıyla giriş tamamlanmadı.</summary>
     SignInFailed,
@@ -40,6 +40,10 @@ public enum DevModeError
     PackageBlocked,
     /// <summary>Kurulum sırasında TV bağlantısı koptu.</summary>
     ConnectionLost,
+    /// <summary>Samsung: TV'deki "Host PC IP" bu bilgisayarın adresi değil; sdb denenmez (#343).</summary>
+    HostPcMismatch,
+    /// <summary>TV'de CouchSubs'ın kimliğiyle başka bir uygulama kurulu; kaldırıp CouchSubs'ı kurmak için kullanıcı onayı gerekir.</summary>
+    ForeignApp,
 }
 
 /// <param name="detail">Sorunu bulmak için ayrıntı (komut çıktısı gibi); hata günlüğüne yazılır, kullanıcıya gösterilmez.</param>
@@ -95,14 +99,27 @@ public sealed class DevModeInstaller(IRemoteShell shell, TimeSpan? pollInterval 
         return match.Success ? match.Groups[1].Value : null;
     }
 
-    /// <summary>TV'de geliştirici modu açık mı? Kapalıysa port yanıt vermez.</summary>
+    /// <summary>Key Server'ın (TV'deki Developer Mode uygulaması) anahtarı verdiği port.</summary>
+    public const int KeyServerPort = 9991;
+
+    /// <summary>
+    /// TV'de geliştirici modu açık mı? Kapalıysa portlar yanıt vermez. SSH (9922) ya da Key Server (9991) yanıt verirse
+    /// açık sayılır: yalnız SSH'a bakılırken TV'de Key Server ve parola göründüğü halde SSH geç yanıt verince parola alanı
+    /// hiç çıkmıyordu (#94).
+    /// </summary>
     public static async Task<bool> IsDevModeOnAsync(string host, TimeSpan? timeout = null)
+    {
+        var checks = await Task.WhenAll(IsPortOpenAsync(host, Port, timeout), IsPortOpenAsync(host, KeyServerPort, timeout));
+        return checks[0] || checks[1];
+    }
+
+    private static async Task<bool> IsPortOpenAsync(string host, int port, TimeSpan? timeout)
     {
         using var client = new TcpClient();
         using var cancellation = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(2));
         try
         {
-            await client.ConnectAsync(host, Port, cancellation.Token);
+            await client.ConnectAsync(host, port, cancellation.Token);
             return true;
         }
         catch (Exception)
@@ -111,7 +128,7 @@ public sealed class DevModeInstaller(IRemoteShell shell, TimeSpan? pollInterval 
         }
     }
 
-    public static Uri KeyUrl(string host) => new($"http://{host}:9991/webos_rsa");
+    public static Uri KeyUrl(string host) => new($"http://{host}:{KeyServerPort}/webos_rsa");
 
     /// <summary>Key Server'dan anahtarı alır ve TV ekranındaki parolayla çözer.</summary>
     public static async Task<string> FetchKeyAsync(string host, string passphrase, ICommandRunner runner, DevModeTools tools)
@@ -182,6 +199,46 @@ public sealed class DevModeInstaller(IRemoteShell shell, TimeSpan? pollInterval 
         var result = await SshAsync($"cat {AppInfoPath}");
         return VersionFromAppInfo(result.Output);
     }
+
+    /// <summary>
+    /// TV'deki sürüm (kurulu değilse null). TV'de com.couchsubs.tv kimliğiyle başka bir uygulama varsa (appinfo.json'daki ad
+    /// CouchSubs ya da üretici Enmera değil) <see cref="DevModeError.ForeignApp"/> fırlatır: sürümü bizimkinden yüksekse
+    /// "güncel" sayılıp o açılıyordu; kullanıcı onaylamadan üstüne kurulmaz.
+    /// </summary>
+    public async Task<string?> CheckInstalledVersionAsync()
+    {
+        var info = (await SshAsync($"cat {AppInfoPath}")).Output;
+        var version = VersionFromAppInfo(info);
+        if (version is not null && IsForeignAppInfo(info))
+            throw new DevModeException(DevModeError.ForeignApp, $"\"{AppInfoField(info, "title")}\" ({AppInfoField(info, "vendor")}) {version}");
+        return version;
+    }
+
+    /// <summary>CouchSubs'ın appinfo.json'ındaki ad ve üretici (tv-webos/appinfo.json).</summary>
+    public const string OurTitle = "CouchSubs", OurVendor = "Enmera";
+
+    /// <summary>appinfo.json'daki ad CouchSubs değil ya da üretici Enmera değil. Alan yoksa yabancı sayılmaz.</summary>
+    public static bool IsForeignAppInfo(string text) =>
+        (AppInfoField(text, "title") is { } title && !title.Trim().Equals(OurTitle, StringComparison.OrdinalIgnoreCase)) ||
+        (AppInfoField(text, "vendor") is { } vendor && !vendor.Trim().Equals(OurVendor, StringComparison.OrdinalIgnoreCase));
+
+    private static string? AppInfoField(string text, string key)
+    {
+        var match = Regex.Match(text, $"\"{key}\"\\s*:\\s*\"([^\"]*)\"");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// TV'deki com.couchsubs.tv'yi kaldırır (ares-install --remove'un luna çağrısı). Yalnız kullanıcı "Kaldırıp Kur" deyince
+    /// çağrılır. TV'nin yanıtını döner (günlük için).
+    /// </summary>
+    public async Task<string> RemoveAppAsync() =>
+        (await SshAsync(RemoveCommand)).Output.Trim();
+
+    /// <summary>Kaldırma TV'de arka planda sürer: appinfo.json gidene kadar (en çok 20 sn) beklenir, kurulum ona çarpmasın.</summary>
+    public const string RemoveCommand =
+        "/usr/bin/luna-send-pub -n 1 'luna://com.webos.appInstallService/dev/remove' '{\"id\":\"com.couchsubs.tv\",\"subscribe\":false}'; " +
+        "i=0; while [ -f " + AppInfoPath + " ] && [ $i -lt 20 ]; do sleep 1; i=$((i+1)); done";
 
     /// <summary>
     /// Paketi TV'ye yükler ve ares-install'un yaptığı gibi kurar: kurulum aboneliği TV "installed" ya da hata diyene kadar
@@ -377,16 +434,17 @@ public sealed class ProcessRunner : ICommandRunner
         };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
 
-        using var process = new Process { StartInfo = start };
+        Process? started;
         try
         {
-            process.Start();
+            started = ChildProcessGuard.Start(start);
         }
         catch (Win32Exception)
         {
             // Windows'un OpenSSH istemcisi (ssh-keygen) kaldırılmış olabilir.
             throw new DevModeException(DevModeError.ToolMissing);
         }
+        using var process = started ?? throw new DevModeException(DevModeError.InstallFailed, "CouchSubs is shutting down for an update");
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
         if (inputFile is not null)

@@ -25,8 +25,16 @@ public partial class BetterTranslationStep : UserControl
     private void ShowState()
     {
         var ready = Controller.UsesFreeGemini;
+        TranslationDeviceChoice.SelectedItem = TranslationDeviceChoice.Items.Cast<ComboBoxItem>()
+            .First(item => (string)item.Tag == Controller.Settings.TranslationDevice.ToString());
         Ready.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
         NewKey.Visibility = ready ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnTranslationDevice(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is AppController controller && TranslationDeviceChoice.SelectedItem is ComboBoxItem { Tag: string tag })
+            controller.Settings = controller.Settings with { TranslationDevice = Enum.Parse<TranslationDevice>(tag) };
     }
 
     private void OnGetKey(object sender, RoutedEventArgs e) =>

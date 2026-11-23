@@ -25,8 +25,12 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CSPacksAppSecret</key>
+	<string>$(PACKS_APP_SECRET)</string>
 	<key>CSPacksBaseURL</key>
 	<string>$(PACKS_API_BASE_URL)</string>
+	<key>CSPacksFallbackURL</key>
+	<string>$(PACKS_API_FALLBACK_URL)</string>
 	<key>FacebookAdvertiserIDCollectionEnabled</key>
 	<false/>
 	<key>FacebookAppID</key>
@@ -41,8 +45,17 @@
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>CouchSubs does not use the camera. The video library used for Xbox streaming includes camera support, which stays off.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>CouchSubs connects to your PS5 and TV on the home network to read and send translated subtitles.</string>
+	<string>CouchSubs connects to your PS5 and TV on the home network to read and send translated subtitles, installs and updates its TV app on your TV, and reaches the local model server (Ollama, LM Studio) on your computer if you choose it.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CouchSubs never records or sends your voice. To play the Xbox game sound on this iPhone, the streaming library opens the audio system, which may ask for microphone access; you can decline and the sound still plays.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
@@ -56,6 +69,10 @@
 	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiresFullScreen</key>
@@ -74,6 +91,6 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIUserInterfaceStyle</key>
-	<string>Dark</string>
+	<string>Automatic</string>
 </dict>
 </plist>

@@ -26,6 +26,25 @@ final class SpeechScriptTests: XCTestCase {
     func testUnlabeledLinesHaveNoSpeaker() {
         XCTAssertEqual(lines("The bridge is gone.").map(\.speaker), [nil])
     }
+
+    /// Çeviri arka planda yazar, okuma hattı ana iş parçacığında okur; ikisi aynı anda olunca çökmemeli (kapasite dolup
+    /// boşaltılırken de).
+    func testSpeechMemoryIsSafeAcrossThreads() {
+        let memory = SpeechMemory()
+        DispatchQueue.concurrentPerform(iterations: 8) { worker in
+            for index in 0..<2_000 {
+                let text = "line \(worker) \(index)"
+                if worker % 2 == 0 {
+                    memory.store([SpokenLine(english: text, turkish: "satır")], for: text)
+                } else {
+                    _ = memory["line \(worker - 1) \(index)"]
+                }
+            }
+        }
+        memory.store([SpokenLine(english: "Go.", turkish: "Git.")], for: "Go.")
+        XCTAssertEqual(memory["Go."]?.map(\.turkish), ["Git."])
+        XCTAssertNil(memory["never stored"])
+    }
 }
 
 final class SpeechTextTests: XCTestCase {
@@ -138,5 +157,18 @@ final class DubbingModelTests: XCTestCase {
         XCTAssertTrue(local.contains("weights_path: '/tmp/model dir/model.safetensors'"))
         XCTAssertTrue(local.contains("    tokenizer_path: '/tmp/model dir/tokenizer.model'"))
         XCTAssertTrue(local.hasSuffix("capitalize_first_letter: false\n"))
+    }
+}
+
+/// Telefonlarda (ve Windows'ta "Hızlı" dublajda) cihazın kendi sesiyle karakterler ton ve hızla ayrılır; değerler
+/// Windows WindowsVoiceModel.Tone ve Android DubbingVoice ile aynı.
+final class SystemVoiceToneTests: XCTestCase {
+    func testTonesMatchWindowsAndAndroid() {
+        let tones = DubbingVoice.allCases.map { [$0.systemTone.pitch, $0.systemTone.rate] }
+        XCTAssertEqual(tones, [[1.55, 1.1], [1.4, 1.0], [1.48, 1.05], [0.85, 0.95], [1.05, 1.15], [0.95, 1.05]])
+    }
+
+    func testPreparedTextForTheSystemVoiceHasNoEmotionTag() {
+        XCTAssertEqual(SpeechText.prepare("Geri çekil!"), "geri çekil!")
     }
 }

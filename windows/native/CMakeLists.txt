@@ -59,7 +59,7 @@ elseif(APPLE)
 		"-framework SystemConfiguration" "-framework CoreServices")
 endif()
 
-add_library(couchsubs_native SHARED couchsubs_native.c couchsubs_native.h)
+add_library(couchsubs_native SHARED couchsubs_native.c couchsubs_crash.c couchsubs_native.h)
 target_link_libraries(couchsubs_native PRIVATE couchsubs_deps)
 set_target_properties(couchsubs_native PROPERTIES PREFIX "" C_VISIBILITY_PRESET hidden)
 if(WIN32)
@@ -69,6 +69,6 @@ endif()
 
 if(COUCHSUBS_NATIVE_TESTS)
 	# Test, iç işlevlere erişmek için kaynak dosyayı doğrudan içerir.
-	add_executable(couchsubs_native_test tests/native_test.c)
+	add_executable(couchsubs_native_test tests/native_test.c couchsubs_crash.c)
 	target_link_libraries(couchsubs_native_test PRIVATE couchsubs_deps)
 endif()

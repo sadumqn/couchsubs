@@ -1,0 +1,1 @@
+0.9.22: Zeminsiz altyazı açık sahnelerde de okunuyor (katmanlı gölge, düşük zeminde ince kontur). HDMI giriş kutusu ve bekleme ekranı düzenlendi, güvenli alan payı eklendi. HDMI görüntüsü gelmezse siyah ekran yerine açık mesaj ve giriş seçici çıkıyor. HDMI sesi tam sesle açılıyor.

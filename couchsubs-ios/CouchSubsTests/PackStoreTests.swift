@@ -99,6 +99,31 @@ final class PackStoreTests: XCTestCase {
     }
 
     /// İndirilen paket, uygulamayla gelen aynı kimlikli paketin yerine geçer; sunucu yoksa uygulamayla gelen kalır.
+    /// Bir paket inmeyince (ör. 429) sıradaki paketler yine iner, inenler bir daha indirilmez; yalnız inemeyen yeniden denenir.
+    func testOneFailingPackDoesNotBlockTheOthers() async throws {
+        let other = Data(#"{"format":1,"id":"gta-6","title":"GTA VI","entries":{"\#(PackKey.key("Hello there, my friend.")!)":"Merhaba dostum."}}"#.utf8)
+        StubProtocol.responses["/v1/packs"] = (200, Data(#"{"packs":[{"id":"demo","title":"Demo","version":1,"sha256":"\#(PackStore.sha256(pack))"},{"id":"gta-6","title":"GTA VI","version":5,"sha256":"\#(PackStore.sha256(other))"}]}"#.utf8))
+        StubProtocol.responses["/v1/packs/demo"] = (429, Data())
+        StubProtocol.responses["/v1/packs/gta-6"] = (200, other)
+        let store = store()
+        do {
+            try await store.refresh(force: true)
+            XCTFail("demo inmedi")
+        } catch {
+            XCTAssertEqual(error as? PackStore.Failure, .server(429))
+        }
+        XCTAssertEqual(try Data(contentsOf: store.filesDirectory.appendingPathComponent("gta-6.json.gz")), other)
+        let partial = await store.lastDownloadCount
+        XCTAssertEqual(partial, 1)
+        let stillDue = await store.needsRefresh()
+        XCTAssertTrue(stillDue)
+        StubProtocol.responses["/v1/packs/demo"] = (200, pack)
+        StubProtocol.requests = []
+        let downloaded = try await store.refresh(force: false)
+        XCTAssertEqual(downloaded, 1)
+        XCTAssertEqual(StubProtocol.requests.map { $0.url!.path }, ["/v1/packs", "/v1/packs/demo"])
+    }
+
     func testDownloadedPackReplacesBundledOne() async throws {
         let bundled = directory.appendingPathComponent("bundled", isDirectory: true)
         try FileManager.default.createDirectory(at: bundled, withIntermediateDirectories: true)
@@ -115,17 +140,20 @@ final class PackStoreTests: XCTestCase {
         XCTAssertEqual(library.match("Hello there, my friend.")?.text, "Merhaba dostum.")
     }
 
-    func testRefreshIsWeekly() async throws {
+    func testRefreshIsDaily() async throws {
         StubProtocol.responses["/v1/packs"] = (200, Data(#"{"packs":[]}"#.utf8))
         let start = Date()
         try await store(now: start).refresh(force: true)
-        let soon = await store(now: start.addingTimeInterval(3 * 24 * 3600)).needsRefresh()
+        let soon = await store(now: start.addingTimeInterval(6 * 3600)).needsRefresh()
         XCTAssertFalse(soon)
-        let later = await store(now: start.addingTimeInterval(8 * 24 * 3600)).needsRefresh()
+        let later = await store(now: start.addingTimeInterval(25 * 3600)).needsRefresh()
         XCTAssertTrue(later)
+        // Yeni oyun: on dakikadan eski bakış yenilenir.
+        let forGame = await store(now: start.addingTimeInterval(11 * 60)).needsRefresh(maxAge: PackStore.gameCheckInterval)
+        XCTAssertTrue(forGame)
         StubProtocol.requests = []
-        try await store(now: start.addingTimeInterval(24 * 3600)).refresh()
-        XCTAssertTrue(StubProtocol.requests.isEmpty, "hafta dolmadan istek yok")
+        try await store(now: start.addingTimeInterval(6 * 3600)).refresh()
+        XCTAssertTrue(StubProtocol.requests.isEmpty, "gün dolmadan istek yok")
     }
 
     func testRemovedPackIsDeletedFromCache() async throws {

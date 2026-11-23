@@ -404,6 +404,31 @@ public class SubtitleStabilizerTests
         s.ForgetSent();
         Assert.Equal(StabilizerAction.Translate("Run!"), s.Feed("Run!"));
     }
+
+    /// Noktayla biten satır ilk karede gider; o kare olumsuzluğu kaçırdıysa ("can't" → "can") TV'de anlamı ters çeviri
+    /// durur. Sonraki doğru okuma gönderilenin yeniden okuması (IsSameSubtitle) ya da daha kötü okuması (IsWorseReread)
+    /// sayılıp atılmamalı, yeniden çevrilmeli.
+    [Theory]
+    [InlineData("I can do that for you right now.", "I can't do that for you right now.")]
+    [InlineData("I said that I would help you with this.", "I said that I would never help you with this.")]
+    [InlineData("Meet me at the docks at 5.", "Meet me at the docks at 6.")]
+    public void CorrectedReadThatChangesMeaningIsTranslated(string misread, string correct)
+    {
+        var s = new SubtitleStabilizer();
+        Assert.Equal(StabilizerAction.Translate(misread), s.Feed(misread));
+        Assert.Equal(StabilizerAction.Translate(correct), s.Feed(correct));
+    }
+
+    [Theory]
+    [InlineData("I can do that for you right now.", "I can't do that for you right now.")]
+    [InlineData("Meet me at the docks at 5.", "Meet me at the docks at 6.")]
+    public void CleanFastPathUsesCorrectedCandidate(string misread, string correct)
+    {
+        var s = new SubtitleStabilizer(cleanFastPathOnly: true);
+        Assert.Equal(StabilizerAction.Translate(misread), s.Feed(misread));
+        Assert.Equal(StabilizerAction.Translate(correct), s.Feed(correct));
+        Assert.Equal(StabilizerAction.None, s.Feed(correct));
+    }
 }
 
 internal sealed class TestClock

@@ -121,6 +121,44 @@ public class GamePackTests
         Assert.Null(library.Find("Who is that?"));
     }
 
+    /// <summary>
+    /// Elle seçilen oyunda satırlar yalnız o oyunun paketinde aranır; paketi yoksa hiç aranmaz. Başka oyunların ortak
+    /// satırları ("Let's go.") yanlış çeviri getirmez, oyunu da o pakete kaydırmaz (#218). Mac ve Android'le aynı örnek.
+    /// </summary>
+    [Fact]
+    public void ChosenGameLimitsTheSearchToItsPack()
+    {
+        var common = PackKey.Key("Let's go.");
+        var tarnished = PackKey.Key("Rise, Tarnished.");
+        var horse = PackKey.Key("Easy, girl.");
+        var elden = $"{{\"format\":1,\"id\":\"elden-ring\",\"title\":\"Elden Ring\",\"entries\":{{\"{common}\":\"Gidelim.\",\"{tarnished}\":\"Kalk, Lekeli.\"}}}}";
+        var rdr = $"{{\"format\":1,\"id\":\"rdr-2\",\"title\":\"Red Dead Redemption 2\",\"entries\":{{\"{common}\":\"Hadi gidelim.\",\"{horse}\":\"Sakin ol kızım.\"}}}}";
+        IEnumerable<(string, byte[])> Bundled() => [("a.json", Encoding.UTF8.GetBytes(elden)), ("b.json", Encoding.UTF8.GetBytes(rdr))];
+        var library = new GamePackLibrary(Bundled, null);
+        // Seçim yokken bütün paketlerde aranır, aynı satırda sonraki paket kazanır.
+        Assert.Equal("Hadi gidelim.", library.Find("Let's go."));
+
+        // Paketi olmayan oyun: hiçbir pakette aranmaz.
+        library.LimitToGame("Marvel's Wolverine");
+        Assert.Null(library.Find("Let's go."));
+        Assert.Null(library.Find("Rise, Tarnished."));
+        Assert.Null(library.Nearest("Rise, Tarnlshed."));
+        Assert.Null(library.SearchScope);
+        Assert.Null(library.TakeDistinctiveHit());
+
+        // Paketi olan oyun: yalnız o paket, Türkçe de o paketin kendisinden.
+        library.LimitToGame("ELDEN RING");
+        Assert.Equal("Gidelim.", library.Find("Let's go."));
+        Assert.Equal("Kalk, Lekeli.", library.Find("Rise, Tarnished."));
+        Assert.Null(library.Find("Easy, girl."));
+        Assert.Equal("elden-ring", library.SearchScope);
+        Assert.Equal("elden-ring", library.TakeDistinctiveHit()?.Id);
+
+        // Seçim kalkınca yine bütün paketler.
+        library.LimitToGame(null);
+        Assert.Equal("Sakin ol kızım.", library.Find("Easy, girl."));
+    }
+
     [Fact]
     public void MissingDirectoriesGiveAnEmptyLibrary()
     {
@@ -134,7 +172,7 @@ public class GamePackTests
         GamePackLibrary.EmbeddedPacks().Where(pack => pack.Name == file);
 
     /// <summary>Uygulamaya gömülü paketler (Mafia, GTA V, RDR2) birlikte yüklenir ve hızlı aranır.</summary>
-    [Fact]
+    [RealPackFact]
     public void EmbeddedPacksLoad()
     {
         var before = GC.GetTotalMemory(true);
@@ -144,7 +182,7 @@ public class GamePackTests
         watch.Stop();
         var memory = GC.GetTotalMemory(true) - before;
         Console.WriteLine($"paket yükleme: {watch.ElapsedMilliseconds} ms, bellek: {memory / 1024} KB, {all.Packs.Sum(p => p.Entries)} satır");
-        Assert.Equal(["assassins-creed-shadows", "call-of-duty-modern-warfare-2019", "death-stranding-2", "death-stranding-directors-cut", "elden-ring", "gta-v", "mafia-the-old-country", "marvels-spider-man-2", "red-dead-redemption-2"], ids);
+        Assert.Equal(["assassins-creed-shadows", "call-of-duty-modern-warfare-2019", "death-stranding-2", "elden-ring", "gta-v", "mafia-the-old-country", "marvels-spider-man-2", "red-dead-redemption-2"], ids);
         Assert.All(all.Packs, pack => Assert.True(pack.BuiltIn));
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10));
         GC.KeepAlive(all);
@@ -162,7 +200,7 @@ public class GamePackTests
 
     /// <summary>Her gömülü paket kendi başına açılır, en az beklenen satırı taşır ve bilinen satırlar (anahtarlar canon.py
     /// ile hesaplandı) boş olmayan Türkçeye çıkar. Mac'teki testEachBundledPackHasItsLines ile aynı.</summary>
-    [Theory]
+    [RealPackTheory]
     [InlineData("mafia-the-old-country.json.gz", "mafia-the-old-country", "Mafia: The Old Country", 18000,
         new[] { "e7f18c8f6d1083ab", "15014c246455f36c" })]
     // "Are you listening to me?", "Cool, I'll see you later.", "Take out the Lost."
@@ -174,10 +212,6 @@ public class GamePackTests
     // "The Tarnished will soon return.", "Let it be Margit the Fell!", "Roundtable Hold"
     [InlineData("elden-ring.json.gz", "elden-ring", "Elden Ring + Shadow of the Erdtree", 37000,
         new[] { "fd7b2bef9d7e5fe1", "d9e5d9f200bbd946", "d5017888c04251a9" })]
-    // "I can’t help you with that. I make deliveries. That’s all.", "Yeah, I’ve heard of ya.",
-    // "Trying to stay dry, same as you. Timefall’s let up. My name is Fragile."
-    [InlineData("death-stranding-directors-cut.json.gz", "death-stranding-directors-cut", "Death Stranding Director's Cut", 1200,
-        new[] { "0bd205d28ea72e1e", "a278ec4528cdbe41", "b081efaf29693c2b" })]
     // "More like sell yourself. It's the worst.", "You got any advice?", "Focus! Hunters! Lots of them!"
     [InlineData("marvels-spider-man-2.json.gz", "marvels-spider-man-2", "Marvel's Spider-Man 2", 2000,
         new[] { "40236a7f701ea389", "ee2428652bc9ceb2", "e829f8ce088898b8" })]
@@ -196,8 +230,48 @@ public class GamePackTests
         }
     }
 
-    /// <summary>Biçim 2: Mafia paketinde parçalar ve imzalar da var; hiç tam eşleşme olmadan bulanık arama yapılmaz.</summary>
+    /// <summary>Verilen satırlardan, kısa satırlara da imzalı (paket betiğinin GTA'ya yazdığı gibi) biçim 2 paketi.</summary>
+    private static byte[] ShortFuzzyPack(string title, params (string English, string Turkish)[] lines)
+    {
+        var entries = lines.ToDictionary(line => PackKey.Key(line.English)!, line => line.Turkish);
+        var english = lines.ToDictionary(line => PackKey.Number(PackKey.Key(line.English)!)!.Value, line => line.English);
+        var order = english.Keys.Order().ToList();
+        var mask = new byte[(order.Count + 7) / 8];
+        var lengths = new List<byte>();
+        var blooms = new List<byte>();
+        for (var index = 0; index < order.Count; index++)
+        {
+            if (PackFuzzy.Signature(english[order[index]], PackFuzzy.ShortMinLength) is not { } signature) continue;
+            mask[index >> 3] |= (byte)(1 << (index & 7));
+            lengths.Add((byte)signature.Length);
+            blooms.AddRange(signature.Bytes);
+        }
+        var fuzzy = new { version = 1, count = order.Count, mask = Convert.ToBase64String(mask), lengths = Convert.ToBase64String([.. lengths]), blooms = Convert.ToBase64String([.. blooms]) };
+        return JsonSerializer.SerializeToUtf8Bytes(new { format = 2, id = "deneme", title, entries, fuzzy });
+    }
+
+    /// <summary>
+    /// GTA paketinde 8-15 harfli satır da bulanık bulunur ("I'II take it." → "I'll take it."); öteki oyunun paketinde aynı
+    /// imza olsa da 16 harf sınırı kalır. Bu okuma artık ikinci tur tam anahtar düzeltmesiyle (<see cref="PackFuzzy.Edits"/>:
+    /// "ii" → "il") öteki oyunlarda da bulunur.
+    /// </summary>
     [Fact]
+    public void ShortLinesAreFuzzyOnlyInTheGtaPack()
+    {
+        string? Near(string title)
+        {
+            var library = new GamePackLibrary(() => [("deneme.json", ShortFuzzyPack(title, ("I'll take it.", "Alırım."), ("Get in the car right now!", "Hemen arabaya bin!")))], null);
+            library.LimitToGame(title);
+            return library.Nearest("I'II take it.");
+        }
+        Assert.Equal("Alırım.", Near("Grand Theft Auto VI"));
+        Assert.Equal("Alırım.", Near("Mafia: The Old Country"));
+        Assert.Null(PackFuzzy.Signature("I'll take it."));
+        Assert.NotNull(PackFuzzy.Signature("I'll take it.", PackFuzzy.ShortMinLength));
+    }
+
+    /// <summary>Biçim 2: Mafia paketinde parçalar ve imzalar da var; hiç tam eşleşme olmadan bulanık arama yapılmaz.</summary>
+    [RealPackFact]
     public void VersionTwoPackHasSegmentsAndSignatures()
     {
         var (name, data) = EmbeddedOnly("mafia-the-old-country.json.gz").Single();
@@ -207,22 +281,25 @@ public class GamePackTests
         var library = new GamePackLibrary(() => EmbeddedOnly("mafia-the-old-country.json.gz"), null);
         const string garbled = "All this will bébehind u soon: Uötil'then don't let any of these båétards getpyou, alrightiz:t";
         Assert.Null(library.SearchScope);
+        Assert.Null(library.ScopeTitle);
         Assert.Null(library.Nearest(garbled));
         Assert.Equal("Che buono.", library.Find("Che buono."));
         Assert.NotNull(library.Find("then clear the way for someone who does."));
         Assert.NotNull(library.Find("You fucked up now, boy!"));
         Assert.Equal("mafia-the-old-country", library.SearchScope);
+        // Oynanan oyunun adı yapay zekâya bağlam olarak gider.
+        Assert.Equal(library.Packs.Single().Title, library.ScopeTitle);
+        Assert.False(string.IsNullOrEmpty(library.ScopeTitle));
         Assert.Equal(library.Find("All this will be behind us soon. Until then don’t let any of these bastards get to you, alright?"), library.Nearest(garbled));
     }
 
-    /// <summary>Assassin's Creed Shadows, Death Stranding 2, Modern Warfare (2019), Elden Ring, Death Stranding Director's Cut ve
-    /// Marvel's Spider-Man 2 paketleri de uygulamaya gömülüdür.</summary>
-    [Theory]
+    /// <summary>Assassin's Creed Shadows, Death Stranding 2, Modern Warfare (2019), Elden Ring ve Marvel's
+    /// Spider-Man 2 paketleri de uygulamaya gömülüdür.</summary>
+    [RealPackTheory]
     [InlineData("assassins-creed-shadows", "Assassin's Creed Shadows", 39000)]
     [InlineData("death-stranding-2", "Death Stranding 2: On the Beach", 23000)]
     [InlineData("call-of-duty-modern-warfare-2019", "Call of Duty: Modern Warfare (2019)", 50000)]
     [InlineData("elden-ring", "Elden Ring + Shadow of the Erdtree", 37000)]
-    [InlineData("death-stranding-directors-cut", "Death Stranding Director's Cut", 1200)]
     [InlineData("marvels-spider-man-2", "Marvel's Spider-Man 2", 2000)]
     public void MoreEmbeddedPacksLoad(string id, string title, int minimum)
     {
@@ -233,7 +310,7 @@ public class GamePackTests
         Assert.True(pack.BuiltIn);
     }
 
-    [Fact]
+    [RealPackFact]
     public void MoreEmbeddedPacksTranslate()
     {
         var library = new GamePackLibrary(GamePackLibrary.EmbeddedPacks, null);
@@ -246,8 +323,60 @@ public class GamePackTests
         Assert.Equal("Konumuma hava ikmali talep ediyorum!", library.Find("Requesting air drop on my position!"));
         Assert.Equal("Lekeli yakında geri dönecek.", library.Find("The Tarnished will soon return."));
         Assert.Equal("Margit, Uğursuz Alâmet", library.Find("Margit, the Fell Omen"));
-        Assert.Equal("Senin gibi kuru kalmaya çalışıyorum. Zaman yağmuru dindi. Adım Fragile.",
-            library.Find("Trying to stay dry, same as you. Timefall’s let up. My name is Fragile."));
         Assert.Equal("Odaklan! Avcılar! Çok fazlalar!", library.Find("Focus! Hunters! Lots of them!"));
+    }
+}
+
+public class GameCoverStoreTests
+{
+    [Theory]
+    [InlineData("../gta-v")]
+    [InlineData("gta/v")]
+    [InlineData("GTA-V")]
+    [InlineData("")]
+    [InlineData("gta-v.png")]
+    public void UnsafePackIdsHaveNoCoverPath(string id)
+    {
+        Assert.Null(GameCoverStore.PathFor(id, Path.GetTempPath()));
+    }
+
+    [Fact]
+    public void UserCoverIsStoredLocallyAndCanBeRemovedWithoutTouchingGamePacks()
+    {
+        var directory = PackFixtures.TemporaryDirectory();
+        try
+        {
+            var path = GameCoverStore.PathFor("gta-v", directory);
+            Assert.Equal(Path.Combine(directory, "gta-v.png"), path);
+            Assert.False(File.Exists(path));
+
+            var png = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+V8dMAAAAASUVORK5CYII=");
+            GameCoverStore.Save("gta-v", png, directory);
+            Assert.Equal(png, File.ReadAllBytes(path!));
+
+            Assert.True(GameCoverStore.Remove("gta-v", directory));
+            Assert.False(File.Exists(path));
+            Assert.False(GameCoverStore.Remove("gta-v", directory));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
+    public void OversizedOrNonPngCoverNeverOverwritesAnExistingCover()
+    {
+        var directory = PackFixtures.TemporaryDirectory();
+        try
+        {
+            var png = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+V8dMAAAAASUVORK5CYII=");
+            GameCoverStore.Save("elden-ring", png, directory);
+            Assert.Throws<InvalidDataException>(() =>
+                GameCoverStore.Save("elden-ring", new byte[GameCoverStore.MaxCoverBytes + 1], directory));
+            Assert.Throws<InvalidDataException>(() =>
+                GameCoverStore.Save("elden-ring", [0xff, 0xd8, 0xff], directory));
+            Assert.Equal(png, File.ReadAllBytes(GameCoverStore.PathFor("elden-ring", directory)!));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
     }
 }

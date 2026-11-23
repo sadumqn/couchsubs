@@ -1,0 +1,1 @@
+0.9.21: The TV screen now stays on while you play on the PS5, and the app asks the TV for game mode (low latency). The waiting screen now says you can start from your phone too; a computer is not required. Store description updated: a phone or a computer is enough.

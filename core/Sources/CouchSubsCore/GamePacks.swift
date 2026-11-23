@@ -39,6 +39,20 @@ public enum PackKey {
         return SHA256.hash(data: Data(canon.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Zaten canon olan metnin (`canon`) anahtarı sayı olarak: `number(key(canon))` ile aynı, onaltılık yazıya
+    /// çevirmeden (düzeltme adaylarında binlerce kez çağrılır). Boşsa nil.
+    static func canonNumber(_ canon: String) -> UInt64? {
+        canonNumber(bytes: Array(canon.utf8))
+    }
+
+    /// `canonNumber`, canon metnin UTF-8 baytlarından.
+    static func canonNumber(bytes: [UInt8]) -> UInt64? {
+        guard !bytes.isEmpty else { return nil }
+        return SHA256.hash(data: bytes).withUnsafeBytes { raw in
+            raw.prefix(8).reduce(UInt64(0)) { $0 << 8 | UInt64($1) }
+        }
+    }
+
     /// Anahtarın sayı hâli (sözlükte daha az yer tutar); geçersizse nil.
     public static func number(_ key: String) -> UInt64? {
         guard key.utf8.count == 16 else { return nil }
@@ -209,10 +223,25 @@ public final class GamePackLibrary: @unchecked Sendable {
     /// Son tam eşleşmenin geldiği paket: bulanık arama yalnız orada yapılır (oynanan oyun). Satır birden çok pakette
     /// varsa kapsam o paketlerden biri değilse ilkine geçer; hiç tam eşleşme olmadıysa bulanık arama yapılmaz.
     private var scope: Int?
+    private var distinctive: Int?
     private var infos: [Info] = []
+    /// Paketlerin dosyaları (`infos` sırasıyla): elle seçilen oyunun paketi yalnız kendi satırlarıyla buradan okunur.
+    private var files: [URL] = []
+    /// Elle seçilen oyunun adı (`GameName.key`); nil ise bütün paketlerde aranır.
+    private var limitKey: String?
+    /// Elle seçilen oyunun paketi (bulunduysa) ya da `.missing`; nil ise henüz aranmadı.
+    private var limited: Limited?
 
-    public init(bundled: URL?, user: URL?) {
-        directories = [bundled.map { (url: $0, builtIn: true) }, user.map { (url: $0, builtIn: false) }].compactMap { $0 }
+    private enum Limited {
+        case missing
+        case pack(index: Int, pack: GamePack, search: Searchable)
+    }
+
+    /// `imported`: telefonda Ayarlar › Oyun paketleri'nden içe aktarılan topluluk paketleri (`GamePackImporter`). En son
+    /// okunur, aynı satırda kazanır; sunucudan paket güncellenirken silinmesin diye indirilenlerden ayrı klasördedir.
+    public init(bundled: URL?, user: URL?, imported: URL? = nil) {
+        directories = [bundled.map { (url: $0, builtIn: true) }, user.map { (url: $0, builtIn: false) },
+                       imported.map { (url: $0, builtIn: false) }].compactMap { $0 }
     }
 
     /// Kurulu paketler; ilk çağrıda yüklenir.
@@ -243,9 +272,57 @@ public final class GamePackLibrary: @unchecked Sendable {
         }
     }
 
+    /// Kullanıcının elle seçtiği oyun (`GameSense.packLimit`). Verilirse satırlar yalnız o oyunun paketinde aranır
+    /// (tam ve bulanık), paketi yoksa hiç aranmaz: paketi olmayan oyunda "Let's go." gibi kısa, genel satırlar başka
+    /// oyunların paketinden yanlış çeviri getiriyor, oyunu da o pakete kaydırıyordu (#218). nil: bütün paketlerde aranır.
+    public func limit(toGame name: String?) {
+        let key = name.map(GameName.key).flatMap { $0.isEmpty ? nil : $0 }
+        lock.withLock {
+            guard key != limitKey else { return }
+            limitKey = key
+            limited = nil
+            scope = nil
+            distinctive = nil
+        }
+    }
+
+    /// Elle seçilen oyunun paketi: adı ya da kimliği (`GameName.key`) aynı olan son paket, yalnız kendi satırlarıyla.
+    /// Sınır yoksa nil. Dosya kilit dışında okunur; aynı seçimde bir kez.
+    private func resolveLimit() -> Limited? {
+        let (key, known, candidate) = lock.withLock { () -> (String?, Limited?, (index: Int, url: URL)?) in
+            loadIfNeeded()
+            guard let key = limitKey else { return (nil, nil, nil) }
+            if let limited { return (key, limited, nil) }
+            let index = infos.indices.last { index in
+                infos[index].id != GameSense.generalPack
+                    && (GameName.key(infos[index].title) == key || GameName.key(infos[index].id) == key)
+            }
+            return (key, nil, index.flatMap { $0 < files.count ? ($0, files[$0]) : nil })
+        }
+        guard let key else { return nil }
+        if let known { return known }
+        var found = Limited.missing
+        if let candidate, let data = try? Data(contentsOf: candidate.url),
+           let pack = try? GamePack.decode(data, name: Self.baseName(candidate.url)) {
+            found = .pack(index: candidate.index, pack: pack, search: Searchable(keys: pack.keys, fuzzy: pack.fuzzy))
+        }
+        lock.withLock {
+            // Bu arada seçim değiştiyse ya da paketler yeniden okunduysa sonuç saklanmaz.
+            if limitKey == key, limited == nil, candidate.map({ $0.index < files.count && files[$0.index] == $0.url }) ?? true {
+                limited = found
+            }
+        }
+        return found
+    }
+
     /// Satırın paketteki Türkçesi (bkz. `PackLookup`); yoksa nil. Tam anahtar bulunmazsa oynanan oyunun paketinde
-    /// OCR hatalarına dayanıklı bulanık arama yapılır.
+    /// OCR hatalarına dayanıklı bulanık arama yapılır. Kullanıcı elle oyun seçtiyse yalnız o oyunun paketinde aranır.
     public func match(_ text: String) -> PackMatch? {
+        switch resolveLimit() {
+        case .missing?: return nil
+        case .pack(let index, let pack, let search)?: return match(text, limitedTo: index, pack: pack, search: search)
+        case nil: break
+        }
         let (entries, searchable) = lock.withLock {
             loadIfNeeded()
             return (self.entries, self.searchable)
@@ -259,13 +336,52 @@ public final class GamePackLibrary: @unchecked Sendable {
             return turkish
         }, nearest: { line in
             if let known = asked[line] { return known }
-            guard let index = self.lock.withLock({ self.scope }).flatMap({ $0 < searchable.count ? searchable[$0].fuzzy : nil }) else {
+            guard let pack = self.lock.withLock({ self.scope }).flatMap({ $0 < searchable.count ? searchable[$0] : nil }) else {
                 return nil
             }
-            let found = index.nearest(line, translation: { entries[$0] }).flatMap { entries[$0] }
+            let found = Self.corrected(line, in: pack, translation: { entries[$0] })
+                ?? pack.fuzzy?.nearest(line, translation: { entries[$0] }).flatMap { entries[$0] }
             asked[line] = found
             return found
         })
+    }
+
+    /// Elle seçilen oyunun paketinde arama: Türkçe o paketin kendisinden gelir (başka oyunun aynı satırdaki çevirisi
+    /// değil), bulanık arama da hep o pakette yapılır.
+    private func match(_ text: String, limitedTo index: Int, pack: GamePack, search: Searchable) -> PackMatch? {
+        let own: (UInt64) -> String? = { pack.entries[$0] ?? pack.segments[$0] }
+        var asked: [String: String?] = [:]
+        return PackLookup.match(text, find: { line in
+            guard let number = PackKey.key(line).flatMap(PackKey.number), let turkish = own(number) else { return nil }
+            self.lock.withLock {
+                self.scope = index
+                self.distinctive = index
+            }
+            return turkish
+        }, nearest: { line in
+            if let known = asked[line] { return known }
+            let found = Self.corrected(line, in: search, translation: own)
+                ?? search.fuzzy?.nearest(line, translation: own).flatMap(own)
+            asked[line] = found
+            return found
+        })
+    }
+
+    /// Tek OCR düzeltmesiyle (`PackFuzzy.variants`, hiçbiri tutmazsa `PackFuzzy.edits`) oynanan oyunun paketinde tam
+    /// bulunan satırın Türkçesi; aynı turdaki düzeltmelerin hepsi aynı Türkçeye çıkmıyorsa nil.
+    private static func corrected(_ line: String, in pack: Searchable, translation: (UInt64) -> String?) -> String? {
+        let rounds: [() -> [UInt64]] = [{ PackFuzzy.variants(line).compactMap(PackKey.canonNumber) },
+                                        { Array(PackFuzzy.editKeys(line)) }]
+        for round in rounds {
+            var found: String?
+            for number in round() {
+                guard pack.contains(number), let turkish = translation(number) else { continue }
+                if let earlier = found, earlier != turkish { return nil }
+                found = turkish
+            }
+            if found != nil { return found }
+        }
+        return nil
     }
 
     /// Bulanık aramanın yapılacağı paketin kimliği (son tam eşleşmenin paketi); yoksa nil.
@@ -273,11 +389,28 @@ public final class GamePackLibrary: @unchecked Sendable {
         lock.withLock { scope.flatMap { $0 < infos.count ? infos[$0].id : nil } }
     }
 
+    /// Son tam eşleşmenin geldiği paketin başlığı; yoksa nil. Tek satırla değişebilir: yapay zekâya giden oyun adı bu
+    /// değil, `GameSense.current`tır (#27).
+    public var scopeTitle: String? {
+        lock.withLock { scope.flatMap { $0 < infos.count ? infos[$0].title : nil } }
+    }
+
+    /// Son `takeDistinctiveHit` çağrısından beri yalnız tek bir pakette bulunan satırın paketi; okununca silinir.
+    /// Okunan satırlar art arda aynı paketten geliyorsa oynanan oyun o pakettir (`GameSense`). Birkaç pakette ortak
+    /// satırlar ("Okay.", "Let's go.") sayılmaz: yoksa paketi olmayan oyunda bile alfabede ilk paket tanınırdı.
+    public func takeDistinctiveHit() -> Info? {
+        lock.withLock {
+            defer { distinctive = nil }
+            return distinctive.flatMap { $0 < infos.count ? infos[$0] : nil }
+        }
+    }
+
     private func noteHit(_ key: UInt64, in searchable: [Searchable]) {
         let owners = searchable.indices.filter { searchable[$0].contains(key) }
         guard let first = owners.first else { return }
         lock.withLock {
             if owners.count == 1 {
+                distinctive = first
                 scope = first
             } else if scope.map({ !owners.contains($0) }) ?? true {
                 scope = first
@@ -288,24 +421,27 @@ public final class GamePackLibrary: @unchecked Sendable {
     private func loadIfNeeded() {
         guard !loaded else { return }
         loaded = true
-        var packs: [(pack: GamePack, builtIn: Bool)] = []
+        var packs: [(pack: GamePack, builtIn: Bool, file: URL)] = []
         for (directory, builtIn) in directories {
             for file in Self.packFiles(in: directory) {
                 guard let data = try? Data(contentsOf: file),
                       let pack = try? GamePack.decode(data, name: Self.baseName(file)) else { continue }
                 packs.removeAll { $0.pack.id == pack.id }
-                packs.append((pack, builtIn))
+                packs.append((pack, builtIn, file))
             }
         }
         // Önce bütün paketlerin parçaları, sonra tam satırlar: bir oyunun tam satırı başka oyunun parçasına yenilmez.
         var merged: [UInt64: String] = [:]
         merged.reserveCapacity(packs.reduce(0) { $0 + $1.pack.entries.count + $1.pack.segments.count })
-        for (pack, _) in packs { merged.merge(pack.segments) { _, later in later } }
-        for (pack, _) in packs { merged.merge(pack.entries) { _, later in later } }
+        for (pack, _, _) in packs { merged.merge(pack.segments) { _, later in later } }
+        for (pack, _, _) in packs { merged.merge(pack.entries) { _, later in later } }
         entries = merged
         searchable = packs.map { Searchable(keys: $0.pack.keys, fuzzy: $0.pack.fuzzy) }
         scope = nil
+        distinctive = nil
+        limited = nil
         infos = packs.map { Info(id: $0.pack.id, title: $0.pack.title, entries: $0.pack.entries.count, builtIn: $0.builtIn) }
+        files = packs.map(\.file)
     }
 
     static func packFiles(in directory: URL) -> [URL] {
@@ -346,16 +482,21 @@ public enum PackLookup {
             var pieces: [SubtitleSegmenter.Piece] = []
             var translations: [String?] = []
             var all = true
-            for (index, line) in lines.enumerated() {
-                guard let found = single(line, find: find) else { all = false; break }
-                if index > 0 {
+            for line in lines {
+                guard let found = single(line, find: find) else {
+                    // Altyazıyla aynı bloğa düşen köşe yazısı ("San Andreas", "First Person • zoom") atlanır.
+                    if isOverlay(line) { continue }
+                    all = false
+                    break
+                }
+                if !pieces.isEmpty {
                     pieces.append(SubtitleSegmenter.Piece("\n", translate: false))
                     translations.append(nil)
                 }
                 pieces += found.pieces
                 translations += found.translations
             }
-            if all { return result(pieces, translations) }
+            if all, !pieces.isEmpty { return result(pieces, translations) }
         }
 
         // Cümle cümle (etiket, tire ve ayraçlar olduğu gibi kalır).
@@ -391,6 +532,20 @@ public enum PackLookup {
         guard let loose = looseLabel(line), let turkish = find(loose.body) else { return nil }
         let pieces = [SubtitleSegmenter.Piece(loose.label, translate: false), SubtitleSegmenter.Piece(loose.body, translate: true)]
         return (result(pieces, [nil, turkish]), pieces, [nil, turkish])
+    }
+
+    /// Altyazı olmayan köşe yazısı satırı: en çok dört sözcük; "•" içerir ("First Person • zoom") ya da noktalama yok
+    /// ve her sözcük büyük harfle başlar ("San Andreas", "Mirror Park", "LOSNN"). Yalnız başka satırlar pakette
+    /// bulunduysa atlanır. Uzun satırdaki "•" OCR lekesidir ("…with a colieague• Not that…"): o satır altyazıdır;
+    /// atlanınca iki satırlık altyazının yalnız ikinci satırının Türkçesi ("Seninle.") gösteriliyordu (#245).
+    static func isOverlay(_ line: String) -> Bool {
+        let words = line.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty, words.count <= 4 else { return false }
+        if line.contains("•") { return true }
+        return words.allSatisfy { word in
+            guard let first = word.unicodeScalars.first, first.properties.isUppercase else { return false }
+            return word.unicodeScalars.allSatisfy { PackFuzzy.isLetter($0) || PackFuzzy.isDigit($0) }
+        }
     }
 
     /// OCR'ın bozduğu konuşmacı etiketi: "-GAETANO:", "M]:", "li LUCA:", "MİNE GUARD•" (ilk 32 karakterde iki nokta ya

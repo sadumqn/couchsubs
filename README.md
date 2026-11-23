@@ -7,10 +7,14 @@
 Site, kurulum rehberi ve SSS: **[couchsubs.enmeraapps.com](https://couchsubs.enmeraapps.com)**
 
 CouchSubs, oyundaki İngilizce altyazıyı anlık okur, Türkçeye çevirir ve TV'de oyun görüntüsünün üstünde
-gösterir. Oyunu her zamanki gibi TV'de, kendi kolunuzla oynarsınız. Yazı tanıma ve çeviri bilgisayarınızda
-yapılır; altyazılar internete gönderilmez. Ücretsiz ve açık kaynaklıdır.
+gösterir. Oyunu her zamanki gibi TV'de, kendi kolunuzla oynarsınız. Yazı tanıma ve varsayılan çeviri bilgisayarınızda
+yapılır; oyun görüntüsü internete gönderilmez. Hazır paketlerde bulunmayan İngilizce altyazı satırları varsayılan olarak
+açık olan ortak havuza gönderilebilir (ayarlardan kapatılabilir). Çevrimiçi çeviriyi seçerseniz metin ilgili hizmete de
+gönderilir. Ayrıntılar: [Gizlilik](PRIVACY.md). Ücretsiz ve açık kaynaklıdır.
 
 *English below.*
+
+TV bağlantısında eşleştirme kodu veya OBS erişim anahtarı için [TV eşleştirme rehberine](docs/tv-pairing.md) bakın.
 
 ## Oyunda nasıl görünüyor
 
@@ -38,7 +42,12 @@ https://github.com/user-attachments/assets/bb8569d8-115d-49c7-a772-da2d9e171c17
 | **Bilgisayar ekranındaki altyazı penceresi** | |
 | <img src="docs/screenshots/windows/pencere.png" width="420" alt="Altyazı penceresi tasarımı"> | |
 
-**Telefon uygulaması (yakında)** (tasarım; o da tamamen ücretsiz, hesap gerekmez; yatay altyazı ekranı:
+Windows'ta oyun paketlerinin kare rozetine tıklayarak kendi **PNG/JPEG oyun kapağınızı** seçebilirsiniz.
+Görsel 128×128 PNG olarak yalnız bilgisayarınızdaki
+`%LOCALAPPDATA%\CouchSubs\covers` klasörüne kaydedilir; sağ tıkla kaldırılabilir. Kapak yoksa
+ACS/COD gibi kısaltma görünür. Uygulama telifli oyun görsellerini indirmez veya dağıtmaz.
+
+**Telefon uygulaması** (Android: [Google Play](https://play.google.com/store/apps/details?id=com.couchsubs.mobile); iPhone yakında; tasarım; o da tamamen ücretsiz, hesap gerekmez; yatay altyazı ekranı:
 [09-altyazi.png](docs/screenshots/telefon/09-altyazi.png)):
 
 | | | | |
@@ -57,6 +66,9 @@ https://github.com/user-attachments/assets/bb8569d8-115d-49c7-a772-da2d9e171c17
 | **Mac** (macOS 13+, Apple Silicon ve Intel) | **[CouchSubs-macos.dmg](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-macos.dmg)** |
 | **Windows** 10 / 11 (64 bit) | **[CouchSubs-windows-Setup.exe](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-windows-Setup.exe)** |
 
+**Android telefon** (Android 8+, 64 bit; bilgisayar gerekmez): **[Google Play'den indirin](https://play.google.com/store/apps/details?id=com.couchsubs.mobile)** (Play Store'da
+"CouchSubs: Türkçe Yama"). Daha önce siteden APK kurduysanız Play sürümünden önce onu silin.
+
 TV uygulamasını ayrıca indirmeniz gerekmez: bilgisayar uygulaması TV'nize kendisi kurar. Uygulama yeni sürümleri
 kendisi bulur ve tek tıkla günceller. Kurulum istemeyenler için zip paketleri de duruyor:
 [Mac](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-macos.zip) ·
@@ -71,7 +83,7 @@ kendisi bulur ve tek tıkla günceller. Kurulum istemeyenler için zip paketleri
 |---|---|
 | **LG** (webOS 4 ve üstü) | Gerçek TV'de denendi. Uygulamayı CouchSubs kendisi kurar |
 | **Samsung** (Tizen, 2019 ve sonrası) | Gerçek TV'de denendi (75" Neo QLED). Uygulamayı CouchSubs kendisi kurar; bir kez Samsung hesabıyla giriş istenir |
-| **Samsung** (Tizen 3.0–4.0, 2017–2018) | Deneysel: bir kullanıcı UE43MU7000U'da (2017) elle kurup çalıştırdı; CouchSubs'ın kendi kurulumu bu TV'lerde henüz denenmedi ([ayrıntı](docs/tv-kurulum.md#20172018-samsung-tvler-deneysel)) |
+| **Samsung** (Tizen 2.4–4.0, 2016–2018) | Deneysel: kullanıcılar UE43MU7000U'da (2017) ve 40KU7000'de (2016) elle kurup çalıştırdı; CouchSubs'ın kendi kurulumu bu TV'lerde henüz denenmedi ([ayrıntı](docs/tv-kurulum.md#20162018-samsung-tvler-deneysel)) |
 | **Android TV / Google TV** (Vestel, Arçelik, Beko, Grundig, Philips ve diğerleri) | Gerçek TV'de denendi. Uygulamayı CouchSubs ağ üzerinden kendisi kurar |
 | Vestel, Arçelik, Beko, Grundig'in Linux modelleri, Philips Saphi ve Titan OS | Desteklenmiyor: uygulama kurmanın bir yolunu bulamadık |
 
@@ -100,7 +112,7 @@ yalnız altyazıyı okumak için kullanır. Siz oyunu HDMI'dan, gecikmesiz oynam
 - Bilgisayar, şunlardan biri:
   - **Mac:** macOS 13 Ventura veya üstü, Apple Silicon (M1 ve sonrası) ya da Intel. Apple'ın ücretsiz çevirisi
     macOS 26 ister; daha eski macOS'ta oyun paketleri, Gemini (ücretsiz anahtar), DeepL ya da yapay zekâ çevirisi kullanılır
-  - **Windows:** Windows 10 (2004) veya 11, 64 bit; ilk açılışta çeviri modeli için yaklaşık 530 MB indirme
+  - **Windows:** Windows 10 (2004) veya 11, 64 bit; ilk açılışta çeviri modeli için yaklaşık 475 MB indirme
 
 ## Kurulum
 
@@ -122,15 +134,17 @@ yalnız altyazıyı okumak için kullanır. Siz oyunu HDMI'dan, gecikmesiz oynam
   uygulamayı uzun süre kullanmazsanız TV'deki Developer Mode uygulamasından **EXTEND** ile uzatın.
 - Samsung'da TV, CouchSubs TV uygulaması açıkken sürekli HDMI 1'e ya da başka bir kaynağa geçiyorsa TV'de
   **Ayarlar › Tüm Ayarlar › Bağlantı › Harici Cihaz Yöneticisi** altında **Anynet+ (HDMI-CEC)** ve **Otomatik Kaynak
-  Değiştirme**'yi kapatın. Samsung TV'yi yeniden başlatmak için güç tuşunu yaklaşık 2 saniye basılı tutun; kısa basınca
+  Değiştirme**'yi kapatın. Samsung TV'yi yeniden başlatmak için güç tuşunu TV kapanıp Samsung logosuyla
+  yeniden açılana kadar (yaklaşık 5 saniye) basılı tutun ya da fişini 30 saniye çekin; TV kapanınca bırakırsanız
   yalnız bekleme moduna geçer.
 - Altyazı, oyunda altyazı açıksa okunabilir. Bölgeyi **Ayarlar › Altyazı alanı**'ndan oyuna göre ayarlayabilirsiniz.
-- **Kısayollar** (yalnız çeviri sürerken, CouchSubs arka plandayken de çalışır): Windows'ta **Num 9** ya da
-  **Ctrl+Shift+9** ekranı çevirir, **Num 1–3** / **Ctrl+Shift+1–3** ek bölgeleri, **Num 5** / **Ctrl+Shift+5** serbest
-  alanı çevirir, **Num 0** / **Ctrl+Shift+0** canlı altyazıyı duraklatır, **Num 7** / **Ctrl+Shift+7** altyazı
-  penceresinde tıklamaları geçirir, **Num 8** / **Ctrl+Shift+8** ayarlardaki görüntüyü yeniler. Sayı tuş takımı
-  olmayan dizüstünde harflerin üstündeki rakamlar Ctrl+Shift ile kullanılır. Mac'te ekranı çevir **⌥⌘T**,
-  tıklamalar **⌥⌘L**.
+- **Kısayollar** (yalnız çeviri sürerken, CouchSubs arka plandayken de çalışır): **Num 9** ya da
+  **Ctrl+Shift+9** (Mac'te **⌃⇧9**) ekranı çevirir, **Num 1–3** / **Ctrl+Shift+1–3** ek alanları, **Num 5** /
+  **Ctrl+Shift+5** serbest alanı çevirir, **Num 0** / **Ctrl+Shift+0** canlı altyazıyı duraklatır, **Num 7** /
+  **Ctrl+Shift+7** altyazı penceresinde tıklamaları geçirir, **Num 8** / **Ctrl+Shift+8** ayarlardaki görüntüyü
+  yeniler. Sayı tuş takımı olmayan klavyede harflerin üstündeki rakamlar Ctrl+Shift (Mac'te ⌃⇧) ile kullanılır.
+  Windows'ta ve Mac'te tuşlar **Ayarlar › Kısayollar**'dan değiştirilebilir. Önceki sürümden gelen Mac'lerde **⌥⌘T** (ekranı
+  çevir) ve **⌥⌘L** (tıklamalar) da çalışmayı sürdürür.
 - Çeviri makine çevirisidir; bazı cümleler kusurlu olabilir.
 
 ## Yerel yapay zekâ ile çeviri (Ollama, LM Studio)
@@ -140,12 +154,15 @@ altyazı metni bilgisayardan çıkmaz. Hız bilgisayarınıza bağlıdır; ekran
 7-8 milyar parametreli bir model (ör. Qwen 2.5 7B) bir altyazıyı genellikle bir iki saniyede çevirir. Model yanıt
 vermezse o satır her zamanki ücretsiz çeviriyle gelir.
 
+Ekran kartınıza göre hangi modelin (Gemma 4) seçileceği, PolyStrata ve LM Studio ile büyük modeli küçük kartta
+çalıştırma ve sansürsüz çeviri için hazır Ek talimat: [docs/yerel-model.md](docs/yerel-model.md) (topluluk rehberi).
+
 **Ollama ile**
 
 1. [ollama.com/download](https://ollama.com/download)'dan Ollama'yı kurup açın.
 2. Terminal'de (Windows'ta PowerShell) modeli indirin: `ollama pull qwen2.5:7b`
 3. CouchSubs'ta **Ayarlar › Çeviri › Çeviri motoru › Yerel model**'i seçin. Sunucu adresi
-   `http://localhost:11434/v1`, model adı `qwen2.5:7b` olarak gelir; **Bağlantıyı dene**'ye basın.
+   `http://127.0.0.1:11434/v1`, model adı `qwen2.5:7b` olarak gelir; **Bağlantıyı dene**'ye basın.
 
 **LM Studio ile**
 
@@ -158,6 +175,16 @@ Başka bir bilgisayardaki ya da OpenAI uyumlu başka bir sunucuyu da adresini ya
 istiyorsa **API anahtarı (isteğe bağlı)** alanına yazın. İlk istek modeli belleğe yüklediği için uzun sürebilir;
 Bağlantıyı dene bunu da bekler. Çeviriler sunucu adresi ve model adıyla ayrı saklanır; modeli değiştirince eski
 modelin çevirileri karışmaz.
+
+Yerel model sıcaklık 0 ile çalışır: aynı satır her seferinde aynı çevrilir. Ollama'ya giden her istek modeli 24 saat
+bellekte tutar (`keep_alive`); oyunda uzun süre altyazı çıkmasa da ilk satır modelin yeniden yüklenmesini beklemez.
+Modeli daha erken boşaltmak isterseniz `ollama stop <model>` yazın. LM Studio'da modelin bellekte kalma süresi LM
+Studio'nun kendi ayarlarındadır.
+
+**Ek talimat:** Yapay zekâ motorlarında (Gemini, OpenAI, Claude, yerel model) Ayarlar'daki çeviri motoru bölümünde bulunan
+**Ek talimat** kutusuna yazdığınız metin çevirmenin talimatının sonuna eklenir (en çok 1000 karakter). Örneğin
+"Küfürleri yumuşatmadan çevir." yazabilirsiniz. Boş bırakılırsa hiçbir şey değişmez; talimatı değiştirince önceki
+talimatla yapılmış çeviriler yeniden kullanılmaz.
 
 ## Gizlilik
 
@@ -196,6 +223,17 @@ Mac ve Windows paketleri bu dosyayı içerir, bu yüzden Mac paketinden önce de
 
 Sürümler `v*` etiketiyle `.github/workflows/release.yml` tarafından derlenip yayınlanır.
 
+**PR kontrolleri**
+
+`.github/workflows/pr-tests.yml`, dış katkılar dahil pull request'lerde, yalnız ilgili klasör değiştiyse, üç ayrı kontrol çalıştırır:
+Windows'ta .NET test projeleri, macOS'ta `core/` için `swift test`, Android telefonda JVM birim testleri.
+Native kütüphane derlemez, çeviri/TTS modeli veya TV kurulum paketi indirmez; paketleme, imzalama ve yayın yapmaz.
+Native/model dosyası ya da özel benchmark girdisi isteyen testler, Android TV paket testiyle birlikte,
+bağımlılıkları yoksa atlanmış olarak raporlanır. Sonuçlar Actions kayıtlarında ve 7 gün saklanan
+`pr-*-test-results` çıktılarındadır (Windows TRX, Swift test kaydı, Android JUnit XML/HTML).
+Bu kontroller gerçek TV/PS5 bağlantısı, model kalitesi veya uçtan uca gecikme testinin yerine geçmez;
+mevcut paketleme ve sürüm iş akışları ayrıca çalışmaya devam eder.
+
 ## Klasörler
 
 - `mac/` – macOS uygulaması (SwiftUI, Vision, Translation)
@@ -226,25 +264,27 @@ CouchSubs, Sony Interactive Entertainment ile bağlantılı değildir ve onun ta
 
 CouchSubs reads the English subtitles of PS5 games in real time, translates them and shows the translation
 on your TV on top of the game picture. You keep playing on the TV with your own controller; text recognition
-and translation run on your computer, and subtitles are never sent to the internet.
+and default translation run on your computer, and game frames are never uploaded. English subtitle lines not found
+in game packs may be sent to the shared pool (enabled by default, opt-out in Settings). Choosing online translation
+also sends subtitle text to the selected provider. See [Privacy](PRIVACY.md) for details.
 
 **You need:** a PS5 and a supported TV on the same network as your computer, a free second
 PlayStation Network account, and either a Mac on macOS 13 Ventura or later (Apple Silicon or Intel) or a 64-bit Windows 10 (2004)
 or 11 PC. Apple's free on-device translation needs macOS 26; on older macOS the game packs, Gemini (free key), DeepL or
 AI translation are used.
 
-**TVs:** LG, Samsung (2019 and later; 2017–2018 models experimental) and Android TV / Google TV such as Vestel,
+**TVs:** LG, Samsung (2019 and later; 2016–2018 models experimental) and Android TV / Google TV such as Vestel,
 Arçelik, Beko, Grundig and Philips, all tested on real TVs. CouchSubs installs the TV app on all of them. Mac and
 Windows are tested on real hardware.
 
-**Download:** [Mac (DMG)](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-macos.dmg) · [Windows (installer)](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-windows-Setup.exe). The app finds new versions and updates itself.
+**Download:** [Mac (DMG)](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-macos.dmg) · [Windows (installer)](https://github.com/yorulmazsinan/couchsubs/releases/latest/download/CouchSubs-windows-Setup.exe) · [Android phone (Google Play)](https://play.google.com/store/apps/details?id=com.couchsubs.mobile). The app finds new versions and updates itself.
 
 **Screenshots:** the Mac app ([main screen](docs/screenshots/mac/ana.png),
 [setup](docs/screenshots/mac/kurulum.png), [translation settings](docs/screenshots/mac/ayarlar-ceviri.png),
 [game packs](docs/screenshots/mac/ayarlar-paketler.png)), the Windows design
 ([main screen](docs/screenshots/windows/ana.png), [setup](docs/screenshots/windows/kurulum.png),
 [translation](docs/screenshots/windows/ceviri.png), [game packs](docs/screenshots/windows/paketler.png),
-[subtitle window](docs/screenshots/windows/pencere.png)) and the design of the upcoming phone app
+[subtitle window](docs/screenshots/windows/pencere.png)) and the design of the phone app
 ([docs/screenshots/telefon](docs/screenshots/telefon)). Everything is free, game packs included; no account is needed.
 
 **Setup:** open the app and follow the setup assistant. On the TV step it shows how to turn on developer mode for your
@@ -253,13 +293,15 @@ Samsung account once; Android TV: allow debugging on the TV). Guide: [docs/tv-se
 On Windows, if SmartScreen appears, choose **More info › Run anyway**.
 
 **Local AI translation:** in **Settings › Translation** choose **Local model** to translate with a model running on your
-own computer through [Ollama](https://ollama.com) (`ollama pull qwen2.5:7b`, address `http://localhost:11434/v1`) or
+own computer through [Ollama](https://ollama.com) (`ollama pull qwen2.5:7b`, address `http://127.0.0.1:11434/v1`) or
 [LM Studio](https://lmstudio.ai) (local server, `http://localhost:1234/v1`). No key, quota or cost, and subtitle text
-stays on your computer; **Test connection** checks the server and the model.
+stays on your computer; **Test connection** checks the server and the model. Which model fits your graphics card
+(community guide, Turkish): [docs/yerel-model.md](docs/yerel-model.md).
 
 **Shortcuts** (while translating, even with CouchSubs in the background): on Windows **Num 9** or **Ctrl+Shift+9**
 translates the screen; Num 1–3, 5, 0, 7 and 8 also work as Ctrl+Shift+1–3, 5, 0, 7 and 8, so laptops without a numeric
-keypad can use them. On a Mac: **⌥⌘T** translates the screen, **⌥⌘L** toggles click-through.
+keypad can use them (on a Mac the same keys with **⌃⇧**). The keys can be changed in **Settings › Keyboard shortcuts**
+on Windows and Mac. Macs upgraded from an earlier version keep **⌥⌘T** and **⌥⌘L** as the second keys.
 
 Copyright (C) 2026 Sinan Yorulmaz. Licensed under the [GNU AGPL-3.0](LICENSE) (forks must keep this notice, see
 [NOTICE](NOTICE)); third-party components are listed in

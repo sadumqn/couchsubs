@@ -69,4 +69,39 @@ public class FallbackWatchTest {
         assertFalse(watch.shouldSwitch(2 * LIMIT, true, true));
         assertTrue(watch.shouldSwitch(2 * LIMIT + 5_000, true, true));
     }
+
+    @Test
+    public void blackScreenIsReportedEvenWhenTheInputLooksEmpty() {
+        // Vestel: PS5 HDMI 2'de, uygulama HDMI 1'i açtı. Giriş boş görünür; katmana geçilmez ama giriş seçici çıkmalı.
+        FallbackWatch watch = new FallbackWatch();
+        watch.trouble(0);
+        assertFalse(watch.noPicture(LIMIT - 1));
+        assertTrue(watch.noPicture(LIMIT));
+        watch.videoAvailable();
+        assertFalse(watch.noPicture(10 * LIMIT));
+    }
+
+    @Test
+    public void pushedToBackgroundRightAfterTuningIsATakeover() {
+        // MediaTek Google TV: TV kendi HDMI oynatıcısını ~1,3 sn sonra öne çekti.
+        FallbackWatch watch = new FallbackWatch();
+        assertFalse(watch.takenOver(1_000, true));
+        watch.tuned(1_000);
+        assertTrue(watch.takenOver(2_300, true));
+        assertFalse(watch.takenOver(2_300, false));
+        assertFalse(watch.takenOver(1_000 + FallbackWatch.TAKEOVER_MS, true));
+    }
+
+    @Test
+    public void userLeavingAfterPictureCameIsNotATakeover() {
+        FallbackWatch watch = new FallbackWatch();
+        watch.tuned(1_000);
+        // Görüntü gelmedi (#42'deki TV'ler): sistem ekranı işaret verse de devralma sayılır.
+        assertTrue(watch.takenOver(2_300, true, true));
+        // Görüntü uygulamada geldi, kullanıcı Ana ekrana bastı: katmana geçilmez.
+        watch.videoAvailable();
+        assertFalse(watch.takenOver(2_300, true, true));
+        // İşaret yoksa eski davranış sürer.
+        assertTrue(watch.takenOver(2_300, true, false));
+    }
 }

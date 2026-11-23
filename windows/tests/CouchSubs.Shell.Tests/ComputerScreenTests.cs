@@ -199,6 +199,36 @@ public class ComputerScreenTests
         controller.Stop();
     }
 
+    /// <summary>
+    /// "Yalnız OBS (yayın)": TV eşleşmiş olsa da aranmaz ve açık tutulmaz, bilgisayar ekranında pencere açılmaz; çeviri TV'siz de
+    /// başlar (OBS katmanı olayları sunucudan alır). Mac ile aynı test.
+    /// </summary>
+    [Fact]
+    public async Task ObsOnlyStartsWithoutTvAndOpensNoWindow()
+    {
+        var services = new FakeServices();
+        var store = StoreWithoutTv();
+        store.Save(StoreKeys.Tv, new LgTv("LG TV", "127.0.0.1"));
+        store.Save(StoreKeys.TvKey, "tv-key");
+        var controller = Make(services, store);
+        controller.Settings = controller.Settings with { Output = SubtitleOutput.Obs };
+        Assert.True(controller.CanStart);
+        Assert.False(controller.ShowsOnTv);
+        Assert.False(controller.ShowsOnComputer);
+        var received = new List<SubtitleEvent>();
+        controller.OverlayEvent += received.Add;
+        await controller.StartAsync();
+        Assert.True(controller.IsRunning);
+        Assert.Empty(services.Keepers);
+        controller.SendTestSubtitle();
+        Assert.Empty(received);
+        controller.Stop();
+        var alone = Make();
+        alone.Settings = alone.Settings with { Output = SubtitleOutput.Obs };
+        Assert.True(alone.CanStart);
+        Assert.Contains("\"Output\":\"Obs\"", JsonSerializer.Serialize(alone.Settings));
+    }
+
     [Fact]
     public async Task PairingTvAfterNoTvChoiceSendsSubtitlesToTv()
     {
@@ -231,6 +261,44 @@ public class ComputerScreenTests
         controller.OverlayEvent += received.Add;
         controller.SendTestSubtitle();
         Assert.Empty(received);
+    }
+
+    /// <summary>Yayın penceresi altyazı yalnız TV'deyken de satırları alır (yayın ekrandaki seçimden bağımsız).</summary>
+    [Fact]
+    public void StreamWindowReceivesSubtitlesEvenOnTvOnly()
+    {
+        var controller = Make();
+        var received = new List<SubtitleEvent>();
+        controller.StreamEvent += received.Add;
+        controller.SendTestSubtitle();
+        Assert.Equal(SubtitleEventKind.Subtitle, Assert.Single(received).Kind);
+    }
+
+    [Fact]
+    public async Task StopHidesStreamWindow()
+    {
+        var controller = Make();
+        controller.Settings = controller.Settings with { Output = SubtitleOutput.Both };
+        await controller.StartAsync();
+        var hidden = 0;
+        controller.StreamHidden += () => hidden++;
+        controller.Stop();
+        Assert.Equal(1, hidden);
+    }
+
+    [Fact]
+    public void StreamBackgroundIsSavedAndDefaultsToGreen()
+    {
+        var store = StoreWithoutTv();
+        var controller = Make(store: store);
+        Assert.Equal(StreamBackground.Green, controller.StreamBackground);
+        controller.StreamBackground = StreamBackground.Magenta;
+        Assert.Equal("magenta", store.Load<string>(StoreKeys.StreamBackground));
+        Assert.Equal(StreamBackground.Magenta, Make(store: store).StreamBackground);
+        Assert.Equal(StreamBackground.Green, StreamBackgrounds.FromStored("bozuk"));
+        Assert.Equal((byte)0xFF, StreamBackground.Green.Rgb().Green);
+        Assert.Equal(1, StreamBackgrounds.BoxOpacity(60));
+        Assert.Equal(0, StreamBackgrounds.BoxOpacity(0));
     }
 
     [Fact]

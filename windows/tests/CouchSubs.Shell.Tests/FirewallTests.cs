@@ -12,19 +12,35 @@ internal sealed class FakeFirewall : IFirewall
     public bool Rule { get; set; }
     /// <summary>Kullanıcı Windows'un izin sorusunda Evet derse kural eklenir.</summary>
     public bool UserAccepts { get; set; } = true;
+    public bool FailRead { get; set; }
+    public bool FailWrite { get; set; }
+    /// <summary>Bilgisayarın ağı "Ortak" profilde.</summary>
+    public bool Public { get; set; }
+    /// <summary>Beta.44'ün her profili açan geniş kuralı duruyor; dar kural yok.</summary>
+    public bool Legacy { get; set; }
     public int Checks { get; private set; }
     public int Adds { get; private set; }
 
     public bool HasRule()
     {
         Checks++;
+        if (FailRead) throw new InvalidOperationException("Cannot read firewall");
         return Rule;
     }
+
+    public bool HasPublicNetwork() => Public;
+
+    public bool HasLegacyRule() => Legacy;
 
     public Task<bool> AddRuleAsync()
     {
         Adds++;
-        if (UserAccepts) Rule = true;
+        if (FailWrite) throw new InvalidOperationException("Cannot write firewall");
+        if (UserAccepts)
+        {
+            Rule = true;
+            Legacy = false;
+        }
         return Task.FromResult(Rule);
     }
 }
@@ -32,6 +48,23 @@ internal sealed class FakeFirewall : IFirewall
 /// Güvenlik duvarı izni yalnız sorun varken ve kural eksikken önerilir; kullanıcı her açılışta rahatsız edilmez.
 public class FirewallPairingTests
 {
+    [Fact]
+    public async Task ReadFailureDoesNotClaimPermissionExists()
+    {
+        var firewall = new FakeFirewall { Rule = true, FailRead = true };
+        var controller = AppControllerTests.Make(new FakeServices { Firewall = firewall });
+        Assert.Equal((false, false), await controller.GetFirewallStateAsync());
+    }
+
+    [Fact]
+    public async Task WriteFailureIsShownAsFailed()
+    {
+        var firewall = new FakeFirewall { FailWrite = true };
+        var controller = AppControllerTests.Make(new FakeServices { Firewall = firewall });
+        Assert.False(await controller.AllowThroughFirewallAsync());
+        Assert.Equal(FirewallPrompt.Failed, controller.FirewallPrompt);
+    }
+
     private static async Task<(AppController Controller, FakeFirewall Firewall)> Pairing(Exception error, bool rule = false)
     {
         var firewall = new FakeFirewall { Rule = rule };
@@ -58,6 +91,15 @@ public class FirewallPairingTests
         var (controller, _) = await Pairing(new RegistrationException(RegistrationFailure.Failed), rule: true);
         await Assert.ThrowsAsync<AppException>(() => controller.RegisterAsync("192.168.1.253", "12345678"));
         Assert.Equal(FirewallPrompt.None, controller.FirewallPrompt);
+    }
+
+    [Fact]
+    public async Task FailedRegistrationOnPublicNetworkShowsNetworkHint()
+    {
+        var (controller, firewall) = await Pairing(new RegistrationException(RegistrationFailure.Failed), rule: true);
+        firewall.Public = true;
+        await Assert.ThrowsAsync<AppException>(() => controller.RegisterAsync("192.168.1.253", "12345678"));
+        Assert.Equal(FirewallPrompt.PublicNetwork, controller.FirewallPrompt);
     }
 
     /// Hesap yanlışsa sorun güvenlik duvarı değildir.
@@ -123,6 +165,17 @@ public class FirewallPairingTests
         await Assert.ThrowsAsync<AppException>(() => controller.RegisterAsync("192.168.1.253", "12345678"));
         Assert.Equal(FirewallPrompt.None, controller.FirewallPrompt);
         Assert.False(await controller.AllowThroughFirewallAsync());
+    }
+
+    [Fact]
+    public async Task SettingsStateReportsRuleAndNetwork()
+    {
+        var firewall = new FakeFirewall { Rule = false };
+        var controller = AppControllerTests.Make(new FakeServices { Firewall = firewall });
+        Assert.Equal((false, false), await controller.GetFirewallStateAsync());
+        await controller.AllowThroughFirewallAsync();
+        Assert.Equal((true, false), await controller.GetFirewallStateAsync());
+        Assert.Null(await AppControllerTests.Make(new FakeServices()).GetFirewallStateAsync());
     }
 }
 
@@ -211,6 +264,88 @@ public class FirewallRunningTests
         clock.Advance(11);
         await controller.CheckConnectionsAsync();
         Assert.Equal(FirewallPrompt.Offer, controller.FirewallPrompt);
+        controller.Dispose();
+    }
+
+    /// İzin yalnız Özel ağda geçerli. Kural olsa da ağ "Ortak" ise TV engellenir; kart düğmesiz, ağı Özel yapmayı söyler.
+    [Fact]
+    public async Task TvWaitingOnPublicNetworkShowsNetworkHint()
+    {
+        var (controller, services, firewall, clock) = await Running(rule: true);
+        firewall.Public = true;
+        services.Streams[0].Emit(SessionState.Streaming);
+        clock.Advance(61);
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(FirewallPrompt.PublicNetwork, controller.FirewallPrompt);
+        controller.Dispose();
+    }
+
+    /// Eski geniş kural Ortak ağda TV'yi geçiren tek kural. İzin düğmesi onu silerdi; düğme yerine ağı Özel yapmak söylenir.
+    [Fact]
+    public async Task LegacyRuleOnPublicNetworkShowsNetworkHintAndKeepsTheRule()
+    {
+        var (controller, services, firewall, clock) = await Running();
+        firewall.Legacy = true;
+        firewall.Public = true;
+        services.Streams[0].Emit(SessionState.Streaming);
+        clock.Advance(61);
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(FirewallPrompt.PublicNetwork, controller.FirewallPrompt);
+        // Ayarlardaki düğme de eski kuralı silmez.
+        Assert.False(await controller.AllowThroughFirewallAsync());
+        Assert.Equal(0, firewall.Adds);
+        Assert.True(firewall.Legacy);
+        Assert.Equal(FirewallPrompt.PublicNetwork, controller.FirewallPrompt);
+        controller.Dispose();
+    }
+
+    /// Özel ağda eski kural dar kurala taşınır: kart ve düğme eskisi gibi.
+    [Fact]
+    public async Task LegacyRuleOnPrivateNetworkStillOffersMigration()
+    {
+        var (controller, services, firewall, clock) = await Running();
+        firewall.Legacy = true;
+        services.Streams[0].Emit(SessionState.Streaming);
+        clock.Advance(61);
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(FirewallPrompt.Offer, controller.FirewallPrompt);
+        Assert.True(await controller.AllowThroughFirewallAsync());
+        Assert.Equal(1, firewall.Adds);
+        controller.Dispose();
+    }
+
+    /// Eski kuralla TV bağlıysa izin sorunu yoktur; PS5 takılsa da kart çıkmaz. TV düşerse yeniden bakılır.
+    [Fact]
+    public async Task LegacyRuleWithConnectedTvShowsNothing()
+    {
+        var (controller, services, firewall, clock) = await Running();
+        firewall.Legacy = true;
+        firewall.Public = true;
+        var tv = await ConnectTv(controller);
+        services.Streams[0].Emit(SessionState.Disconnected(DisconnectKind.Network));
+        clock.Advance(30);
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(FirewallPrompt.None, controller.FirewallPrompt);
+        clock.Advance(30);
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(FirewallPrompt.None, controller.FirewallPrompt);
+        Assert.Equal(1, firewall.Checks);
+        tv.Dispose();
+        await WaitUntil(() => controller.TvClients == 0);
+        clock.Advance(61);
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(FirewallPrompt.PublicNetwork, controller.FirewallPrompt);
+        controller.Dispose();
+    }
+
+    [Fact]
+    public async Task TvWaitingOnPrivateNetworkWithRuleShowsNothing()
+    {
+        var (controller, services, _, clock) = await Running(rule: true);
+        services.Streams[0].Emit(SessionState.Streaming);
+        clock.Advance(61);
+        await controller.CheckConnectionsAsync();
+        Assert.Equal(FirewallPrompt.None, controller.FirewallPrompt);
         controller.Dispose();
     }
 

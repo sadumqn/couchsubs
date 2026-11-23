@@ -1,0 +1,1 @@
+0.9.78: GTA 6 telefonunun mesajları TV'de artık oynamıyor: sohbet paneli ve balonlar okurken yerinde duruyor, yeni mesaj gelince yerinde güncelleniyor, sohbet gerçekten kayınca bir kez yumuşakça kayıyor.

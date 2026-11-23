@@ -1,0 +1,1 @@
+0.9.24: When you stop translation on the computer, the TV app closes too and the TV returns to its HDMI input.

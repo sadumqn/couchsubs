@@ -58,8 +58,18 @@ public sealed class RequestBudget
     /// Modelin uygulama genelindeki ortak hakkı (Google sınırı proje ve model başına sayar; çeviri hattı yeniden kurulsa da
     /// hak sıfırlanmaz); modelin sınırı yoksa null.
     /// </summary>
-    public static RequestBudget? Shared(AiProvider provider, AiModel model) =>
-        model.RequestsPerMinute is { } perMinute
-            ? Registry.GetOrAdd(provider.EngineId(model.Id), _ => new RequestBudget(perMinute))
-            : null;
+    public static RequestBudget? Shared(AiProvider provider, AiModel model, string apiKey = "", bool paidTier = false)
+    {
+        // A paid key starts without the arbitrary free-tier cap, but a server-reported
+        // per-minute limit (429) still narrows this budget automatically.
+        var paid = paidTier && provider == AiProvider.Gemini;
+        var perMinute = paid ? int.MaxValue : model.RequestsPerMinute;
+        if (perMinute is null) return null;
+
+        // Different API keys may belong to different projects. Never store the raw key in the registry.
+        var keyHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(apiKey.Trim())));
+        return Registry.GetOrAdd($"{provider.EngineId(model.Id)}:{(paid ? "paid" : "free")}:{keyHash}",
+            _ => new RequestBudget(perMinute.Value));
+    }
 }

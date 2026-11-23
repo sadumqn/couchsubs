@@ -1,0 +1,1 @@
+0.9.22: Subtitles without a background are easier to read on bright scenes (layered shadow, thin outline at low background). Clearer HDMI input box and waiting screen, safe area margins. If no HDMI picture arrives, the app shows a clear message and an input picker instead of a black screen. HDMI audio opens at full volume.

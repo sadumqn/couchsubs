@@ -1,0 +1,1 @@
+0.9.74: Picture mode now defaults to Automatic: the TV app installed by CouchSubs on a computer or phone opens straight in Overlay, so TVs where the picture stays black inside the app (e.g. Philips) show subtitles. A chosen Inside the app or Overlay setting is kept.

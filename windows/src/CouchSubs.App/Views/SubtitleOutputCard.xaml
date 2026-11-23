@@ -1,32 +1,64 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<!-- "Altyazıyı göster: TV / Bilgisayar ekranı / İkisi de" ve bilgisayar ekranındaki pencerenin seçenekleri (Mac: SubtitleOutputCard.swift).
+<!-- "Altyazıyı göster: TV / Bilgisayar ekranı / İkisi de / Yalnız OBS (yayın)" ve bilgisayar ekranındaki pencerenin seçenekleri (Mac: SubtitleOutputCard.swift).
      Ana ekranda ve ayarlarda aynı kart kullanılır. -->
 <UserControl x:Class="CouchSubs.App.Views.SubtitleOutputCard"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:c="clr-namespace:CouchSubs.App.Controls"
-             xmlns:t="clr-namespace:CouchSubs.App.Theme">
-    <c:Card>
-        <StackPanel>
-            <TextBlock Text="{t:T 'Show subtitles on'}" Style="{StaticResource CaptionText}" Margin="0,0,0,8" />
-            <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Stretch">
-                <UniformGrid Rows="1">
-                    <RadioButton x:Name="OutputTv" Content="TV" GroupName="subtitleOutput" Style="{StaticResource SegmentButton}" Checked="OnOutput" Tag="Tv" />
-                    <RadioButton x:Name="OutputComputer" Content="{t:T 'Computer screen'}" GroupName="subtitleOutput" Style="{StaticResource SegmentButton}" Checked="OnOutput" Tag="Computer" />
-                    <RadioButton x:Name="OutputBoth" Content="{t:T 'Both'}" GroupName="subtitleOutput" Style="{StaticResource SegmentButton}" Checked="OnOutput" Tag="Both" />
-                </UniformGrid>
-            </Border>
-            <StackPanel x:Name="ComputerPanel" Margin="0,12,0,0">
-                <TextBlock x:Name="WindowHint" Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,12"
-                           Text="{t:T 'Subtitles appear in a window on this computer, over the game or PS Remote Play.'}" />
-                <WrapPanel>
-                    <CheckBox x:Name="ClickThrough" Content="{t:T 'Clicks pass through'}" Foreground="{DynamicResource textPrimaryBrush}"
-                              VerticalAlignment="Center" Margin="0,0,16,8" Checked="OnClickThrough" Unchecked="OnClickThrough" />
-                    <Button x:Name="Adjust" Content="{t:T 'Adjust the subtitle window'}" Padding="16,0" Margin="0,0,0,8" Click="OnAdjust" />
-                </WrapPanel>
-                <TextBlock x:Name="ClickThroughHint" Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,0"
-                           Text="{t:T 'When on, clicks go through to the window below. Press Num 7 or Ctrl+Shift+7 to turn it off.'}" />
+             xmlns:t="clr-namespace:CouchSubs.App.Theme"
+             xmlns:local="clr-namespace:CouchSubs.App.Views">
+    <!-- Mac OutputSettings: kart başlığı "Altyazıyı göster", kısa etiketli seçici (TV / Bu PC / İkisi de / OBS), anlamı
+         altındaki cümlede. OBS adresleri kopyala simgesi kutunun içinde olan tam yuvarlak kutularda (CopyField). -->
+    <c:Card Title="{t:T 'Show subtitles on'}">
+        <c:SpacedStack>
+            <StackPanel>
+                <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Stretch">
+                    <UniformGrid Rows="1">
+                        <RadioButton x:Name="OutputTv" Content="TV" GroupName="subtitleOutput" Style="{StaticResource SegmentButton}" Checked="OnOutput" Tag="Tv" />
+                        <RadioButton x:Name="OutputComputer" Content="{t:T 'This PC'}" GroupName="subtitleOutput" Style="{StaticResource SegmentButton}" Checked="OnOutput" Tag="Computer" />
+                        <RadioButton x:Name="OutputBoth" Content="{t:T 'Both'}" GroupName="subtitleOutput" Style="{StaticResource SegmentButton}" Checked="OnOutput" Tag="Both" />
+                        <RadioButton x:Name="OutputObs" Content="OBS" GroupName="subtitleOutput" Style="{StaticResource SegmentButton}" Checked="OnOutput" Tag="Obs" />
+                    </UniformGrid>
+                </Border>
+                <TextBlock x:Name="OutputHint" Style="{StaticResource HintText}" Margin="{t:Sp '0,unitHint,0,0'}" />
             </StackPanel>
-        </StackPanel>
+            <!-- "Yalnız OBS (yayın)": TV aranmaz, bilgisayar ekranında pencere açılmaz; altyazı yalnız OBS katmanına gider (Mac ile aynı). -->
+            <c:SpacedStack x:Name="ObsPanel" Gap="s">
+                <TextBlock Style="{StaticResource HintText}"
+                           Text="{t:T 'Subtitles go only to the OBS overlay. The TV is not searched for or opened, and no subtitle window opens on this computer. In OBS add a Browser source with this address (width 1920, height 1080).'}" />
+                <c:CopyField x:Name="OutputObsAddress" />
+                <c:SpacedStack x:Name="OutputNetworkObsPanel" Gap="s">
+                    <TextBlock Style="{StaticResource HintText}" Text="{t:T 'If OBS runs on another computer, use this address:'}" />
+                    <c:CopyField x:Name="OutputNetworkObsAddress" />
+                </c:SpacedStack>
+            </c:SpacedStack>
+            <c:SpacedStack x:Name="ComputerPanel">
+                <c:Unit Title="{t:T 'Computer screen'}">
+                    <StackPanel>
+                        <TextBlock x:Name="WindowHint" Style="{StaticResource HintText}" Margin="{t:Sp '0,0,0,s'}"
+                                   Text="{t:T 'Subtitles appear in a window on this computer, over the game or PS Remote Play.'}" />
+                        <Button x:Name="Adjust" Content="{t:T 'Position the subtitles'}" HorizontalAlignment="Left" Click="OnAdjust" />
+                    </StackPanel>
+                </c:Unit>
+                <StackPanel>
+                    <c:SwitchRow x:Name="ClickThrough" Content="{t:T 'Clicks pass through'}" Checked="OnClickThrough" Unchecked="OnClickThrough" />
+                    <TextBlock x:Name="ClickThroughHint" Style="{StaticResource HintText}" Margin="{t:Sp 'xxl,unitHint,0,0'}" />
+                </StackPanel>
+            </c:SpacedStack>
+            <!-- Ana ekranda: altyazıyı ayrıca bir telefon ya da tablet tarayıcısında göstermek (Ayarlar'da ayrı kart). -->
+            <StackPanel x:Name="SecondScreenEntry">
+                <Button x:Name="SecondScreenButton" Content="{t:T 'Show on another device'}" HorizontalAlignment="Left" Click="OnSecondScreen" />
+                <Popup x:Name="SecondScreenPopup" PlacementTarget="{Binding ElementName=SecondScreenButton}" Placement="Bottom"
+                       StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                    <Border Background="{DynamicResource surfaceBrush}" BorderBrush="{DynamicResource borderBrush}" BorderThickness="1"
+                            CornerRadius="{DynamicResource radius.tile}" Padding="{t:Sp 'l'}" Width="380" Margin="{t:Sp '0,xs,0,0'}">
+                        <StackPanel>
+                            <TextBlock Text="{t:T 'Show on another device'}" Style="{StaticResource CardTitleText}" Margin="{t:Sp '0,0,0,l'}" />
+                            <local:SecondScreenPanel x:Name="SecondScreenView" />
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </StackPanel>
+        </c:SpacedStack>
     </c:Card>
 </UserControl>

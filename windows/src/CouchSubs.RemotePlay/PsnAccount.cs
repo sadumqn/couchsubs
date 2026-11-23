@@ -90,6 +90,29 @@ public static class PsnAccount
         return error + (string.IsNullOrEmpty(description) ? "" : $": {description}") + (string.IsNullOrEmpty(code) ? "" : $" ({code})");
     }
 
+    /// <summary>Tarayıcıda giriş yapan kullanıcının yapıştırdığı metinden yönlendirme adresi. Adres çubuğundan kopyalanan
+    /// metnin başında ya da sonunda boşluk, tırnak, ya da adresin önünde başka yazı olabilir; adres
+    /// remoteplay.dl.playstation.net yönlendirmesi değilse ya da içinde kod veya Sony hatası yoksa null.</summary>
+    public static Uri? RedirectFromPastedText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var start = text.IndexOf(RedirectPrefix, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return null;
+        var end = start;
+        while (end < text.Length && !char.IsWhiteSpace(text[end]) && text[end] is not ('"' or '\'' or '<' or '>')) end++;
+        if (!Uri.TryCreate(RedirectPrefix + text[(start + RedirectPrefix.Length)..end], UriKind.Absolute, out var url)) return null;
+        return CodeFromRedirect(url) is { Length: > 0 } || ErrorFromRedirect(url) is not null ? url : null;
+    }
+
+    /// <summary>Sony'nin giriş sayfası arka plan çağrısı başarısız olunca "Can't connect to the server" yazar. Uygulama içi
+    /// tarayıcıda (WebView2) bu görülürse giriş sistem tarayıcısına taşınır; tarayıcıda aynı giriş çalışıyor.</summary>
+    public static bool LooksServerUnreachable(string? pageText) =>
+        pageText is not null && UnreachablePattern.IsMatch(pageText);
+
+    private static readonly System.Text.RegularExpressions.Regex UnreachablePattern = new(
+        @"(?:(?:can|could)(?:\s?not|n?[\u2019']t)|unable to) connect to the server",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     private static bool IsRedirect(Uri url) => url.IsAbsoluteUri && url.AbsoluteUri.StartsWith(RedirectPrefix, StringComparison.Ordinal);
 
     private static string? QueryValue(Uri url, string wanted)

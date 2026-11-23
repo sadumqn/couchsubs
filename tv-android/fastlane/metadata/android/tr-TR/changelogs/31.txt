@@ -1,0 +1,1 @@
+0.9.28: Aynı ağda iki CouchSubs varken TV uygulaması kendi bilgisayarına ya da telefonuna bağlanır.

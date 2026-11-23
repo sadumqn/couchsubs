@@ -1,0 +1,1 @@
+0.9.50: "Translate screen" results are drawn in place in the colours and style of the original text, like automatic screen text; GTA 6 phone messages appear in a message card next to the phone.

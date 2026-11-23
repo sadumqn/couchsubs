@@ -2,8 +2,14 @@
 // iPhone/iPad uygulamasının ayarları. Gerçek değerler Secrets.xcconfig'te (gitignore'da; örnek: Secrets.xcconfig.example).
 // Boş kalan her değer ilgili özelliği kapatır; uygulama yine derlenir ve çalışır.
 
-// Paket sunucusu (server/packs, Cloudflare Worker). "//" xcconfig'te yorum olduğu için https:/$()/... yazılır.
-PACKS_API_BASE_URL =
+// Paket sunucusu (server/packs, Cloudflare Worker). Sır değildir; paketler ücretsiz ve herkese açık.
+// "//" xcconfig'te yorum olduğu için https:/$()/... yazılır. Secrets.xcconfig'te başka adres verilebilir.
+PACKS_API_BASE_URL = https:/$()/couchsubs-packs.enmera.workers.dev
+// Yedek adres: workers.dev'e ulaşılamazsa (ağ hatası/zaman aşımı/5xx) denenir (#583); aynı Worker.
+PACKS_API_FALLBACK_URL = https:/$()/couchsubs-packs.enmeraapps.com
+// İstek imzasının sırrı (server/packs, PackSigning). Depoda değil: Secrets.xcconfig ya da derlemede PACKS_APP_SECRET=…
+// (scripts/release-appstore.sh ~/.config/couchsubs/packs.env'den verir). Boşsa paket indirme kapalı.
+PACKS_APP_SECRET =
 // Meta (Facebook) uygulama kimliği ve istemci jetonu. Boşsa Meta SDK kurulmaz.
 FACEBOOK_APP_ID =
 FACEBOOK_CLIENT_TOKEN =

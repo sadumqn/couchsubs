@@ -1,0 +1,1 @@
+0.9.31: Android TV katman modunda "İngilizce altyazının üstünü örtsün" zemini artık İngilizce satırı tamamen kaplıyor; TV görüntüyü büyütse de yazı yanlardan görünmüyor. 2016 Samsung TV'lerde kurulum 118 hatası vermiyor.

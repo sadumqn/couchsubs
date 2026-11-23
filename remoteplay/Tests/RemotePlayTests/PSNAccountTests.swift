@@ -13,6 +13,56 @@ final class PSNAccountTests: XCTestCase {
         XCTAssertNil(PSNAccount.code(fromRedirect: URL(string: "https://example.com/redirect?code=AbC123")!))
     }
 
+    /// Tarayıcıda giriş: adres çubuğundan kopyalanan metin boşluk, tırnak ya da başka yazıyla gelebilir (Windows'taki
+    /// PsnAccountTests ile aynı örnekler).
+    func testPastedBrowserAddressGivesTheRedirectWithItsCode() {
+        for pasted in [
+            "https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123&cid=x",
+            "  https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123&cid=x\r\n",
+            "\"https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123\"",
+            "redirect https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123 copied",
+        ] {
+            let redirect = PSNAccount.redirect(fromPastedText: pasted)
+            XCTAssertEqual(redirect.flatMap(PSNAccount.code(fromRedirect:)), "AbC123", pasted)
+        }
+    }
+
+    func testPastedTextWithoutACodeIsRejected() {
+        for pasted in [
+            nil, "",
+            "https://my.account.sony.com/central/signin/",
+            "https://remoteplay.dl.playstation.net/remoteplay/redirect",
+            "https://remoteplay.dl.playstation.net/remoteplay/redirect?code=",
+            "https://example.com/?u=https://remoteplay.dl.playstation.net/remoteplay/redirectx",
+        ] as [String?] {
+            XCTAssertNil(PSNAccount.redirect(fromPastedText: pasted), pasted ?? "nil")
+        }
+    }
+
+    func testPastedSonyErrorRedirectIsKeptForItsMessage() {
+        let redirect = PSNAccount.redirect(fromPastedText: PSNAccount.redirectPrefix + "?error=access_denied&error_description=denied")
+        XCTAssertEqual(redirect.flatMap(PSNAccount.error(fromRedirect:))?.hasPrefix("access_denied"), true)
+    }
+
+    /// Windows'taki PsnAccountTests ile aynı örnekler.
+    func testSonyServerUnreachablePageIsRecognised() {
+        for text in ["Can't connect to the server.", "Can\u{2019}t connect to the server", "Cannot connect to the server",
+                     "Could not connect to the server", "Sign in\nUnable to connect to the server\nTry again"] {
+            XCTAssertTrue(PSNAccount.looksServerUnreachable(text), text)
+        }
+        for text in [nil, "", "Sign in to PlayStation Network", "Connect to the server room"] as [String?] {
+            XCTAssertFalse(PSNAccount.looksServerUnreachable(text), text ?? "nil")
+        }
+    }
+
+    func testPageTextIsOnlyTrustedFromSonyHosts() {
+        XCTAssertTrue(PSNAccount.isSonyHost("my.account.sony.com"))
+        XCTAssertTrue(PSNAccount.isSonyHost("ca.account.sony.com"))
+        XCTAssertTrue(PSNAccount.isSonyHost("remoteplay.dl.playstation.net"))
+        XCTAssertFalse(PSNAccount.isSonyHost("accounts.google.com"))
+        XCTAssertFalse(PSNAccount.isSonyHost(nil))
+    }
+
     func testUserIdBecomesEightLittleEndianBytes() {
         XCTAssertEqual(PSNAccount.accountIdBytes(userId: "1")?.base64EncodedString(), "AQAAAAAAAAA=")
         XCTAssertEqual(PSNAccount.accountIdBytes(userId: "258")?.map { $0 }, [2, 1, 0, 0, 0, 0, 0, 0])

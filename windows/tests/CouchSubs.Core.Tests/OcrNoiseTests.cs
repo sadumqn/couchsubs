@@ -47,6 +47,10 @@ public class OcrNoiseTests
     [InlineData("l'm telling you, l saw him.", "I'm telling you, I saw him.")]
     [InlineData("|'ll be right back.", "I'll be right back.")]
     [InlineData("You and l've been here before.", "You and I've been here before.")]
+    [InlineData("Who am l?", "Who am I?")]
+    [InlineData("Where are you, |?", "Where are you, I?")]
+    [InlineData("I don't know, l!", "I don't know, I!")]
+    [InlineData("Leave it. l.", "Leave it.")]
     public void MisreadPronounBecomesI(string line, string expected) => Assert.Equal(expected, OcrNoise.Clean(line));
 
     [Theory]
@@ -79,6 +83,8 @@ public class ReadingChoiceTests
         Assert.True(OcrNoise.Score("CESARE: Wait for me!") > OcrNoise.Score("- CESAREiVJütt'h!"));
         Assert.True(OcrNoise.Score("We go to McDonald's now.") > 0);
         Assert.True(OcrNoise.Score("T hats the[lil Should be quiet now.") < OcrNoise.Score("That should be quiet now."));
+        Assert.True(OcrNoise.Score("Get to the gate now.") > OcrNoise.Score("Gtt to the gate now."));
+        foreach (var word in new[] { "Hmm", "Shh", "Brr", "Psst", "Mmm" }) Assert.True(OcrNoise.Score(word + "!") > 0, word);
     }
 
     /// Geçişte üst üste solan iki altyazının karışık okuması çöp sayılır; olağan cümleler, kısaltmalar ve "Hmm" sayılmaz.

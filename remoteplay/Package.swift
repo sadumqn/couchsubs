@@ -8,6 +8,14 @@ let package = Package(
     platforms: [.macOS(.v13), .iOS(.v16)],
     products: [
         .library(name: "RemotePlay", targets: ["RemotePlay"]),
+        // Xbox ev yayını (Beta) oturumu: iPhone ve Mac uygulamalarının ortak kodu.
+        .library(name: "XboxStream", targets: ["XboxStream"]),
+    ],
+    dependencies: [
+        // Xbox protokol katmanı (giriş, jetonlar, ev yayını uçları, durum makinesi) CouchSubsCore/Xbox'ta.
+        .package(path: "../core"),
+        // Google libwebrtc'nin hazır iOS ve macOS derlemesi (BSD-3). Görüntü VideoToolbox'la çözülür.
+        .package(url: "https://github.com/stasel/WebRTC", exact: "150.0.0"),
     ],
     targets: [
         // scripts/build-chiaki-macos.sh (macOS dilimi) ve scripts/build-chiaki-ios.sh (iPhone/iPad dilimleri) ile üretilir
@@ -25,6 +33,11 @@ let package = Package(
                 .linkedFramework("Security"),
                 .linkedFramework("SystemConfiguration"),
             ]
+        ),
+        .target(
+            name: "XboxStream",
+            dependencies: ["RemotePlay", .product(name: "CouchSubsCore", package: "core"), .product(name: "WebRTC", package: "WebRTC")],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(name: "rp-smoke", dependencies: ["RemotePlay"], swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "RemotePlayTests", dependencies: ["RemotePlay", "CChiaki"], resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)]),

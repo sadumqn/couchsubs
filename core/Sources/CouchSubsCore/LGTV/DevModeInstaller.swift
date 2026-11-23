@@ -21,7 +21,7 @@ public protocol CommandRunning: Sendable {
 /// TV uygulamasını kurarken çıkan sorunlar (LG, Samsung ve Android TV ortak).
 public enum DevModeError: Error, Equatable {
     case unreachable, keyServerOff, wrongPassphrase, keyRefused, installFailed
-    /// Samsung: TV Tizen 3.0'dan (2017) eski.
+    /// Samsung: TV Tizen 2.4'ten (2016) eski.
     case tooOld
     /// Samsung hesabıyla giriş tamamlanmadı.
     case signInFailed
@@ -41,6 +41,9 @@ public enum DevModeError: Error, Equatable {
     case packageBlocked
     /// Kurulum sırasında TV bağlantısı koptu.
     case connectionLost
+    /// TV'de CouchSubs'ın kimliğiyle (Android paket adı, LG uygulama kimliği, Samsung paket kimliği) başka bir uygulama
+    /// kurulu; kaldırıp CouchSubs'ı kurmak için kullanıcı onayı gerekir.
+    case foreignApp
 }
 
 /// Kurulum hatası ve TV'nin verdiği sebep (luna yanıtındaki errorText/reason ya da komut çıktısı).
@@ -107,9 +110,17 @@ public struct DevModeInstaller: Sendable {
 
     // MARK: - Geliştirici modu
 
-    /// TV'de geliştirici modu açık mı? Kapalıysa port yanıt vermez.
+    /// Key Server'ın (TV'deki Developer Mode uygulaması) anahtarı verdiği port.
+    public static let keyServerPort: UInt16 = 9991
+
+    /// TV'de geliştirici modu açık mı? Kapalıysa portlar yanıt vermez. SSH (9922) ya da Key Server (9991) yanıt verirse
+    /// açık sayılır: yalnız SSH'a bakılırken TV'de Key Server ve parola göründüğü halde SSH geç yanıt verince parola alanı
+    /// hiç çıkmıyordu (#94).
     public static func isDevModeOn(host: String, timeout: Duration = .seconds(2)) async -> Bool {
-        await isPortOpen(host: host, port: port, timeout: timeout)
+        async let ssh = isPortOpen(host: host, port: port, timeout: timeout)
+        async let keyServer = isPortOpen(host: host, port: keyServerPort, timeout: timeout)
+        let (sshOpen, keyServerOpen) = await (ssh, keyServer)
+        return sshOpen || keyServerOpen
     }
 
     /// TCP portu bağlantı kabul ediyor mu? Samsung (26101) ve Android TV (5555) geliştirici modları için de kullanılır.
@@ -136,11 +147,13 @@ public struct DevModeInstaller: Sendable {
         }
     }
 
-    static func keyURL(host: String) -> URL { URL(string: "http://\(host):9991/webos_rsa")! }
+    /// Adres geçersizse nil (eskiden zorla açılıyordu).
+    static func keyURL(host: String) -> URL? { URL(string: "http://\(host):\(keyServerPort)/webos_rsa") }
 
     /// Key Server'dan anahtarı alır ve TV ekranındaki parolayla çözer.
     public static func fetchKey(host: String, passphrase: String, runner: CommandRunning) async throws -> String {
-        var request = URLRequest(url: keyURL(host: host))
+        guard let url = keyURL(host: host) else { throw DevModeError.unreachable }
+        var request = URLRequest(url: url)
         request.timeoutInterval = 5
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200 else { throw DevModeError.keyServerOff }
@@ -161,6 +174,49 @@ public struct DevModeInstaller: Sendable {
     public func installedVersion() async throws -> String? {
         let result = try await ssh("cat \(Self.appInfoPath)")
         return Self.version(fromAppInfo: result.output)
+    }
+
+    /// TV'deki sürüm (kurulu değilse nil). TV'de com.couchsubs.tv kimliğiyle başka bir uygulama varsa (appinfo.json'daki ad
+    /// CouchSubs ya da üretici Enmera değil) `DevModeFailure(.foreignApp)` fırlatır: sürümü bizimkinden yüksekse "güncel"
+    /// sayılıp o açılıyordu; kullanıcı onaylamadan üstüne kurulmaz. Windows'taki CheckInstalledVersionAsync ile aynı.
+    public func checkInstalledVersion() async throws -> String? {
+        let info = try await ssh("cat \(Self.appInfoPath)").output
+        let version = Self.version(fromAppInfo: info)
+        if let version, Self.isForeignAppInfo(info) {
+            throw DevModeFailure(.foreignApp, detail: "\"\(Self.appInfoField(info, "title") ?? "")\" (\(Self.appInfoField(info, "vendor") ?? "")) \(version)")
+        }
+        return version
+    }
+
+    /// CouchSubs'ın appinfo.json'ındaki ad ve üretici (tv-webos/appinfo.json).
+    static let ourTitle = "CouchSubs", ourVendor = "Enmera"
+
+    /// appinfo.json'daki ad CouchSubs değil ya da üretici Enmera değil. Alan yoksa yabancı sayılmaz.
+    static func isForeignAppInfo(_ text: String) -> Bool {
+        func differs(_ key: String, _ ours: String) -> Bool {
+            guard let value = appInfoField(text, key) else { return false }
+            return value.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(ours) != .orderedSame
+        }
+        return differs("title", ourTitle) || differs("vendor", ourVendor)
+    }
+
+    static func appInfoField(_ text: String, _ key: String) -> String? {
+        guard let found = text.range(of: #""\#(key)"\s*:\s*"[^"]*""#, options: .regularExpression) else { return nil }
+        let match = text[found]
+        guard let colon = match.firstIndex(of: ":"), let open = match[colon...].firstIndex(of: "\"") else { return nil }
+        return String(match[match.index(after: open)..<match.index(before: match.endIndex)])
+    }
+
+    /// TV'deki com.couchsubs.tv'yi kaldırır (ares-install --remove'un luna çağrısı); kaldırma TV'de arka planda sürdüğü
+    /// için appinfo.json gidene kadar (en çok 20 sn) beklenir. Yalnız kullanıcı "Kaldırıp Kur" deyince çağrılır.
+    static let removeCommand =
+        "/usr/bin/luna-send-pub -n 1 'luna://com.webos.appInstallService/dev/remove' '{\"id\":\"com.couchsubs.tv\",\"subscribe\":false}'; " +
+        "i=0; while [ -f \(appInfoPath) ] && [ $i -lt 20 ]; do sleep 1; i=$((i+1)); done"
+
+    /// - Returns: TV'nin yanıtı (günlük için).
+    @discardableResult
+    public func removeApp() async throws -> String {
+        try await ssh(Self.removeCommand).output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Paketi TV'ye yükler ve ares-install'un yaptığı gibi kurar: kurulum aboneliği TV "installed" ya da hata diyene kadar
@@ -230,7 +286,7 @@ public struct DevModeInstaller: Sendable {
     /// içinde FAILED hata, `installed`/`SUCCESS` başarıdır.
     static func parseInstallReplies(_ output: String) -> InstallOutcome {
         var pending = ""
-        for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
+        for line in output.deviceLines {
             pending += line.trimmingCharacters(in: .whitespacesAndNewlines)
             if pending.isEmpty { continue }
             guard pending.hasPrefix("{") else {
@@ -319,17 +375,43 @@ public struct DevModeInstaller: Sendable {
         return Int(response[found].split(separator: ":")[0])
     }
 
-    private func ssh(_ command: String, input: URL? = nil) async throws -> CommandResult {
-        let result = try await runner.run("/usr/bin/ssh", [
-            "-p", String(Self.port), "-i", keyFile.path,
+    /// Eski webOS sürümlerinin SSH sunucusu (dropbear) yalnız bu anahtar değişimlerini bilir; macOS'un ssh'ı bunları
+    /// kendiliğinden önermez ve bağlantı "no matching key exchange method" ile kurulmaz. iPhone (SshClient), Android
+    /// (JschShell) ve Windows (SSH.NET) aynı yöntemleri zaten kabul ediyor.
+    static let legacyKex = "KexAlgorithms=+diffie-hellman-group14-sha1,diffie-hellman-group1-sha1"
+
+    /// `ssh`'a verilen seçenekler ve hedef (komut hariç).
+    static func sshArguments(host: String, keyFile: URL, legacyKex: Bool = true) -> [String] {
+        var arguments = [
+            "-p", String(port), "-i", keyFile.path,
             "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", "-o", "LogLevel=ERROR",
             // TV'nin anahtarı her fabrika ayarında değişir ve eski türdedir.
             "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
             "-o", "HostKeyAlgorithms=+ssh-rsa", "-o", "PubkeyAcceptedAlgorithms=+ssh-rsa",
-            "prisoner@\(host)", command,
-        ], input: input)
+        ]
+        if legacyKex { arguments += ["-o", Self.legacyKex] }
+        return arguments + ["prisoner@\(host)"]
+    }
+
+    /// ssh bu seçeneği tanımadı mı (ileride bir macOS bu yöntemleri derlemeden çıkarırsa)? O zaman seçeneksiz denenir.
+    static func rejectsLegacyKex(_ result: CommandResult) -> Bool {
+        result.status == 255 && result.output.contains("KexAlgorithms")
+    }
+
+    /// TV yanıt verdi ama iki taraf ortak bir yöntemde anlaşamadı mı? "TV yanıt vermedi" demek yanıltır; sebep gösterilir.
+    static func isNegotiationProblem(_ output: String) -> Bool {
+        output.contains("no matching") || output.contains("Unable to negotiate")
+    }
+
+    private func ssh(_ command: String, input: URL? = nil) async throws -> CommandResult {
+        var result = try await runner.run("/usr/bin/ssh", Self.sshArguments(host: host, keyFile: keyFile) + [command], input: input)
+        if Self.rejectsLegacyKex(result) {
+            result = try await runner.run("/usr/bin/ssh", Self.sshArguments(host: host, keyFile: keyFile, legacyKex: false) + [command], input: input)
+        }
         if result.status == 255 {
-            throw result.output.contains("Permission denied") ? DevModeError.keyRefused : DevModeError.unreachable
+            if result.output.contains("Permission denied") { throw DevModeError.keyRefused }
+            if Self.isNegotiationProblem(result.output) { throw DevModeFailure(.unreachable, detail: Self.short(result.output)) }
+            throw DevModeError.unreachable
         }
         return result
     }

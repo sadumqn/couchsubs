@@ -1,0 +1,35 @@
+{
+  "comment": "Kullanım verisi (GA4 Measurement Protocol) ortak denemesi: Mac UsageStatsTests.swift ve Windows UsageStatsTests.cs aynı olaylardan aynı adresi ve gövdeyi üretmeli.",
+  "measurement_id": "G-TEST12345",
+  "api_secret": "s3cret/+=",
+  "url": "https://www.google-analytics.com/mp/collect?measurement_id=G-TEST12345&api_secret=s3cret%2F%2B%3D",
+  "client_id": "2f1c7a52-8f0e-4c55-9a3e-0d6b1f4f7c21",
+  "session_id": "1763700000",
+  "user_properties": { "app_version": "0.1.0-beta.74", "os_version": "macOS 15.1", "platform": "mac" },
+  "events": [
+    { "kind": "screen", "screen": "home" },
+    { "kind": "onboarding_done", "target": "tv", "console": "ps5" },
+    { "kind": "session_start", "target": "both", "engine": "free", "packs": true, "console": "xbox" },
+    { "kind": "tv_connected", "count": 1, "brand": "lg" },
+    { "kind": "pack_hit", "pack": "gta6" },
+    { "kind": "session_stop", "seconds": 125, "lines": 40, "pack_lines": 32 }
+  ],
+  "body": {
+    "client_id": "2f1c7a52-8f0e-4c55-9a3e-0d6b1f4f7c21",
+    "non_personalized_ads": true,
+    "consent": { "ad_user_data": "DENIED", "ad_personalization": "DENIED" },
+    "user_properties": {
+      "app_version": { "value": "0.1.0-beta.74" },
+      "os_version": { "value": "macOS 15.1" },
+      "platform": { "value": "mac" }
+    },
+    "events": [
+      { "name": "page_view", "params": { "screen_name": "home", "page_title": "home", "page_location": "app://couchsubs/home", "session_id": "1763700000", "engagement_time_msec": 100 } },
+      { "name": "onboarding_done", "params": { "target": "tv", "console": "ps5", "session_id": "1763700000", "engagement_time_msec": 100 } },
+      { "name": "subtitle_session_start", "params": { "target": "both", "engine": "free", "packs": "true", "console": "xbox", "session_id": "1763700000", "engagement_time_msec": 100 } },
+      { "name": "tv_connected", "params": { "count": 1, "brand": "lg", "session_id": "1763700000", "engagement_time_msec": 100 } },
+      { "name": "pack_hit", "params": { "pack": "gta6", "session_id": "1763700000", "engagement_time_msec": 100 } },
+      { "name": "subtitle_session_stop", "params": { "seconds": 125, "lines": 40, "pack_lines": 32, "session_id": "1763700000", "engagement_time_msec": 100 } }
+    ]
+  }
+}

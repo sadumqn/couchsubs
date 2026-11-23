@@ -33,9 +33,10 @@ public static class DubbingModel
 
     /// <summary>
     /// İndirilen ayar dosyasından yerel çalışma ayarı: ağırlık ve sözlük yolları klasördeki dosyalara çevrilir, model
-    /// küçük harfle başlayan cümlelerle eğitildiği için ilk harf büyütülmez.
+    /// küçük harfle başlayan cümlelerle eğitildiği için ilk harf büyütülmez. <paramref name="tokenizerPath"/> verilirse sözlük
+    /// oradan okunur (Windows'ta ASCII dışı harfli klasör için: <see cref="NativeToolPath"/>).
     /// </summary>
-    public static string LocalConfig(string original, string directory)
+    public static string LocalConfig(string original, string directory, string? tokenizerPath = null)
     {
         var lines = new List<string>();
         foreach (var line in original.Replace("\r\n", "\n").Split('\n'))
@@ -45,7 +46,7 @@ public static class DubbingModel
             if (trimmed.StartsWith("weights_path:", StringComparison.Ordinal))
                 lines.Add(indent + "weights_path: " + Quoted(Path.Combine(directory, "model.safetensors")));
             else if (trimmed.StartsWith("tokenizer_path:", StringComparison.Ordinal))
-                lines.Add(indent + "tokenizer_path: " + Quoted(Path.Combine(directory, "tokenizer.model")));
+                lines.Add(indent + "tokenizer_path: " + Quoted(tokenizerPath ?? Path.Combine(directory, "tokenizer.model")));
             else if (!trimmed.StartsWith("capitalize_first_letter:", StringComparison.Ordinal))
                 lines.Add(line);
         }

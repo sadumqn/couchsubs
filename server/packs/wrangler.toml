@@ -1,0 +1,16 @@
+name = "couchsubs-packs"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# Yedek adres: bazı ağlar (DNS/reklam engelleyici/operatör) *.workers.dev'i engelliyor (#583). Uygulamalar önce
+# workers.dev'i, ağ hatası/zaman aşımı/5xx olursa bu adresi dener. enmeraapps.com bölgesinde Worker Custom Domain'i
+# (DNS kaydını ve sertifikayı Cloudflare kendisi açar; couchsubs.enmeraapps.com sitesine dokunmaz).
+routes = [
+  { pattern = "couchsubs-packs.enmeraapps.com", custom_domain = true },
+]
+
+# R2 kovası bağlanır. İstek imzası için APP_SECRET `npx wrangler secret put APP_SECRET` ile konur (depoda değil).
+[[r2_buckets]]
+binding = "PACKS"
+bucket_name = "couchsubs-packs"

@@ -83,41 +83,29 @@ Medya oynatma kuralları (TV-PC, TV-PP, TV-PA), reklam, oyun kumandası ve PiP k
 
 ## 4. İmza: Play App Signing ve yükleme anahtarı
 
-Anahtar üretilmedi, depoya konmadı. Bugün CI, APK'yı depo sırrındaki sürüm anahtarıyla imzalıyor
-(`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, takma ad `couchsubs`).
+TV'nin kendi sürüm anahtarı vardır (takma ad `couchsubs-tv`, CN=CouchSubs TV); telefon uygulamasının anahtarından
+ayrıdır. Asıl dosya ve parolası Sinan Bey'in bilgisayarında durur, depoda yoktur. CI şu depo sırlarıyla imzalar:
+`TV_KEYSTORE_BASE64`, `TV_KEYSTORE_PASSWORD`, `TV_KEY_ALIAS`. Sürüm derlemesinde (release.yml) bu sırlar yoksa iş hata
+verir; APK geliştirme anahtarına düşmez (her derlemede imzası değişen APK, TV'de güncelleme olarak kurulamaz).
 
-**Önerilen yol (A): mevcut sürüm anahtarı = Play'in uygulama imza anahtarı, yükleme için yeni anahtar.**
-Böylece Play'den ve masaüstünden kurulan kopyalar aynı imzayı taşır: masaüstü, Play kopyasının üstüne kaldırmadan kurabilir
-(TV'deki ayarlar kaybolmaz) ve tersi.
+**Yol (A): TV sürüm anahtarı = Play'in uygulama imza anahtarı.** Play'den ve masaüstünden kurulan kopyalar aynı imzayı
+taşır: masaüstü, Play kopyasının üstüne kaldırmadan kurabilir (TV'deki ayarlar kaybolmaz) ve tersi.
 
-1. Sürüm anahtar deposunun (`release.keystore`) asıl dosyası ve şifresi elinizde olmalı (GitHub sırları geri okunamaz).
-2. Play Console › uygulama › Test ve yayın › Kurulum › **Uygulama imzalama** (ilk sürümü oluştururken de sorulur):
-   "Farklı bir anahtar kullan" › **"Java anahtar deposundan dışa aktar ve yükle"**. Console'un verdiği `pepk.jar` ve
-   şifreleme anahtarıyla Console'un gösterdiği komutu çalıştırın; örnek:
+1. Play Console › uygulama › Test ve yayın › Kurulum › **Uygulama imzalama**: "Farklı bir anahtar kullan" ›
+   **"Java anahtar deposundan dışa aktar ve yükle"**. Console'un verdiği `pepk.jar` ve şifreleme anahtarıyla Console'un
+   gösterdiği komutu çalıştırın; örnek:
    ```sh
-   java -jar pepk.jar --keystore=release.keystore --alias=couchsubs --output=couchsubs-signing.zip \
+   java -jar pepk.jar --keystore=android-tv-release.jks --alias=couchsubs-tv --output=couchsubs-tv-signing.zip \
      --include-cert --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem
    ```
-   Çıkan zip'i yükleyin. zip'i ve anahtar dosyasını sonra güvenli bir yerde saklayın, depoya koymayın.
-3. Yeni yükleme anahtarı üretin ve sertifikasını Console'a yükleyin:
-   ```sh
-   keytool -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keysize 4096 -validity 10000
-   keytool -export -rfc -keystore upload.keystore -alias upload -file upload_certificate.pem
-   ```
-4. GitHub › depo › Settings › Secrets › Actions: `ANDROID_UPLOAD_KEYSTORE_BASE64` (`base64 -i upload.keystore`),
-   `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS` (`upload`). Bunlar yoksa CI, AAB'yi sürüm anahtarıyla
-   imzalar; o durumda adım 3 yerine sürüm anahtarının sertifikası yükleme anahtarı olarak verilebilir.
-
-**Basit yol (B): Google'ın ürettiği imza anahtarı.** İlk sürümde varsayılan seçenek. Sürüm anahtarı (ya da yeni bir
-anahtar) yalnız yükleme anahtarı olur. Sonuç: Play kopyası ile masaüstünün kurduğu APK'nın imzası farklıdır. Masaüstü
-kurucusu `INSTALL_FAILED_UPDATE_INCOMPATIBLE` alınca Play kopyasını kaldırıp kendisininkini kurar (kod bunu zaten yapıyor);
-TV'deki ayarlar (HDMI girişi, altyazı yeri) sıfırlanır. Uygulama imza anahtarı sonradan değiştirilemez; seçim ilk
-yüklemeden önce yapılmalı.
+   Çıkan zip'i yükleyin; zip'i depoya koymayın.
+2. Ayrı yükleme anahtarı isteğe bağlıdır (`TV_UPLOAD_KEYSTORE_BASE64`, `TV_UPLOAD_KEYSTORE_PASSWORD`,
+   `TV_UPLOAD_KEY_ALIAS`). Yoksa AAB de sürüm anahtarıyla imzalanır.
 
 **Yerel derleme (imzalı AAB):**
 ```sh
 cd tv-android
-ANDROID_UPLOAD_KEYSTORE_FILE=/yol/upload.keystore ANDROID_UPLOAD_KEYSTORE_PASSWORD=… ANDROID_UPLOAD_KEY_ALIAS=upload \
+TV_KEYSTORE_FILE=/yol/android-tv-release.jks TV_KEYSTORE_PASSWORD=… TV_KEY_ALIAS=couchsubs-tv \
   ~/Projeler/Web/enmera/ekip/heavy-job.sh gradle --no-daemon --max-workers=4 bundlePlayRelease
 ```
 CI'da `tv-android` iş akışı AAB'yi `couchsubs-android-play` yapıtı olarak verir (GitHub sürümüne konmaz).
@@ -178,6 +166,8 @@ almanız önerilir: `adb exec-out screencap -p > demo.png` (demo açıkken).
 > subtitles. On devices without an HDMI input the picture behind the subtitles stays black.
 
 **Reklam:** Hayır, reklam içermez.
+
+> **Not (19 Kas 2026):** TV uygulamasında tanıtım penceresi yok; mobil tanıtım penceresi yayına girince Play "Reklam içerir" beyanı (mobil uygulama için) yeniden değerlendirilecek.
 
 **İçerik derecelendirmesi (IARC):** Kategori "Yardımcı program, verimlilik, iletişim veya diğer". Şiddet, cinsellik,
 küfür, uyuşturucu, kumar: hayır. Kullanıcılar arası etkileşim ya da içerik paylaşımı: hayır. Konum paylaşımı: hayır.

@@ -23,6 +23,42 @@ public static class PackLookup
         return Match(text, library.Find, line => asked.TryGetValue(line, out var known) ? known : asked[line] = library.Nearest(line));
     }
 
+    /// <summary>Kütüphanedeki paketlerde kısmi eşleşme (<see cref="MatchPartial(string, Func{string, string?}, Func{string, string?}?)"/>).</summary>
+    public static PackPartial? MatchPartial(GamePackLibrary library, string text)
+    {
+        var asked = new Dictionary<string, string?>();
+        return MatchPartial(text, library.Find, line => asked.TryGetValue(line, out var known) ? known : asked[line] = library.Nearest(line));
+    }
+
+    /// <summary>
+    /// Çok satırlı okumada (iki konuşma alt alta) satırların hepsi pakette değilse <see cref="Match(string, Func{string, string?}, Func{string, string?}?)"/>
+    /// okumanın tamamını motora bırakır. Burada satırlar tek tek aranır (önce tam, sonra <paramref name="nearest"/>): yalnız bir
+    /// satır bulunamadıysa bulunanlar paketten, o satır motordan çevrilsin diye satır satır sonuç döner. Bulunamayan köşe
+    /// yazısı (<see cref="IsOverlay"/>) atlanır. Tek satırlı okumada, hepsi bulunduğunda, hiçbiri bulunmadığında ya da birden
+    /// çok satır bulunamadığında null.
+    /// </summary>
+    public static PackPartial? MatchPartial(string text, Func<string, string?> find, Func<string, string?>? nearest = null)
+    {
+        var lines = text.Trim().Replace("\r\n", "\n").Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0).ToList();
+        if (lines.Count < 2) return null;
+        var result = new List<PackLine>(lines.Count);
+        var missing = 0;
+        foreach (var line in lines)
+        {
+            var found = Single(line, find) ?? (nearest is null ? null : Single(line, piece => find(piece) ?? nearest(piece)));
+            if (found is { } hit)
+            {
+                var match = Result(hit.Pieces, hit.Translations);
+                result.Add(new PackLine(line, match.Text, match.Spoken));
+                continue;
+            }
+            if (IsOverlay(line)) continue;
+            missing++;
+            result.Add(new PackLine(line, null, []));
+        }
+        return missing == 1 && result.Count > 1 ? new PackPartial(result) : null;
+    }
+
     /// <param name="find">Tek bir metnin (tamamının) paketteki Türkçesi.</param>
     /// <param name="nearest">Tam anahtar yoksa en benzer satırın Türkçesi (bulanık arama); verilmezse yapılmaz.</param>
     public static PackMatch? Match(string text, Func<string, string?> find, Func<string, string?>? nearest = null)
@@ -46,7 +82,13 @@ public static class PackLookup
             var all = true;
             foreach (var line in lines)
             {
-                if (Single(line, find) is not { } found) { all = false; break; }
+                if (Single(line, find) is not { } found)
+                {
+                    // Altyazıyla aynı bloğa düşen köşe yazısı ("San Andreas", "First Person • zoom") atlanır.
+                    if (IsOverlay(line)) continue;
+                    all = false;
+                    break;
+                }
                 if (pieces.Count > 0)
                 {
                     pieces.Add(new SubtitleSegmenter.Piece("\n", false));
@@ -55,7 +97,7 @@ public static class PackLookup
                 pieces.AddRange(found.Pieces);
                 translations.AddRange(found.Translations);
             }
-            if (all) return Result(pieces, translations);
+            if (all && pieces.Count > 0) return Result(pieces, translations);
         }
 
         // Cümle cümle (etiket, tire ve ayraçlar olduğu gibi kalır).
@@ -88,6 +130,24 @@ public static class PackLookup
         if (find(line) is { } whole) return ([new(line, true)], [whole]);
         if (LooseLabel(line) is not { } loose || find(loose.Body) is not { } found) return null;
         return ([new(loose.Label, false), new(loose.Body, true)], [null, found]);
+    }
+
+    /// <summary>
+    /// Altyazı olmayan köşe yazısı satırı: en çok dört sözcük; "•" içerir ("First Person • zoom") ya da noktalama yok ve
+    /// her sözcük büyük harfle başlar ("San Andreas", "Mirror Park", "LOSNN"). Yalnız başka satırlar pakette bulunduysa
+    /// atlanır. Uzun satırdaki "•" OCR lekesidir ("…with a colieague• Not that…"): o satır altyazıdır; atlanınca iki
+    /// satırlık altyazının yalnız ikinci satırının Türkçesi ("Seninle.") gösteriliyordu (#245).
+    /// </summary>
+    internal static bool IsOverlay(string line)
+    {
+        var words = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0 || words.Length > 4) return false;
+        if (line.Contains('•')) return true;
+        return words.All(word =>
+        {
+            var runes = word.EnumerateRunes().ToList();
+            return Rune.IsUpper(runes[0]) && runes.All(rune => Rune.IsLetter(rune) || Rune.IsDigit(rune));
+        });
     }
 
     /// <summary>

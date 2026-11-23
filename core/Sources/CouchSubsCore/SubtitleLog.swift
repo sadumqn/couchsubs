@@ -57,6 +57,15 @@ public enum SubtitleLog {
         }
     }
 
+    /// "oturum başladı" satırının alan kısmı: altyazı alanının seçimi ve sınırları, otomatik ekran yazısı. Bir günlükte
+    /// altyazının hiç okunmadığı oturumda alanın ne olduğu görünmüyordu (iPhone 1.0.6, 2026-11-22).
+    public static func areaSummary(_ settings: UserSettings) -> String {
+        let r = settings.region
+        func f(_ value: Double) -> String { String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), value) }
+        return "alan: \(settings.areaPreset.rawValue) (\(f(r.top))-\(f(r.bottom)) x \(f(r.left))-\(f(r.right))), "
+            + "otomatik ekran yazısı: \(settings.autoScreenText ? "açık" : "kapalı")"
+    }
+
     /// Günlükteki tırnaklı, tek satırlık, en çok `limit` karakterlik alıntı.
     public static func excerpt(_ text: String, limit: Int = excerptLength) -> String {
         let flat = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
@@ -94,11 +103,15 @@ public enum SubtitleLog {
 
 /// libchiaki'nin günlük satırlarından görüntü duraklamalarını çıkarır: "FEC failed, waiting for IDR frame" ile görüntü
 /// donar, "Received IDR frame, resuming decode" ile sürer. Bu arada kare gelmez; altyazı da okunamaz. Altyazı günlüğüne
-/// duraklamanın başı ve süresi yazılır (satırlar libchiaki'nin iş parçacığından gelir).
+/// duraklamanın başı ve süresi yazılır (satırlar libchiaki'nin iş parçacığından gelir). İstenen IDR karesi de bozuk
+/// gelirse libchiaki yeniden istemez; görüntü birkaç saniye gelmeyince oturum yeniden kurulur ("görüntü gelmiyor",
+/// RemotePlay'deki `PictureWatchdog`), bu da günlüğe yazılır.
 public final class VideoStallTracker: @unchecked Sendable {
     private let lock = NSLock()
     private let now: () -> Int
     private var stalledAt: Int?
+    /// remoteplay.log'da oturumun görüntü gelmediği için yeniden kurulduğu satır (RemotePlay `StreamSession`).
+    static let watchdogMarker = "sn'dir görüntü gelmiyor"
 
     public init(clock: @escaping () -> Int = SubtitleStabilizer.uptimeMs) {
         now = clock
@@ -116,6 +129,11 @@ public final class VideoStallTracker: @unchecked Sendable {
                 guard let since = stalledAt else { return nil }
                 stalledAt = nil
                 return "görüntü sürdü: IDR karesi geldi (\(now() - since) ms boşluk)"
+            }
+            if line.contains(Self.watchdogMarker) {
+                let gap = stalledAt.map { " (\(now() - $0) ms boşluk)" } ?? ""
+                stalledAt = nil
+                return "görüntü gelmedi, IDR karesi gelmeyecek: PS5 oturumu yeniden kuruluyor\(gap)"
             }
             return nil
         }

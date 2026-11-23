@@ -8,7 +8,7 @@ using CouchSubs.Core.Dubbing;
 namespace CouchSubs.Translation;
 
 /// <summary>
-/// Cihaz üstü İngilizce→Türkçe çeviri (OPUS-MT, ONNX Runtime). Model ilk çeviride yüklenir; aynı cümle oyunda
+/// Cihaz üstü İngilizce→Türkçe çeviri (OPUS-MT, CTranslate2). Model ilk çeviride yüklenir; aynı cümle oyunda
 /// defalarca okunduğu için sonuçlar önbelleklenir (Mac'teki gibi). Uygulama kalıcı önbelleği verir: önceki
 /// oturumlarda çevrilmiş cümleler modeli hiç çalıştırmadan döner. Metin hattı (terim sözlüğü, kısa satır bağlamı,
 /// Türkçe düzeltmeler) <see cref="FreeTranslation"/>'dadır, Mac'teki Apple çevirisiyle ortaktır.
@@ -19,7 +19,7 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
     /// Kalıcı önbellek dosyasındaki motor adı; model ya da metin hattı (<see cref="FreeTranslation.PipelineVersion"/>)
     /// değişirse bu da değişir, eski kurallarla çevrilmiş satırlar gösterilmez.
     /// </summary>
-    public static readonly string EngineId = "opus-mt-p" + FreeTranslation.PipelineVersion;
+    public static readonly string EngineId = "opus-mt-ct2-p" + FreeTranslation.PipelineVersion;
 
     private readonly Func<ISentenceEngine> _engineFactory;
     private readonly Func<bool> _isInstalled;
@@ -28,6 +28,8 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
     private readonly RecentLines _recent;
     /// <summary>Konuşmacı etiketlerinden öğrenilen adlar (küçük harfle); cümle içinde de büyük harfle kalırlar.</summary>
     private readonly ConcurrentDictionary<string, byte> _names = new(StringComparer.Ordinal);
+    /// <summary>Cümle içinde çeviriden korunan konuşan adları (#287).</summary>
+    private readonly SpeakerNameGuard _speakers = new();
     /// <summary>Altyazı → seslendirilecek cümleler (dublaj).</summary>
     private readonly ConcurrentDictionary<string, IReadOnlyList<SpokenLine>> _speech = new(StringComparer.Ordinal);
     // Model tek seferde bir cümle çevirir: paralel çalıştırmak çekirdekleri paylaştırıp her satırı yavaşlatır.
@@ -38,16 +40,19 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Motor açılamadı (ör. onnxruntime.dll ya da bağımlılığı yüklenemedi). Bir kez, arka plan iş parçacığından çağrılır;
+    /// Motor açılamadı (ör. CTranslate2 çalışma zamanı eksik). Bir kez, arka plan iş parçacığından çağrılır;
     /// uygulama günlüğe yazar ve kullanıcıya gösterir. Çeviriler bundan sonra <see cref="TranslatorStatus.EngineFailed"/> fırlatır.
     /// </summary>
     public event Action<Exception>? EngineFailed;
 
     /// <param name="cache">Kalıcı önbellek; verilmezse yalnız bellekte tutulur.</param>
     /// <param name="glossary">Terim sözlüğü; verilmezse genel sözlük ve %LOCALAPPDATA%\CouchSubs\glossary\*.json.</param>
-    public MarianTranslator(string modelDirectory, int maxOutputTokens = 128, int beams = OnnxMarianEngine.DefaultBeams,
-        TranslationCache? cache = null, GlossaryStore? glossary = null)
-        : this(() => new OnnxMarianEngine(modelDirectory, maxOutputTokens, beams), () => IsInstalledIn(modelDirectory), cache,
+    public MarianTranslator(string modelDirectory, int maxOutputTokens = 128, int beams = 4,
+        TranslationCache? cache = null, GlossaryStore? glossary = null, bool useGpu = false, Action? onGpuFallback = null,
+        Task? cudaReady = null, string? cudaDirectory = null, int cpuThreads = 2)
+        : this(() => new Ct2MarianEngine(modelDirectory, maxOutputTokens, beams, useGpu, onGpuFallback,
+                cudaReady, cudaDirectory, cpuThreads),
+            () => IsInstalledIn(modelDirectory), cache,
             glossary ?? new GlossaryStore(GlossaryStore.UserDirectory)) { }
 
     internal MarianTranslator(Func<ISentenceEngine> engineFactory, Func<bool> isInstalled, TranslationCache? cache = null,
@@ -67,7 +72,7 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
 
     /// <summary>Çeviri için gereken dosyalar yerinde mi (ModelStore yalnızca doğrulanmış dosyayı asıl adına taşır).</summary>
     public static bool IsInstalledIn(string modelDirectory) =>
-        OnnxMarianEngine.RequiredFiles.All(name => File.Exists(Path.Combine(modelDirectory, name)));
+        new Ct2ModelStore(modelDirectory).IsInstalled;
 
     /// <summary>
     /// Modeli önceden yükler ve bir kez çalıştırır; ilk altyazı beklemesin. Arka planda başlatılıp beklenmediği için
@@ -86,6 +91,14 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
         }
     }
 
+    /// <summary>Konuşan adını öğrenir ("OLD MAN" → "old", "man"); korunacak adlar ayrıca (#287).</summary>
+    public void NoteSpeaker(string name)
+    {
+        foreach (var word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2))
+            _names[word.ToLowerInvariant()] = 0;
+        _speakers.Learn(name);
+    }
+
     public async Task<string> TranslateAsync(string text, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -93,9 +106,7 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
         var previousLine = _recent.Shown(text);
         var pieces = SubtitleSegmenter.Split(text);
         // "OLD MAN: " → "old", "man": çok sözcüklü adın her sözcüğü ayrıca tanınır.
-        foreach (var name in pieces.Select(SubtitleSegmenter.LabelName).OfType<string>())
-            foreach (var word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2))
-                _names[word.ToLowerInvariant()] = 0;
+        foreach (var name in pieces.Select(SubtitleSegmenter.LabelName).OfType<string>()) NoteSpeaker(name);
         var previous = previousLine is null ? null : LastSentence(previousLine);
         var translations = new List<string?>(pieces.Count);
         foreach (var piece in pieces)
@@ -131,7 +142,8 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
 
     private async Task<string> TranslateSentenceAsync(string sentence, string? context, CancellationToken cancellationToken)
     {
-        var glossary = _glossary.Current;
+        // Konuşan etiketlerinden öğrenilen adlar cümle içinde de korunur ("Price, get down!"; #287).
+        var glossary = _glossary.Current.KeepingNames(_speakers.Protected, context is null ? sentence : context + "\n" + sentence);
         var key = FreeTranslation.CacheKey(sentence, context, glossary);
         if (_cache.TryGet(key, out var known)) return known;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -140,13 +152,25 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             // Beklerken başka bir çağrı aynı cümleyi çevirmiş olabilir.
             if (_cache.TryGet(key, out var cached)) return cached;
+            if (_engineFailure is { } failure) throw new TranslatorException(TranslatorStatus.EngineFailed, failure);
             var engine = _engine ??= CreateEngine();
             var names = _names.Keys.ToHashSet(StringComparer.Ordinal);
             names.UnionWith(glossary.CapitalWords);
             // Çıkarım CPU'yu saniyenin onda biri kadar tutar; çağıranın (arayüz) iş parçacığını bloklamasın.
-            var translation = await Task.Run(() => FreeTranslation.Translate(sentence, context, glossary,
-                text => SubtitleSegmenter.NormalizeCase(text, names),
-                input => engine.Translate(input, cancellationToken)), cancellationToken).ConfigureAwait(false);
+            string translation;
+            try
+            {
+                translation = await Task.Run(() => FreeTranslation.Translate(sentence, context, glossary,
+                    text => SubtitleSegmenter.NormalizeCase(text, names),
+                    input => engine.Translate(input, cancellationToken)), cancellationToken).ConfigureAwait(false);
+            }
+            catch (IOException error)
+            {
+                // Alt süreç kapandıysa her satırda yeniden denemek kuyruğu kilitler; kullanıcıya tek uyarı verilir.
+                Volatile.Write(ref _engineFailure, error);
+                EngineFailed?.Invoke(error);
+                throw new TranslatorException(TranslatorStatus.EngineFailed, error);
+            }
             // Sıra bırakılmadan önce önbelleğe yazılır; sırada bekleyen aynı cümle yeniden çevrilmez.
             _cache.Store(key, translation);
             return translation;
@@ -168,8 +192,7 @@ public sealed class MarianTranslator : ITextTranslator, IDisposable
         }
         catch (Exception error) when (error is not (OperationCanceledException or TranslatorException))
         {
-            // ONNX Runtime'ın yerel DLL'i yüklenemeyince TypeInitializationException (içinde DllNotFoundException) gelir;
-            // .NET bu hatayı süreç boyunca saklar, yeniden denemek işe yaramaz.
+            // Çalışma zamanı açılamazsa bu çevirmen aynı hatayı yeniden denemez; aygıt değiştirilince yeni örnek kurulur.
             Volatile.Write(ref _engineFailure, error);
             EngineFailed?.Invoke(error);
             throw new TranslatorException(TranslatorStatus.EngineFailed, error);

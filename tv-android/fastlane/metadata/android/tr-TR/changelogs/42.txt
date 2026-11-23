@@ -1,0 +1,1 @@
+0.9.39: Samsung'da PS5 görüntüsü 4K TV'de sol üst köşede küçük kalmıyor, ekranın tamamını kaplıyor; ultra geniş monitörde PS5 menüden oyuna geçince görüntü yeniden doğru ölçüye getiriliyor.

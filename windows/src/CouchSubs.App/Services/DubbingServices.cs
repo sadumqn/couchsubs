@@ -46,7 +46,9 @@ internal sealed class PocketDubbingModel : IDubbingModel
     private string WriteConfig()
     {
         var path = store.PathOf("couchsubs.yaml");
-        var local = DubbingModel.LocalConfig(File.ReadAllText(store.PathOf("config.yaml")), store.InstallDirectory);
+        // sentencepiece "C:\Users\Şafak\..." gibi yolları açamaz: sözlüğe ASCII bir yol verilir.
+        var local = DubbingModel.LocalConfig(File.ReadAllText(store.PathOf("config.yaml")), store.InstallDirectory,
+            NativeToolPath.ForTokenizer(store.PathOf("tokenizer.model")));
         if (!File.Exists(path) || File.ReadAllText(path) != local) File.WriteAllText(path, local);
         return path;
     }

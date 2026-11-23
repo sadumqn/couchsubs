@@ -6,7 +6,9 @@ namespace CouchSubs.RemotePlay;
 
 // Remote Play katmanının uygulamaya açtığı türler (Mac'teki RemotePlay modülünün karşılıkları).
 
-public sealed record ConsoleInfo(string Host, string Name, bool IsAwake);
+/// <param name="RunningAppTitleId">PS5'te o an çalışan uygulama (keşif yanıtındaki <c>running-app-titleid</c>); ana
+/// ekranda ya da dinlenme modunda null.</param>
+public sealed record ConsoleInfo(string Host, string Name, bool IsAwake, string? RunningAppTitleId = null, string? RunningAppName = null);
 
 /// <summary>PS5'e kaydedilmiş bu bilgisayarın bağlantı bilgileri. Şifreli olarak saklanır.</summary>
 /// <param name="RegistKey">16 baytlık kayıt anahtarı (ASCII onaltılık, sıfırla doldurulmuş).</param>
@@ -35,17 +37,76 @@ public enum DisconnectKind
     ConsoleAsleep,
     /// <summary>Remote Play başka bir cihazda kullanılıyor.</summary>
     InUse,
-    /// <summary>PS5 bağlantıyı reddetti (ör. kayıt geçersiz ya da Uzaktan Oynatma kapalı).</summary>
+    /// <summary>PS5'in adresi oturum ya da ctrl bağlantısını (TCP 9295) reddetti: PS5 yeni uyanıyor ya da adres başka bir
+    /// cihaza geçmiş. Eşleme sorunu değildir; beklenip yeniden denenir ve PS5 ağda yeniden aranır. (Xbox'ta: konsol yayını
+    /// reddetti, ayrıntıda neden.)</summary>
     Refused,
     Network,
-    /// <summary>İkinci kullanıcının PS5'te giriş şifresi var; Uzaktan Oynatma şifre istiyor.</summary>
+    /// <summary>PS5 bu hesap için giriş şifresi istiyor; Ayarlar'da kayıtlı şifre yok.</summary>
     LoginPasscode,
     /// <summary>Kayıtlı adreste PS5 aramaya yanıt vermedi ve oturum da açılamadı (ayrıntı: adres).</summary>
     NotFound,
     Other,
+    /// <summary>PS5 oturum isteğinde kaydı kabul etmedi (0x80108b09 kayıt geçersiz, 0x80108b02 hesap tanınmıyor, 0x80108b26
+    /// PS5 bu cihazın eşlemesini bulamadı).
+    /// Yeniden denemek aynı yere çıkar; PS5 ikinci hesapla yeniden eşlenmelidir.</summary>
+    RegistrationInvalid,
+    /// <summary>PS5 Ayarlar'daki giriş şifresini kabul etmedi. Yeniden gönderilmez (yanlış şifreyle döngüye girilmez).</summary>
+    LoginPasscodeIncorrect,
+    /// <summary>PS5 oturum isteğini kayıt dışı bir nedenle reddetti ya da yanıtı okunamadı; libchiaki bunu yalnız
+    /// "Unknown Session Request Error" diye verir (GitHub #33, #202). Ayrıntı: PS5'in "Reported Application Reason" kodu
+    /// (ör. 0x80108bff; günlükte kod yoksa null).</summary>
+    Rejected,
+    /// <summary>PS5'teki Uzaktan Oynatma çöktü (libchiaki CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_CRASH, "Remote Play on Console
+    /// has crashed"). PS5 tamamen kapatılıp açılana kadar her oturum isteği aynı yanıtı alır; eskiden İngilizce metinle
+    /// sonsuza kadar "Yeniden bağlanılıyor…" deneniyordu (GitHub #519). <see cref="CrashRetryLimit.MaxRetries"/> denemeden
+    /// sonra durulur.</summary>
+    ConsoleRemotePlayCrashed,
+    /// <summary>PS5 akışı kendisi kapattı: Takion bağlantısında "disconnect" iletisi gönderdi (libchiaki
+    /// STREAM_CONNECTION_REMOTE_DISCONNECTED / _REMOTE_SHUTDOWN). Ağ kopması değildir; ağ gidince PS5'ten ileti gelmez.
+    /// Kullanıcılar bunu oyun sırasında PS5'te ana hesaba geçince görüyor (X, 21 Kas); eskiden Network sayılıp "kabloyla
+    /// bağlayın" deniyor ve kopma görüntüyü 720p'ye düşürüyordu. Ayrıntı: PS5'in neden metni. En çok
+    /// <see cref="ReconnectLimit.MaxConsoleClosedRetries"/> kez yeniden bağlanılır.</summary>
+    ConsoleClosed,
+    /// <summary>PS5 yeniden bağlanmadan sonra da akışı kapattı; yeniden bağlanma durduruldu (GitHub #353). Kullanıcı PS5'te
+    /// CouchSubs'ın ikinci hesabıyla oynuyordur; eskiden sınırsız denenip PS5'te durmadan bildirim çıkıyordu.</summary>
+    ConsoleClosedRepeatedly,
+    /// <summary>Ağ kopmasından sonra art arda <see cref="ReconnectLimit.MaxNetworkRetries"/> deneme tutmadı; yeniden
+    /// bağlanma durduruldu.</summary>
+    ReconnectGaveUp,
+}
+
+/// <summary>PS5 oturum giriş şifresi (4 hane). PS5 ikinci hesapta şifre isterse Ayarlar'da kayıtlı şifre gönderilir.</summary>
+public static class LoginPasscode
+{
+    public const int Length = 4;
+
+    /// <summary>Boşlukları atar; tam 4 rakam değilse null.</summary>
+    public static string? Normalized(string? value)
+    {
+        var trimmed = value?.Trim();
+        return trimmed is { Length: Length } && trimmed.All(c => c is >= '0' and <= '9') ? trimmed : null;
+    }
+
+    /// <summary>Şifre isteğine yanıt: gönderilecek şifre (ASCII rakamlar, chiaki-ng'deki gibi) ya da oturumu kapatma
+    /// nedeni. Şifre yoksa ya da PS5 önceki şifreyi kabul etmediyse oturum kapanır.</summary>
+    public static (byte[]? Pin, DisconnectKind? Stop) Reply(string? saved, bool incorrect)
+    {
+        if (incorrect) return (null, DisconnectKind.LoginPasscodeIncorrect);
+        return Normalized(saved) is { } pin ? (System.Text.Encoding.ASCII.GetBytes(pin), null) : (null, DisconnectKind.LoginPasscode);
+    }
 }
 
 public sealed record DisconnectReason(DisconnectKind Kind, string? Detail = null);
+
+/// <summary>PS5'in oturum isteğine verdiği, libchiaki'nin tanımadığı "RP-Application-Reason" kodları (Mac ve Android'de aynı).</summary>
+public static class ApplicationReasons
+{
+    /// <summary>PS5'te Uzaktan Oynatma kapalı (Ayarlar > Sistem > Uzaktan Oynatma > Uzaktan Oynatmayı Etkinleştir). GitHub #9'da
+    /// kullanıcı ayarı açınca düzeldi. <see cref="DisconnectKind.Rejected"/> ayrıntısında bu yazımla gelir; ayar açılınca
+    /// bağlanılsın diye yeniden denenir.</summary>
+    public const string RemotePlayDisabled = "0x80108b12";
+}
 
 public enum SessionPhase { Connecting, Streaming, Disconnected }
 
@@ -75,6 +136,12 @@ public enum RegistrationFailure
     NoReply,
     /// <summary>Girilen adres çözülemedi (yanlış yazılmış IP).</summary>
     BadAddress,
+    /// <summary>PS5 ağda ama aramayı reddetti: Cihazı Eşleştir ekranı açık değil, kodun süresi dolmuş ya da PS5 dinlenmede.</summary>
+    PairingClosed,
+    /// <summary>PS5 aramaya yanıt verdi ama eşleştirme bağlantısı (TCP 9295) açılamadı.</summary>
+    ConnectFailed,
+    /// <summary>Bilgisayarda yeni bağlantı için boş port ya da soket kalmadı (GitHub #590'daki şikâyet).</summary>
+    NoFreePort,
 }
 
 /// <param name="reason">PS5'in bildirdiği RP-Application-Reason (ör. 0x80108b09); PS5 yanıt vermediyse null.</param>
@@ -100,4 +167,20 @@ public interface IStreamSession : IDisposable
     void Stop();
     /// <summary>Bilgisayar uykudan uyandığında ya da ağ değiştiğinde çağrılır.</summary>
     void ReconnectNow();
+    /// <summary>
+    /// Oturum yeniden denemeyi kendisi bıraktı (kullanıcı durdurmadı): PS5'te Uzaktan Oynatma çöktü, kayıt ya da giriş şifresi
+    /// geçersiz, Xbox denemeleri bitti. <see cref="ReconnectNow"/> artık bir şey yapmaz; uygulama yeni oturum açmalıdır
+    /// (ana ekrandaki "Yeniden bağlan"; Mac, iPhone ve Android ile aynı).
+    /// </summary>
+    bool HasGivenUp => false;
+    /// <summary>
+    /// Xbox: "Xbox sesini bu bilgisayarda çal" çeviri sürerken değişti; yalnız yerel ses açılır/kısılır, Xbox'a yeni oturum
+    /// açılmaz (#871; Mac, iPhone ve Android ile aynı).
+    /// </summary>
+    void SetPlayAudio(bool enabled) { }
+    /// <summary>
+    /// PS5: bağlanırken son adım; "Bağlanıyor…" 30 sn'yi geçince ana ekranda nedeni söylenir (<see cref="ConnectingHint"/>;
+    /// Xbox ve pencereden okumada yok). Her iş parçacığından okunur.
+    /// </summary>
+    ConnectStep? LastConnectStep => null;
 }

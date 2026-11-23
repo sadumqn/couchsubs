@@ -110,10 +110,14 @@ public static class SubtitleLog
 /// <summary>
 /// libchiaki'nin günlük satırlarından görüntü duraklamalarını çıkarır: "FEC failed, waiting for IDR frame" ile görüntü
 /// donar, "Received IDR frame, resuming decode" ile sürer. Bu arada kare gelmez; altyazı da okunamaz. Altyazı günlüğüne
-/// duraklamanın başı ve süresi yazılır (satırlar libchiaki'nin iş parçacığından gelir).
+/// duraklamanın başı ve süresi yazılır (satırlar libchiaki'nin iş parçacığından gelir). İstenen IDR karesi de bozuk
+/// gelirse libchiaki yeniden istemez; görüntü birkaç saniye gelmeyince oturum yeniden kurulur ("görüntü gelmiyor",
+/// CouchSubs.RemotePlay'deki PictureWatchdog), bu da günlüğe yazılır.
 /// </summary>
 public sealed class VideoStallTracker(Func<long>? clock = null)
 {
+    /// <summary>remoteplay.log'da oturumun görüntü gelmediği için yeniden kurulduğu satır (CouchSubs.RemotePlay StreamSession).</summary>
+    public const string WatchdogMarker = "sn'dir görüntü gelmiyor";
     private readonly Func<long> now = clock ?? (() => Environment.TickCount64);
     private readonly object gate = new();
     private long? stalledAt;
@@ -134,6 +138,12 @@ public sealed class VideoStallTracker(Func<long>? clock = null)
                 if (stalledAt is not { } since) return null;
                 stalledAt = null;
                 return $"görüntü sürdü: IDR karesi geldi ({now() - since} ms boşluk)";
+            }
+            if (line.Contains(WatchdogMarker, StringComparison.Ordinal))
+            {
+                var gap = stalledAt is { } stalled ? $" ({now() - stalled} ms boşluk)" : "";
+                stalledAt = null;
+                return $"görüntü gelmedi, IDR karesi gelmeyecek: PS5 oturumu yeniden kuruluyor{gap}";
             }
             return null;
         }

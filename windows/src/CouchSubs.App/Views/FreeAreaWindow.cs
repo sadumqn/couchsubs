@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using CouchSubs.App.Services;
 using CouchSubs.Core;
 using CouchSubs.Shell;
 using Frame = CouchSubs.Core.Frame;
@@ -59,18 +60,26 @@ public sealed class FreeAreaWindow : Window
         ShowInTaskbar = false;
         Background = Brushes.Black;
         Cursor = Cursors.Cross;
+        // Başka bir üstte duran pencere öne gelirse seçim ekranı yeniden en üste konur (kapanınca kanca kalkar).
+        _ = new TopmostKeeper(this);
 
         var bitmap = BitmapSource.Create(frame.Width, frame.Height, 96, 96, PixelFormats.Bgra32, null, frame.Pixels, frame.Stride);
         canvas = new Canvas { Width = frame.Width, Height = frame.Height, Background = Brushes.Transparent };
         picture = new Image { Source = bitmap, Width = frame.Width, Height = frame.Height, Stretch = Stretch.Fill, IsHitTestVisible = false };
         canvas.Children.Add(picture);
+        // Donmuş görüntü hafif kararır (tuval 12: rgba(0,0,0,.25)); seçilen yazı öne çıkar.
+        canvas.Children.Add(new Rectangle { Width = frame.Width, Height = frame.Height, Fill = new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)), IsHitTestVisible = false });
+        // Tasarım ölçüsü 760 yükseklik içindir; kare piksellerine çevrilir.
+        var unit = frame.Height / 760.0;
 
         var accent = Application.Current.TryFindResource("accentBrush") as Brush ?? Brushes.Orange;
         selection = new Rectangle
         {
             Stroke = accent,
-            StrokeThickness = Math.Max(2, frame.Height / 360.0),
-            Fill = new SolidColorBrush(Color.FromArgb(40, 245, 184, 61)),
+            StrokeThickness = Math.Max(2, 2 * unit),
+            RadiusX = 10 * unit,
+            RadiusY = 10 * unit,
+            Fill = Brushes.Transparent,
             Visibility = Visibility.Collapsed,
             IsHitTestVisible = false,
         };
@@ -79,31 +88,37 @@ public sealed class FreeAreaWindow : Window
         resultText = new TextBlock
         {
             Foreground = Brushes.White,
-            FontSize = Math.Max(16, frame.Height * 0.032),
+            FontSize = 16 * unit,
+            FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
-            MaxWidth = frame.Width * 0.5,
+            MaxWidth = 360 * unit,
         };
+        resultState = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0xA3, 0x9E, 0x95)), FontSize = 11 * unit, Margin = new Thickness(0, 0, 0, 4 * unit) };
+        var bubble = new StackPanel();
+        bubble.Children.Add(resultState);
+        bubble.Children.Add(resultText);
+        // Sonuç balonu (tuval 12): 14 köşe, koyu yarı saydam, yanlarda 16, üstte 12.
         resultPanel = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(0xE6, 0, 0, 0)),
-            CornerRadius = new CornerRadius(frame.Height * 0.012),
-            Padding = new Thickness(frame.Height * 0.018),
-            Child = resultText,
+            Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x10, 0x10, 0x14)),
+            CornerRadius = new CornerRadius(14 * unit),
+            Padding = new Thickness(16 * unit, 12 * unit, 16 * unit, 12 * unit),
+            Child = bubble,
             Visibility = Visibility.Collapsed,
             IsHitTestVisible = false,
         };
         canvas.Children.Add(resultPanel);
 
-        var hint = new TextBlock
+        // Üstte ortada hap biçiminde ipucu (tuval 12).
+        var hint = new Border
         {
-            Text = Localizer.Current["Drag over the text you want to translate. Esc or right-click closes."],
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(0xB3, 0, 0, 0)),
+            Child = new TextBlock { Text = Localizer.Current["Drag over the text you want to translate. Esc or a right-click closes."], Foreground = Brushes.White, FontSize = 13 },
+            Background = new SolidColorBrush(Color.FromArgb(0xBF, 0x10, 0x10, 0x14)),
             Padding = new Thickness(16, 8, 16, 8),
-            FontSize = 15,
+            CornerRadius = new CornerRadius(18),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 16, 0, 0),
             IsHitTestVisible = false,
         };
         var root = new Grid();
@@ -203,9 +218,13 @@ public sealed class FreeAreaWindow : Window
     }
 
     /// <summary>Metni seçilen alanın altına (sığmıyorsa üstüne) koyar.</summary>
+    private readonly TextBlock resultState;
+
     private void ShowResult(string text, Rect area)
     {
-        resultText.Text = text;
+        var busy = text == Localizer.Current["Translating…"];
+        resultState.Text = Localizer.Current[busy ? "Translating…" : "Translation"];
+        resultText.Text = busy ? "…" : text;
         resultPanel.Visibility = Visibility.Visible;
         resultPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var size = resultPanel.DesiredSize;

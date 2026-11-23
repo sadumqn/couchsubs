@@ -36,6 +36,26 @@ final class TranslationCacheTests: XCTestCase {
         XCTAssertEqual(file(engine: "apple").lastPathComponent, "v1-apple-en-tr.jsonl")
     }
 
+    func testDistinctEngineIdsHaveIsolatedFiles() {
+        for (first, other) in [
+            ("local:qwen2.5:7b", "local:qwen2-5:7b"),
+            ("local:model.a", "local:model_a"),
+            ("opus-mt", "opus_mt")
+        ] {
+            XCTAssertNotEqual(file(engine: first), file(engine: other))
+            let firstCache = TranslationCache.shared(in: directory, engine: first, source: "en", target: "tr")
+            let otherCache = TranslationCache.shared(in: directory, engine: other, source: "en", target: "tr")
+            XCTAssertFalse(firstCache === otherCache)
+            firstCache.store("First model translation", for: "Run!")
+            XCTAssertNil(otherCache.value(for: "Run!"))
+        }
+    }
+
+    func testSpecialEngineFileNameMatchesWindows() {
+        XCTAssertEqual(file(engine: "local:model.a").lastPathComponent,
+                       "v1h-6b5f11ab62999719865a030d1fb7f93bbcf1184290b58d4d603d1bee6c03249c.jsonl")
+    }
+
     func testLinesWithQuotesAndNewlinesRoundTrip() {
         let source = "KRATOS: \"Boy.\"\nATREUS: Yes?"
         TranslationCache(file: file()).store("KRATOS: \"Evlat.\"\nATREUS: Evet?", for: source)

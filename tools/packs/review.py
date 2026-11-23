@@ -4,13 +4,14 @@ import json, re, sys
 from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import common as c, llm
+from atomic_json import dump_atomic
 from translate_rules import GLOSSARY, RULES
 
 game, src, out = sys.argv[1:4]
 lines = json.load(open(src, encoding="utf-8"))
 
 STRONG_EN = re.compile(r"\b(fuck\w*|shit\w*|bitch\w*|bastard\w*|asshole\w*|motherfuck\w*|dick\w*|cunt\w*)\b", re.I)
-STRONG_TR = re.compile(r"(sik|amk|amın|amına|orospu|piç|bok|göt|kahpe|yavşak|puşt|siktir|ibne|şerefsiz|pislik|kaltak|lanet|kahrolası|aşağılık|alçak)", re.I)
+STRONG_TR = re.compile(r"(?<!\w)(?:sik|amk|amın|amına|orospu|piç|bok|göt|kahpe|yavşak|puşt|siktir|ibne|şerefsiz|pislik|kaltak|lanet|kahrolası|aşağılık|alçak)", re.I)
 TR_CHARS = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
 EN_WORDS = re.compile(r"\b(the|and|you|what|this|that|with|have|are|is|not|for|your|we|they)\b", re.I)
 BAD_SCRIPT = re.compile(r"[Ѐ-ӿ぀-ヿ一-鿿가-힯]")
@@ -39,7 +40,7 @@ SCHEMA = {"type": "object", "properties": {"fixes": {"type": "array", "items": {
     "required": ["fixes"], "additionalProperties": False}
 
 SYSTEM = f"""You are a senior Turkish subtitle editor checking machine translations of video game subtitles.
-{GLOSSARY[game]}
+{GLOSSARY.get(game, f'Game: {game}.')}
 {RULES}
 You get numbered English sentences with their Turkish translation (sometimes marked with automatic warnings).
 Return a fix ONLY for translations that are actually wrong: wrong meaning, a sentence translated as a neighbouring
@@ -65,7 +66,17 @@ def run(start):
         warn = f"  [warning: {', '.join(flag[iid])}]" if flag[iid] else ""
         body.append(f"{iid}\t[{sp or '-'}] EN: {en}\n\tTR: {tr}{warn}")
     res = llm.call(SYSTEM, "\n".join(body), SCHEMA, f"{game}-review", max_tokens=32000, effort=__import__("os").environ.get("EFFORT", "medium"))
-    return (res or {}).get("fixes", [])
+    # Like translation, review runs in parallel batches. Ignore model IDs from
+    # other batches so a late/hallucinated correction cannot rewrite them.
+    allowed = {iid for iid, _, _, _ in chunk}
+    proposed = [fix for fix in (res or {}).get("fixes", [])
+                if isinstance(fix, dict) and fix.get("id") in allowed]
+    counts = {}
+    for fix in proposed:
+        counts[fix["id"]] = counts.get(fix["id"], 0) + 1
+    # A model may offer contradictory fixes for one ID. Reject all ambiguous
+    # corrections instead of silently applying whichever came last.
+    return [fix for fix in proposed if counts[fix["id"]] == 1]
 
 
 fixes = []
@@ -100,5 +111,5 @@ print("applied", len(applied), "vetoed", len(vetoed),
       {k: sum(1 for a in applied if a["why"] == k) for k in SCHEMA["properties"]["fixes"]["items"]["properties"]["why"]["enum"]})
 left = sum(1 for l in lines for j, en in enumerate(l["sents"]) if problems(en, l["tr"][j] or ""))
 print("auto flags left", left)
-json.dump(lines, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=0)
-json.dump({"applied": applied, "vetoed": vetoed}, open(out + ".log.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+dump_atomic(lines, out, ensure_ascii=False, indent=0)
+dump_atomic({"applied": applied, "vetoed": vetoed}, out + ".log.json", ensure_ascii=False, indent=1)

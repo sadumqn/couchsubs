@@ -15,6 +15,29 @@ public class GlossaryTests
 
     private static Glossary Gow => Glossary.Parse(GodOfWar);
 
+    /// <summary>#287 (Mac: SubtitleTextTests): korunacak konuşan adları ve sözlüğe yalnız satırda geçenlerin eklenmesi.</summary>
+    [Fact]
+    public void SpeakerNamesAreKeptOnlyWhenWrittenAsNames()
+    {
+        var names = new SpeakerNameGuard();
+        names.Learn("OLD MAN");
+        names.Learn("Freya");
+        Assert.Equal(["Freya"], names.Protected);
+        names.Learn("CAPTAIN PRICE");
+        names.Learn("Ghost");
+        names.Learn("RADIO");
+        Assert.Equal(["Freya", "Ghost", "Price"], names.Protected.Order(StringComparer.Ordinal));
+        Assert.Equal(["Ghost", "Price"], SpeakerNameGuard.Occurring(names.Protected, "Ghost, ghostly ghost. Price!", exact: true));
+        Assert.Empty(SpeakerNameGuard.Occurring(["Ghost"], "a ghostly ghost", exact: true));
+
+        var glossary = Gow.KeepingNames(names.Protected, "Price, get down! The price is high.");
+        Assert.Equal(["Price"], glossary.Find("Price, get down! The price is high. Pricey.").Select(m => m.English));
+        Assert.NotEqual(Gow.Fingerprint, glossary.Fingerprint);
+        // Satırda geçmeyen ad eklenmez; sözlük aynı kalır.
+        var gow = Gow;
+        Assert.Same(gow, gow.KeepingNames(names.Protected, "Nothing here."));
+    }
+
     [Fact]
     public void ParsesTermsAndKeepNames()
     {

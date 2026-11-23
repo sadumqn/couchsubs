@@ -12,16 +12,25 @@ public enum OcrNoise {
     private static let edgePunctuation = CharacterSet.punctuationCharacters.union(.symbols).subtracting(symbols)
         .union(CharacterSet(charactersIn: "\"'“”‘’«»()[]"))
 
-    public static func clean(_ line: String) -> String {
+    public static func clean(_ line: String, keepIdentifiers: Bool = false) -> String {
         var kept: [String] = []
         let tokens = line.split(whereSeparator: \.isWhitespace).map(String.init)
         for (index, token) in tokens.enumerated() {
+            // Kumanda simgesinin yeri (`ButtonIcons.marker`) çöp değildir.
+            if token.unicodeScalars.first == ButtonIcons.markerScalar || (keepIdentifiers &&
+                (GamePhoneText.containsIdentifier(token) || GamePhoneText.isWrittenChatWord(token))) {
+                kept.append(token)
+                continue
+            }
             let (lead, core, trail) = split(token)
             // Tek başına "l" ya da "|" çoğu zaman yanlış okunmuş "I"dır ("l don't know", "|'ll go"); ardından küçük
-            // harfle süren sözcük gelmiyorsa altyazı kutusunun kenarıdır ("| Get in the car."), atılır.
+            // harfle başlayan sözcük yoksa ve token ?/! ile bitmiyorsa altyazı kutusunun kenarı olabilir.
             if let pronoun = misreadI(core) {
                 let next = index + 1 < tokens.count ? tokens[index + 1].first(where: \.isLetter) : nil
-                if pronoun != "I" || next?.isLowercase == true { kept.append(lead + pronoun + trail) }
+                let endsQuestionOrExclamation = trail.contains(where: { "?!".contains($0) })
+                if pronoun != "I" || next?.isLowercase == true || endsQuestionOrExclamation {
+                    kept.append(lead + pronoun + trail)
+                }
                 continue
             }
             // Yalnız "?!", ".", "," gibi işaretlerden oluşan parça: satır başında ya da cümle bittikten sonra yazı
@@ -30,6 +39,12 @@ public enum OcrNoise {
                 if let last = kept.last, let end = last.last, !".?!…,;:".contains(end) {
                     kept[kept.count - 1] = last + token
                 }
+                continue
+            }
+            // Harfsiz, rakamsız ve yalnız simgeden oluşan parça ("_", "~", "=") yazı tanımanın uydurmasıdır: renkli
+            // sözcüğün açık zeminde kaybolan harfleri "_" okunuyordu ("Get in the _ eedboat", GitHub #854, GTA 6).
+            if isSymbolOnly(core) {
+                if !trail.isEmpty, let last = kept.popLast() { kept.append(last + trail) }
                 continue
             }
             if let fixed = cleanCore(core) {
@@ -54,11 +69,12 @@ public enum OcrNoise {
         var score = 0
         for token in text.split(whereSeparator: \.isWhitespace).map(String.init) {
             let core = split(token).1
-            let letters = core.filter(\.isLetter).count
-            guard letters > 0 else { continue }
+            let letters = String(core.filter(\.isLetter))
+            guard !letters.isEmpty else { continue }
             // Sözcük ortasındaki parantez ("the[lil") de okuma karışıklığıdır.
             let clean = cleanCore(core) == core && normalCase(core) && !core.contains(where: { "[]()".contains($0) })
-            score += clean ? letters : -2 * letters
+                && !vowelless(letters)
+            score += clean ? letters.count : -2 * letters.count
         }
         return score
     }
@@ -79,10 +95,65 @@ public enum OcrNoise {
         return bad * 6 > good + bad
     }
 
+    /// Parça yalnız simgelerden mi oluşuyor (harf ve rakam yok, en az bir `symbols` imi).
+    private static func isSymbolOnly(_ core: String) -> Bool {
+        !core.isEmpty && !core.contains(where: { $0.isLetter || $0.isNumber })
+            && core.unicodeScalars.contains { symbols.contains($0) }
+    }
+
+    /// Satır bir okuma kırıntısı mı: altyazı ya da görev değil, ekrandaki küçük bir göstergenin ya da solan satırın yazı
+    /// tanımadan kalan parçası ("one ready.", "ar.", "kulak"). En çok üç sözcüklü ve küçük harfle (ya da harf dışı bir
+    /// imle) başlayan, ya da hiç gerçek sözcük (en az iki harfli, ünlü taşıyan) taşımayan, ya da çöp gibi okunan satır.
+    /// Büyük harfle başlayan kısa konuşma ("Go!", "Okay.") kırıntı değildir. Kırıntı yanındaki uzun konuşmayı "eski"
+    /// gösterip altyazıdan attırmaz, görev satırı da sayılmaz (`StickyRows`, `MissionLine`; GitHub #854, #882).
+    /// Windows (OcrNoise.IsCrumb) ve Android (OcrNoise.isCrumb) aynı kuralı uygular.
+    public static func isCrumb(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        if looksGarbled(trimmed) { return true }
+        let words = trimmed.split(whereSeparator: \.isWhitespace).filter { $0.contains(where: \.isLetter) }
+        guard words.count <= 3 else { return false }
+        if let first = trimmed.first(where: { $0.isLetter || $0.isNumber }), !(first.isLetter && first.isUppercase) { return true }
+        return !words.contains { word in
+            let letters = word.filter(\.isLetter).lowercased()
+            return letters.count >= 2 && letters.contains(where: { "aeiouyäöüıàáâèéêìíîòóôùúû".contains($0) })
+        }
+    }
+
+    /// Sözcük (harfleri) İngilizcede bir sözcük olamaz: ünlüsüz (`vowelless`), İngilizcede hiç yan yana gelmeyen iki harf
+    /// taşıyor ("ijz": "jz") ya da harf-rakam/simge karışık. Yalnız aynı satırın iki okumasından hangisinin bozuk olduğuna
+    /// karar verirken kullanılır (`SubtitleStabilizer`); tek başına satır atmaz.
+    public static func isNonWord(_ word: String) -> Bool {
+        let core = split(word).1
+        let letters = String(core.filter(\.isLetter))
+        guard letters.count >= 2 else { return false }
+        if cleanCore(core) != core || vowelless(letters) { return true }
+        let characters = Array(letters.lowercased())
+        return zip(characters, characters.dropFirst()).contains { impossiblePairs.contains(String([$0, $1])) }
+    }
+
+    /// İngilizce sözcüklerde yan yana gelmeyen harf çiftleri (yazı tanımanın "lives" → "Ijz" gibi uydurmalarında çıkar).
+    private static let impossiblePairs: Set<String> = [
+        "bx", "cj", "cv", "cx", "dx", "fq", "fx", "gq", "gx", "hx", "jc", "jf", "jg", "jq", "js", "jv", "jw", "jx", "jz",
+        "kq", "kx", "mx", "px", "pz", "qb", "qc", "qd", "qf", "qg", "qh", "qj", "qk", "ql", "qm", "qn", "qp", "qr", "qs",
+        "qt", "qv", "qw", "qx", "qy", "qz", "sx", "vb", "vf", "vh", "vj", "vm", "vp", "vq", "vw", "vx", "wx", "xj", "xx",
+        "zj", "zq", "zx",
+    ]
+
     /// Üç ve daha çok harfli, ünlüsüz ve kısaltma olmayan (tümü büyük harf değil) sözcük: İngilizcede olmaz ("Gtt", "rnnk").
     private static func vowelless(_ letters: String) -> Bool {
         letters.count >= 3 && !letters.allSatisfy(\.isUppercase)
             && !letters.lowercased().contains(where: { "aeiouyäöüıàáâèéêìíîòóôùúû".contains($0) })
+            && !interjections.contains(collapsed(letters.lowercased()))
+    }
+
+    /// Ünlüsüz ama gerçek ünlemler ("Hmm", "Shh", "Brr", "Grr", "Psst", "Pfft", "Mmm", "Zzz", "Tsk"); art arda tekrarlar tek harf sayılır.
+    private static let interjections: Set<String> = ["hm", "m", "sh", "br", "gr", "pst", "pft", "tsk", "hrm", "z", "pht"]
+
+    private static func collapsed(_ text: String) -> String {
+        var result = ""
+        for character in text where character != result.last { result.append(character) }
+        return result
     }
 
     /// "word", "WORD", "Word", "McDonald", "don't": büyük harf yalnız başta ya da baştan bir dizi.

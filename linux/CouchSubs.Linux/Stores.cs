@@ -98,6 +98,6 @@ public sealed class FileSettingsStore : ISettingsStore
 /// <summary>Sunucu uykuya geçmez; yapılacak bir şey yok.</summary>
 public sealed class NoSleepGuard : ISleepGuard
 {
-    public void Begin() { }
+    public void Begin(bool keepDisplayOn) { }
     public void End() { }
 }

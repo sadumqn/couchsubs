@@ -9,6 +9,8 @@ import Foundation
 @MainActor
 final class Dubber {
     private let engine = PocketTTSEngine()
+    /// "Hızlı" ses: Mac'in kendi Türkçe sesi (Windows'taki Hızlı dublaj; indirme yok).
+    private let system = AVSpeechSynthesizer()
     private let server: SubtitleServer
     private var serverPort: UInt16
     private var queue: [SpokenLine] = []
@@ -20,6 +22,8 @@ final class Dubber {
 
     var cast: VoiceCast
     var output: DubbingOutput
+    /// "Ses: Doğal / Hızlı" (`DubbingSettings.engine`).
+    var voiceEngine: DubbingEngine
     /// Yeni bir karaktere ses verildi; ayarlara kaydedilir.
     var onCastChanged: ((VoiceCast) -> Void)?
     var onError: ((String) -> Void)?
@@ -32,6 +36,7 @@ final class Dubber {
         self.serverPort = serverPort
         cast = settings.cast
         output = settings.output
+        voiceEngine = settings.engine
     }
 
     func update(serverPort: UInt16) {
@@ -40,6 +45,7 @@ final class Dubber {
 
     /// Model yüklenir, ilk cümle beklemesin.
     func prepare() {
+        guard voiceEngine == .natural else { return }
         publishVoices()
         Task { [engine, weak self] in
             do { try await engine.start() } catch { self?.onError?(error.localizedDescription) }
@@ -72,6 +78,10 @@ final class Dubber {
     /// Ayarlardaki "Dinle" düğmesi.
     func preview(_ voice: DubbingVoice) {
         stop()
+        if voiceEngine == .fast {
+            system.speak(SystemSpeech.utterance("Merhaba, oyundaki karakterleri Türkçe seslendireceğim.", voice: voice))
+            return
+        }
         previewVoice = voice
         // Dublaj yalnız Türkçe: arayüz dili ne olursa olsun deneme cümlesi Türkçedir.
         speak([SpokenLine(english: "Listen.", turkish: "Merhaba, oyundaki karakterleri Türkçe seslendireceğim.")])
@@ -86,6 +96,7 @@ final class Dubber {
         generation += 1
         player?.stop()
         player = nil
+        system.stopSpeaking(at: .immediate)
         server.stopSpeech()
     }
 
@@ -121,6 +132,17 @@ final class Dubber {
             let before = cast
             voice = cast.voice(for: line)
             if cast.assignments != before.assignments { onCastChanged?(cast) }
+        }
+        if voiceEngine == .fast {
+            // Mac'in kendi sesi: cümle WAV'a çevrilir, doğal sesle aynı yoldan (TV ya da bu Mac) çalar.
+            let utterance = SystemSpeech.utterance(line.turkish, voice: voice)
+            return Task { [system, weak self] in
+                guard let audio = await SystemSpeech.render(utterance, with: system) else {
+                    if !Task.isCancelled { self?.onError?(String(localized: "No Turkish voice is installed on this Mac. Add one in System Settings › Accessibility › Spoken Content › System Voice › Manage Voices.")) }
+                    return nil
+                }
+                return (audio, preview)
+            }
         }
         let text = SpeechText.prepare(line.turkish, emotion: SpeechEmotion.guess(english: line.english))
         let url = URL(string: "http://127.0.0.1:\(serverPort)/voices/\(voice.rawValue).wav")!

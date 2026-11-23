@@ -26,7 +26,13 @@ def put(table, en, tr):
 
 
 for l in lines:
-    if not all(l["tr"]) or not l["sents"]:
+    if not l["sents"]:
+        continue
+    # zip(sents, tr) silently drops unmatched sentences; a full-line translation
+    # built from only one of them would publish incorrect subtitles.
+    if not isinstance(l["tr"], list) or len(l["tr"]) != len(l["sents"]):
+        raise SystemExit("reviewed subtitle has mismatched sentence and translation counts")
+    if not all(l["tr"]):
         continue
     whole = " ".join(t.strip() for t in l["tr"])
     # Türkçesi İngilizcesiyle aynı satırlar (adlar, ünlemler) parça olarak girer, tam satır olarak değil.
@@ -50,5 +56,9 @@ for k in list(segments):
     if k in entries:
         del segments[k]
 print("demoted (taken by older packs)", sum(1 for k in segments if k in taken))
+# Every client rejects an archive without full-line entries, even if it has
+# fragments: never publish a successfully generated but unloadable pack.
+if not entries:
+    raise SystemExit("no complete translated subtitles remain; refusing empty game pack")
 c.write_pack(out, pack_id, title, source, entries, segments, english)
-print(pack_id, "entries", len(entries), "segments", len(segments), "signed", sum(1 for k in english if c.signature(english[k])))
+print(pack_id, "entries", len(entries), "segments", len(segments), "signed", sum(1 for k in english if c.signature(english[k], c.fuzzy_min_len(title))))

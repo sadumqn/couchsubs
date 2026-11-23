@@ -44,6 +44,42 @@ enum LocalNetwork {
         }
         return result
     }
+
+    /// Adres adres taramada kullanılacak yerel adresler: VPN, sanal makine ve hücresel (iPhone'da pdp_ip) bağdaştırıcıları
+    /// sayılmaz; TV ve PS5 onların ağında değildir. iPhone'un hücresel adresi çoğu zaman 10.x (özel) olduğundan eskiden
+    /// Wi-Fi'ın yanında operatör ağı da taranıyordu.
+    static func scanAddresses(_ candidates: [NetworkAddress.Candidate]) -> [in_addr] {
+        candidates.filter { !NetworkAddress.isVirtual($0) }
+            .map { in_addr(s_addr: inet_addr($0.address)) }
+            .filter(isPrivate)
+    }
+
+    /// Bu cihazın ev ağlarındaki (/24) diğer adresler.
+    static func homeTargets() -> [String] { scanTargets(scanAddresses(NetworkAddress.candidates())) }
+
+    /// Ev ağındaki (/24) her adres için `probe`; aynı anda en çok `width` adres denenir. Bulunanlar adres sırasıyla döner.
+    /// Çok noktaya yayın (SSDP) kullanılamadığında yedek yol: iPhone'da multicast izni olmadan SSDP isteği gönderilemez.
+    static func probeAll<T: Sendable>(width: Int = 64, probe: @escaping @Sendable (String) async -> T?) async -> [(host: String, value: T)] {
+        let targets = homeTargets()
+        var found: [(host: String, value: T)] = []
+        for start in stride(from: 0, to: targets.count, by: width) {
+            let batch = targets[start..<min(start + width, targets.count)]
+            await withTaskGroup(of: (String, T?).self) { group in
+                for host in batch { group.addTask { (host, await probe(host)) } }
+                for await (host, value) in group { if let value { found.append((host, value)) } }
+            }
+        }
+        return found.sorted { $0.host.compare($1.host, options: .numeric) == .orderedAscending }
+    }
+
+    /// Tarama sorguları için kısa zaman aşımlı oturum: yanıt vermeyen adres en çok ~1 sn bekletir.
+    static let probeSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 0.8
+        configuration.timeoutIntervalForResource = 1.5
+        configuration.httpMaximumConnectionsPerHost = 1
+        return URLSession(configuration: configuration)
+    }()
 }
 
 /// Bu cihazın (Mac ya da iPhone/iPad) ev ağındaki adresi; TV uygulamasına altyazı sunucusunun adresi olarak verilir.
@@ -61,16 +97,29 @@ public enum NetworkAddress {
 
     /// VPN (utun, ipsec, ppp), sanal makine (vmnet, vboxnet, bridge) ve benzeri bağdaştırıcılar ev ağı adresi taşısa da
     /// TV onlara ulaşamaz; Samsung'un "Host PC IP" alanına bunlardan biri yazılınca TV bağlantıyı kesiyordu.
+    /// iPhone'un hücresel bağdaştırıcısı (pdp_ip) da ev ağında değildir.
     public static func isVirtual(_ candidate: Candidate) -> Bool {
         if candidate.pointToPoint { return true }
-        let prefixes = ["utun", "ipsec", "ppp", "gif", "stf", "vmnet", "vboxnet", "bridge", "feth", "tap", "tun", "awdl", "llw", "anpi", "zt"]
+        // vnic: Parallels; ap: İnternet Paylaşımı erişim noktası. Cloudflare WARP, Mullvad ve Clash/sing-box TUN utun kullanır.
+        let prefixes = ["utun", "ipsec", "ppp", "gif", "stf", "vmnet", "vboxnet", "bridge", "feth", "tap", "tun", "awdl", "llw", "anpi", "zt",
+                        "pdp_ip", "vnic", "ap"]
         return prefixes.contains { candidate.interface.hasPrefix($0) }
     }
 
-    /// `host` ile aynı alt ağdaki gerçek bağdaştırıcı; yoksa Wi-Fi/Ethernet (en*) ev ağı adresi; sanal bağdaştırıcı ancak
-    /// başka adres yoksa. `host` nil ya da geçersizse aynı ağ adımı atlanır.
-    public static func choose(_ candidates: [Candidate], near host: String?) -> String? {
-        let real = candidates.filter { !isVirtual($0) }
+    private static func isPrivate(_ c: Candidate) -> Bool { LocalNetwork.isPrivate(in_addr(s_addr: inet_addr(c.address))) }
+
+    /// Gerçek bağdaştırıcılar arasında sıra: Wi-Fi/Ethernet (en*) önce, ev ağı adresi önce; eşitlerde sistemin sırası.
+    private static func rank(_ c: Candidate) -> Int { (c.interface.hasPrefix("en") ? 0 : 2) + (isPrivate(c) ? 0 : 1) }
+
+    private static func ranked(_ candidates: [Candidate]) -> [Candidate] {
+        candidates.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
+    }
+
+    /// `host` ile aynı alt ağdaki gerçek bağdaştırıcı; yoksa internete çıkılan (varsayılan yol, `defaultRoute`) gerçek ev
+    /// ağı adresi; yoksa Wi-Fi/Ethernet (en*) ev ağı adresi; sanal bağdaştırıcı ancak başka adres yoksa. `host` nil ya da
+    /// geçersizse aynı ağ adımı atlanır.
+    public static func choose(_ candidates: [Candidate], near host: String?, defaultRoute: String? = nil) -> String? {
+        let real = ranked(candidates.filter { !isVirtual($0) })
         if let host, inet_addr(host) != UInt32.max {
             let target = inet_addr(host)
             func same(_ c: Candidate) -> Bool {
@@ -79,13 +128,21 @@ public enum NetworkAddress {
             }
             if let hit = real.first(where: same) ?? candidates.first(where: same) { return hit.address }
         }
-        func isPrivate(_ c: Candidate) -> Bool { LocalNetwork.isPrivate(in_addr(s_addr: inet_addr(c.address))) }
-        return (real.first { $0.interface.hasPrefix("en") && isPrivate($0) }
-            ?? real.first(where: isPrivate)
-            ?? real.first
+        if let defaultRoute, let routed = real.first(where: { $0.address == defaultRoute && isPrivate($0) }) { return routed.address }
+        return (real.first
             ?? candidates.first(where: isPrivate)
             ?? candidates.first)?.address
     }
+
+    /// Gerçek (VPN ve sanal olmayan) bağdaştırıcılardaki ev ağı adresleri, tercih sırasıyla ve tekrarsız. Birden çoksa
+    /// Samsung kurulumunda TV'nin kabul etmediği durumda denenecek diğer adresler gösterilir.
+    public static func homeAddresses(_ candidates: [Candidate]) -> [String] {
+        var seen = Set<String>()
+        return ranked(candidates.filter { !isVirtual($0) && isPrivate($0) }).map(\.address).filter { seen.insert($0).inserted }
+    }
+
+    /// Bu cihazın ev ağı adresleri (bkz. `homeAddresses`).
+    public static func homeAddresses() -> [String] { homeAddresses(candidates()) }
 
     /// Açık (loopback dışı) bağdaştırıcıların IPv4 adresleri.
     public static func candidates() -> [Candidate] {
@@ -106,6 +163,54 @@ public enum NetworkAddress {
         return result
     }
 
-    /// `host` ile aynı alt ağdaki IPv4 adresi; yoksa Wi-Fi/Ethernet adresi (bkz. `choose`).
-    public static func near(_ host: String?) -> String? { choose(candidates(), near: host) }
+    /// TV'ye giden bağlantının bu cihazdaki kaynak adresi: UDP soketi "bağlanır" (paket gönderilmez) ve yerel uç okunur;
+    /// TCP bağlantısı da aynı bağdaştırıcıdan çıkar. Okunamazsa nil.
+    public static func routeSource(to host: String) -> String? {
+        let target = inet_addr(host)
+        guard target != UInt32.max else { return nil }
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var remote = sockaddr_in()
+        remote.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        remote.sin_family = sa_family_t(AF_INET)
+        remote.sin_port = in_port_t(8001).bigEndian
+        remote.sin_addr = in_addr(s_addr: target)
+        let connected = withUnsafePointer(to: &remote) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        guard connected == 0 else { return nil }
+        var local = sockaddr_in()
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let named = withUnsafeMutablePointer(to: &local) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &length) }
+        }
+        guard named == 0, local.sin_addr.s_addr != 0 else { return nil }
+        return String(cString: inet_ntoa(local.sin_addr))
+    }
+
+    /// TV'nin göreceği adres: TV'ye giden yolun kaynak adresi açık bir bağdaştırıcınınsa o, yoksa `choose`. Alt ağ tahmini
+    /// birden çok bağdaştırıcıda yanlış adresi seçebiliyordu; Samsung Host PC IP ile karşılaştırılan adres bu (#343).
+    public static func choose(_ candidates: [Candidate], near host: String?, routeSource: String?, defaultRoute: String? = nil) -> String? {
+        if let source = routeSource, source != "0.0.0.0", !source.hasPrefix("127."),
+           candidates.isEmpty || candidates.contains(where: { $0.address == source }) {
+            return source
+        }
+        return choose(candidates, near: host, defaultRoute: defaultRoute)
+    }
+
+    /// TV'nin adres kutusuna bu cihazın kendi adresi mi yazılmış? (Samsung'da Host PC IP'ye yazılacak olan; iki kullanıcı
+    /// TV'nin kutusuna bunu yazmıştı, #343.) Kablosuz hata ayıklamadaki port (`:41235`) atılır.
+    public static func isOwnAddress(_ typed: String, own: String?) -> Bool {
+        guard let own = own?.trimmingCharacters(in: .whitespaces), !own.isEmpty else { return false }
+        let host = typed.trimmingCharacters(in: .whitespaces).split(separator: ":", maxSplits: 1).first.map(String.init) ?? ""
+        return !host.isEmpty && host == own
+    }
+
+    /// TV'ye giden yolun kaynak adresi; yoksa `host` ile aynı alt ağdaki IPv4 adresi, o da yoksa (TV bilinmiyorsa) internete
+    /// çıkılan bağdaştırıcının, o da yoksa Wi-Fi/Ethernet adresi.
+    public static func near(_ host: String?) -> String? {
+        choose(candidates(), near: host, routeSource: host.flatMap { routeSource(to: $0) },
+               defaultRoute: host == nil ? routeSource(to: "1.1.1.1") : nil)
+    }
 }

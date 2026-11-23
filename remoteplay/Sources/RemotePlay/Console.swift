@@ -8,11 +8,17 @@ public struct ConsoleInfo: Codable, Hashable, Sendable {
     public let host: String
     public let name: String
     public let isAwake: Bool
+    /// PS5'te o an çalışan uygulama (keşif yanıtındaki `running-app-titleid` ve `running-app-name`); ana ekranda ya
+    /// da dinlenme modunda yok.
+    public let runningAppTitleId: String?
+    public let runningAppName: String?
 
-    public init(host: String, name: String, isAwake: Bool) {
+    public init(host: String, name: String, isAwake: Bool, runningAppTitleId: String? = nil, runningAppName: String? = nil) {
         self.host = host
         self.name = name
         self.isAwake = isAwake
+        self.runningAppTitleId = runningAppTitleId
+        self.runningAppName = runningAppName
     }
 }
 
@@ -32,7 +38,11 @@ public enum Console {
     public static func wake(_ console: RegisteredConsole) throws {
         guard let credential = console.wakeCredential else { throw ChiakiError(code: CHIAKI_ERR_INVALID_DATA) }
         let logger = ChiakiLogger()
-        let error = chiaki_discovery_wakeup(logger.pointer, nil, console.host, credential, true)
+        // Günlük çağrı bitene dek yaşamalı: Swift onu son kullanımda (`pointer` okununca) bırakabilir, libchiaki ise
+        // uyandırma sırasında günlüğe yazar (serbest kalmış belleğe yazmak chiaki_log'da çökertir).
+        let error = withExtendedLifetime(logger) {
+            chiaki_discovery_wakeup(logger.pointer, nil, console.host, credential, true)
+        }
         guard error.isSuccess else { throw ChiakiError(code: error) }
     }
 
@@ -41,8 +51,44 @@ public enum Console {
         let lock = NSLock()
     }
 
+    /// Aramada her adrese ayrı paket gider (ağ başına ~1000 adres, yarım saniyede bir); boştaki adreslere gönderim
+    /// "Discovery failed to send: Host is down" gibi hatayla döner ve her biri günlüğe yazılınca remoteplay.log saniyede
+    /// yüzlerce satır büyüyordu. Aynı gönderim hatası bir aramada yalnız ilk kez yazılır, kaç kez tekrarlandığı arama
+    /// sonunda tek satırda söylenir. Başka satırlara (ve başka gönderim hatalarına) dokunulmaz.
+    final class SendErrorDigest {
+        static let prefix = "Discovery failed to send"
+        private let lock = NSLock()
+        private var counts: [String: Int] = [:]
+        private var order: [String] = []
+
+        /// Satır günlüğe yazılsın mı: gönderim hatası değilse ya da bu aramada ilk kez görülüyorsa evet.
+        func admit(_ text: String) -> Bool {
+            guard text.hasPrefix(Self.prefix) else { return true }
+            lock.lock()
+            defer { lock.unlock() }
+            let count = (counts[text] ?? 0) + 1
+            counts[text] = count
+            if count == 1 { order.append(text) }
+            return count == 1
+        }
+
+        /// Tekrarlanan hataların özeti (ilk kez yazılan satır dışında kaç kez daha geldiği); tekrar yoksa boş.
+        func summary(targets: Int) -> [String] {
+            lock.lock()
+            defer { lock.unlock() }
+            return order.compactMap { text in
+                guard let count = counts[text], count > 1 else { return nil }
+                return "[chiaki error] \(text) (bu PS5 aramasında toplam \(count) kez, \(targets) adrese soruldu)"
+            }
+        }
+    }
+
     static func search(timeout: Duration, host: String?) -> [ConsoleInfo] {
         let logger = ChiakiLogger()
+        let sendErrors = SendErrorDigest()
+        logger.shouldWrite = { sendErrors.admit($0) }
+        // İlk defer en son çalışır: günlük, aşağıdaki chiaki_discovery_fini de dahil her C çağrısından sonra bırakılır.
+        defer { withExtendedLifetime(logger) {} }
         let discovery = UnsafeMutablePointer<ChiakiDiscovery>.allocate(capacity: 1)
         let thread = UnsafeMutablePointer<ChiakiDiscoveryThread>.allocate(capacity: 1)
         defer {
@@ -59,7 +105,9 @@ public enum Console {
             let collector = Unmanaged<Collector>.fromOpaque(user).takeUnretainedValue()
             let info = ConsoleInfo(host: String(cString: address),
                                    name: host.pointee.host_name.map { String(cString: $0) } ?? "PS5",
-                                   isAwake: host.pointee.state == CHIAKI_DISCOVERY_HOST_STATE_READY)
+                                   isAwake: host.pointee.state == CHIAKI_DISCOVERY_HOST_STATE_READY,
+                                   runningAppTitleId: host.pointee.running_app_titleid.map { String(cString: $0) },
+                                   runningAppName: host.pointee.running_app_name.map { String(cString: $0) })
             collector.lock.lock()
             collector.hosts[info.host] = info
             collector.lock.unlock()
@@ -91,7 +139,7 @@ public enum Console {
             Thread.sleep(forTimeInterval: 0.5)
         }
         chiaki_discovery_thread_stop(thread)
-        withExtendedLifetime(logger) {}
+        for line in sendErrors.summary(targets: targets.count) { RemotePlayLog.write(line) }
 
         collector.lock.lock()
         defer { collector.lock.unlock() }
@@ -107,7 +155,8 @@ public enum Console {
         for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
             let entry = pointer.pointee
             let flags = Int32(entry.ifa_flags)
-            guard flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0,
+            // iPhone'un hücresel bağdaştırıcısı (pdp_ip) ev ağında değildir; PS5 orada aranmaz.
+            guard flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0, !isCellular(String(cString: entry.ifa_name)),
                   entry.ifa_addr?.pointee.sa_family == sa_family_t(AF_INET), let mask = entry.ifa_netmask else { continue }
             let address = UInt32(bigEndian: entry.ifa_addr!.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr })
             let netmask = UInt32(bigEndian: mask.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr })
@@ -115,6 +164,8 @@ public enum Console {
         }
         return targets(networks: networks).map { $0.bigEndian }
     }
+
+    static func isCellular(_ interface: String) -> Bool { interface.hasPrefix("pdp_ip") }
 
     /// Arama hedefleri (ana bilgisayar sıralı). Eskiden genel yayın yalnız hiç adres bulunamazsa ekleniyordu; Wi-Fi
     /// /22'den büyükken (ör. /16) başka bir arayüz (VPN, sanal makine) adres verince PS5'in ağına hiç sorulmuyordu.

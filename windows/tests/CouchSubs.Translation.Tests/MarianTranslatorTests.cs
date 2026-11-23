@@ -45,6 +45,23 @@ public class MarianTranslatorTests
     }
 
     [Fact]
+    public async Task WorkerFailureIsReportedOnceAndStopsFurtherCalls()
+    {
+        var engine = new FakeEngine { Map = _ => throw new IOException("worker stopped") };
+        using var translator = new MarianTranslator(() => engine, () => true);
+        var failures = 0;
+        translator.EngineFailed += _ => failures++;
+
+        var first = await Assert.ThrowsAsync<TranslatorException>(() => translator.TranslateAsync("Wait!"));
+        var second = await Assert.ThrowsAsync<TranslatorException>(() => translator.TranslateAsync("Run!"));
+
+        Assert.Equal(TranslatorStatus.EngineFailed, first.Status);
+        Assert.Equal(TranslatorStatus.EngineFailed, second.Status);
+        Assert.Equal(1, failures);
+        Assert.Single(engine.Calls);
+    }
+
+    [Fact]
     public async Task SpokenLinesKeepTheirSpeakers()
     {
         var (translator, _) = Create();
@@ -98,8 +115,9 @@ public class MarianTranslatorTests
         var (translator, engine) = Create();
 
         await translator.TranslateAsync("ATREUS: Father, look!");
-        await translator.TranslateAsync("THE GATE WILL NOT HOLD, ATREUS.");
-        Assert.Equal("The gate will not hold, Atreus.", engine.Calls[^1]);
+        // Ad cümle düzeninde büyük harfle kalır ve çeviriden korunur: modele yer tutucuyla gider, çeviride geri konur (#287).
+        Assert.EndsWith("Atreus.", await translator.TranslateAsync("THE GATE WILL NOT HOLD, ATREUS."));
+        Assert.Equal("The gate will not hold, Zarmon.", engine.Calls[^1]);
     }
 
     /// <summary>Önceki oturumda çevrilen satır model çalışmadan döner; seslendirme cümleleri de konuşmacısıyla kurulur.</summary>
@@ -142,6 +160,40 @@ public class MarianTranslatorTests
         Assert.Equal([sent], engine.Calls);
     }
 
+    /// <summary>
+    /// #287 (Mac: FreeLineTranslatorTests.testLearnedSpeakerNameIsKeptInsideSentences): "PRICE:" etiketinden öğrenilen ad
+    /// sonraki cümlelerin içinde de çeviriden korunur ("Fiyat" olmasın); küçük harfle geçen ya da sözcüğün parçası olan
+    /// "price"/"Pricey" korunmaz, görev etiketleri ("SOLDIER:") ad sayılmaz.
+    /// </summary>
+    [Fact]
+    public async Task LearnedSpeakerNameIsKeptInsideSentences()
+    {
+        var engine = new FakeEngine
+        {
+            Map = input => input switch
+            {
+                "Move." => "Hareket et.",
+                "Zarmon, get down right now!" => "Zarmon, hemen yere yat!",
+                "The price is Pricey." => "Fiyat pahalı.",
+                "Soldier, get down right now!" => "Asker, hemen yere yat!",
+                _ => "?",
+            },
+        };
+        using var translator = new MarianTranslator(() => engine, () => true);
+        await translator.TranslateAsync("PRICE: Move.");
+        Assert.Equal("Price, hemen yere yat!", await translator.TranslateAsync("Price, get down right now!"));
+        Assert.Equal("Fiyat pahalı.", await translator.TranslateAsync("The price is Pricey."));
+        await translator.TranslateAsync("SOLDIER: Move.");
+        Assert.Equal("Asker, hemen yere yat!", await translator.TranslateAsync("Soldier, get down right now!"));
+        Assert.Equal(["Move.", "Zarmon, get down right now!", "The price is Pricey.",
+            "The price is Pricey. *** Move.", "Move.", "Soldier, get down right now!"], engine.Calls);
+
+        // Hat satır başındaki adı ayırıp yalnız cümleyi verir ("Price: Get down right now!"); ad ayrıca bildirilir.
+        using var separated = new MarianTranslator(() => engine, () => true);
+        separated.NoteSpeaker("Price");
+        Assert.Equal("Price, hemen yere yat!", await separated.TranslateAsync("Price, get down right now!"));
+    }
+
     [Fact]
     public async Task MultiWordNamesStayCapitalizedInLaterSentences()
     {
@@ -174,36 +226,35 @@ public class MarianTranslatorTests
         Assert.Equal(TranslatorStatus.NeedsDownload, error.Status);
     }
 
-    /// <summary>Windows'ta onnxruntime.dll yüklenemeyince SessionOptions'ın tür başlatıcısı böyle düşer (hata.log, beta.27).</summary>
-    private static Exception OnnxLoadFailure() =>
-        new TypeInitializationException("Microsoft.ML.OnnxRuntime.NativeMethods",
-            new DllNotFoundException("Unable to load DLL 'onnxruntime' or one of its dependencies (0x8007007E)"));
+    /// <summary>Paketlenmiş çalışma zamanı eksikse motor kurulamaz.</summary>
+    private static Exception RuntimeLoadFailure() =>
+        new FileNotFoundException("CTranslate2 runtime is missing");
 
     [Fact]
     public async Task EngineThatCannotLoadReportsEngineFailedOnce()
     {
         var attempts = 0;
-        var translator = new MarianTranslator(() => { attempts++; throw OnnxLoadFailure(); }, () => true);
+        var translator = new MarianTranslator(() => { attempts++; throw RuntimeLoadFailure(); }, () => true);
         var reported = new List<Exception>();
         translator.EngineFailed += reported.Add;
 
         var error = await Assert.ThrowsAsync<TranslatorException>(() => translator.TranslateAsync("Wait!"));
         Assert.Equal(TranslatorStatus.EngineFailed, error.Status);
-        Assert.IsType<TypeInitializationException>(error.InnerException);
+        Assert.IsType<FileNotFoundException>(error.InnerException);
         Assert.Equal(TranslatorStatus.EngineFailed, translator.Status);
 
         // Sonraki satırlar motoru yeniden açmaya çalışmaz, aynı durumu söyler; bildirim bir kez gelir.
         var again = await Assert.ThrowsAsync<TranslatorException>(() => translator.TranslateAsync("Run, boy!"));
         Assert.Equal(TranslatorStatus.EngineFailed, again.Status);
         Assert.Equal(1, attempts);
-        Assert.IsType<TypeInitializationException>(Assert.Single(reported));
+        Assert.IsType<FileNotFoundException>(Assert.Single(reported));
     }
 
     /// Arka planda başlatılıp beklenmeyen ısınma görevi hata bırakmamalı (UnobservedTaskException olarak hata.log'a düşüyordu).
     [Fact]
     public async Task WarmUpDoesNotFaultWhenEngineCannotLoad()
     {
-        var translator = new MarianTranslator(() => throw OnnxLoadFailure(), () => true);
+        var translator = new MarianTranslator(() => throw RuntimeLoadFailure(), () => true);
         var reported = 0;
         translator.EngineFailed += _ => reported++;
 
@@ -238,7 +289,7 @@ public class MarianTranslatorTests
             var engine = new FakeEngine();
             await new MarianTranslator(() => engine, () => true, new TranslationCache(file)).TranslateAsync("We go now.");
 
-            var broken = new MarianTranslator(() => throw OnnxLoadFailure(), () => true, new TranslationCache(file));
+            var broken = new MarianTranslator(() => throw RuntimeLoadFailure(), () => true, new TranslationCache(file));
             Assert.Equal("WE GO NOW.", await broken.TranslateAsync("We go now."));
             var error = await Assert.ThrowsAsync<TranslatorException>(() => broken.TranslateAsync("Stay close."));
             Assert.Equal(TranslatorStatus.EngineFailed, error.Status);
@@ -297,17 +348,8 @@ public class MarianTranslatorTests
     }
 
     [Fact]
-    public void EngineUsesAtMostTwoThreads()
-    {
-        Assert.Equal(1, OnnxMarianEngine.IntraOpThreads(1));
-        Assert.Equal(2, OnnxMarianEngine.IntraOpThreads(4));
-        Assert.Equal(2, OnnxMarianEngine.IntraOpThreads(16));
-        Assert.Equal(2, OnnxMarianEngine.MaxIntraOpThreads);
-    }
-
-    [Fact]
     public void CacheFileNameCarriesThePipelineVersion() =>
-        Assert.Equal("opus-mt-p" + FreeTranslation.PipelineVersion, MarianTranslator.EngineId);
+        Assert.Equal("opus-mt-ct2-p" + FreeTranslation.PipelineVersion, MarianTranslator.EngineId);
 
     [Fact]
     public async Task ShortLineIsTranslatedWithThePreviousLine()

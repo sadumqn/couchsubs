@@ -1,6 +1,6 @@
 {
   "id": "com.couchsubs.tv",
-  "version": "0.9.17",
+  "version": "0.9.81",
   "vendor": "Enmera",
   "type": "web",
   "main": "index.html",
@@ -10,5 +10,8 @@
   "bgColor": "#000000",
   "resolution": "1920x1080",
   "requiredACG": [],
-  "disableBackHistoryAPI": true
+  "disableBackHistoryAPI": true,
+  "screenSaverProperties": {
+    "preferredType": 2
+  }
 }

@@ -28,9 +28,15 @@
     TrackedAudio.prototype = NativeAudio.prototype;
     window.Audio = TrackedAudio;
   }
+  // Uygulama içi modda ekran arka plana düşünce (TV kendi HDMI oynatıcısını öne çekti: TCL Google TV'de PS5 60 Hz'e
+  // geçince; Ana ekran) altyazı bağlantısı bırakılır, öne gelince yeniden kurulur (Samsung'daki closeWhenHidden). Eskiden
+  // bağlantı arka planda açık kalıyordu: telefon/bilgisayar "TV bağlı" görüyor, deneme yazısı bile görünmeyen sayfaya
+  // gidiyordu; Android'in arka plan uygulamalarını dondurması da bağlantıyı yarı açık bırakıyordu. Bağlantı düşünce
+  // telefon/bilgisayar "CouchSubs'ı TV'de açın" der. Katman penceresi hep görünür: orada bırakılmaz.
   window.__onBackground = function (hidden) {
     muted = !!hidden;
     if (lastAudio) lastAudio.muted = muted;
+    if (!overlay && window.__pageHidden) window.__pageHidden(!!hidden);
   };
 
   window.__onHdmiStatus = function (kind) { hdmiStatus(kind); };
@@ -45,12 +51,17 @@
   // Bağlantı kopukken katmanda sağ üstte küçük bir nokta; bağlıyken hiçbir şey görünmez.
   function connection(open) {
     if (!dot) return;
-    clearTimeout(dotTimer);
     if (open) {
+      clearTimeout(dotTimer);
+      dotTimer = null;
       dot.className = 'hidden';
       return;
     }
-    dotTimer = setTimeout(function () { dot.className = ''; }, DOT_AFTER_MS);
+    if (dotTimer !== null || dot.className !== 'hidden') return;
+    dotTimer = setTimeout(function () {
+      dotTimer = null;
+      dot.className = '';
+    }, DOT_AFTER_MS);
   }
 
   function setupOverlay() {
@@ -58,7 +69,7 @@
     // Bekleme kutusu ve demo kumandayla kapatılamaz; oyunun üstünde asılı kalmasın.
     style.textContent = 'body.overlay #waiting, body.overlay #demo-badge { display: none !important; }' +
       '#overlay-dot { position: absolute; top: 32px; right: 32px; width: 14px; height: 14px; border-radius: 50%;' +
-      ' background: #E5484D; opacity: 0.8; z-index: 50; }' +
+      ' background: #F28B82; opacity: 0.8; z-index: 50; }' +
       '#overlay-dot.hidden { display: none; }';
     document.head.appendChild(style);
     document.body.className += ' overlay';
@@ -98,12 +109,12 @@
     // sarmalayıcı da sesi arka planda susturabilir.
     speechElement: true,
 
+    // Uygulama içi modda arka plandayken bağlantı bırakılır (bkz. __onBackground); katmanda bırakılmaz.
+    closeWhenHidden: !overlay,
+
     init: function () {
-      // Android TV'nin güvenli alanı (yanlarda 48dp, üstte 27dp: 1080p'de 96 ve 54 piksel): panel ve demo notu kenara
-      // taşan (overscan) TV'lerde kesilmesin (TV-OV).
-      var safe = document.createElement('style');
-      safe.textContent = '#panel { top: 54px; left: 96px; } #demo-badge { top: 54px; right: 96px; }';
-      document.head.appendChild(safe);
+      // Android TV'nin güvenli alanı (yanlarda 48dp, üstte 27dp: 1080p'de 96 ve 54 piksel, TV-OV) artık ortak
+      // style.css'in varsayılanıdır; burada ayrıca kurulmaz.
       if (overlay) setupOverlay();
       // Panelde Android uygulamasının kendi sürümü görünsün (ortak sayfadaki sayı LG ve Samsung'unkidir).
       var version = bridge.appVersion ? bridge.appVersion() : '';
@@ -126,12 +137,34 @@
       bridge.showHdmi(port);
     },
 
+    // Yalnız "0" tuşundan sonra çağrılır (elle seçim bırakıldı): uygulamanın kaydettiği giriş de unutulur.
     findConsolePort: function (callback) {
+      if (bridge.forgetInput) bridge.forgetInput();
       var port = bridge.consolePort();
       callback(port > 0 ? port : null, port > 0 ? 'HDMI ' + port : null);
     },
 
+    // Açılışta açılacak giriş (#367): CEC'te PS5/Xbox adı, kayıtlı seçim, son görüntü gelen giriş, tek bağlı giriş.
+    // Bulunamazsa port null: HDMI 1 açılmaz, chooseInput() giriş seçiciyi gösterir. auto: kendiliğinden bulundu.
+    pickPort: !bridge.pickPort ? null : function (saved, callback) {
+      var parts = String(bridge.pickPort(saved || 0)).split(':');
+      var port = Number(parts[0]) || null;
+      var reason = parts[1] || '';
+      callback(port, reason === 'console' || reason === 'active');
+    },
+
+    chooseInput: function () { bridge.chooseInput(); },
+
     localAddress: function (callback) { callback(bridge.localAddress() || null); },
+
+    // Bilgi panelindeki ikinci tanı satırı: görüntü modu (uygulama içinde / katman), TvView'in durumu, cihazın üreticisi,
+    // modeli, Android ve WebView sürümü. Eski TV uygulamasının köprüsünde yoktur; o zaman yalnız WebView sürümü yazar.
+    diagnostics: function () {
+      var text = '';
+      try { text = bridge.diagnostics ? String(bridge.diagnostics() || '') : ''; } catch (e) { text = ''; }
+      var chrome = /Chrom(?:e|ium)\/([\d.]+)/.exec(window.navigator.userAgent || '');
+      return (text ? text + ' · ' : '') + 'WebView ' + (chrome ? chrome[1] : '?');
+    },
 
     exit: function () { bridge.exit(); }
   };

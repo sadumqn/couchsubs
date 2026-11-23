@@ -3,114 +3,166 @@
 using System.Collections;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
+using CouchSubs.Core;
 using CouchSubs.Shell;
 
 namespace CouchSubs.App.Services;
 
-/// <summary>
-/// Windows Güvenlik Duvarı'nda CouchSubs.exe'ye gelen bağlantı izni. Kurallar COM ile (HNetCfg.FwPolicy2) yönetici
-/// gerekmeden okunur; kural yönetici izniyle (UAC) netsh ile eklenir.
-/// </summary>
-/// <remarks>
-/// Velopack uygulamayı %LOCALAPPDATA%\CouchSubsApp\current\CouchSubs.exe yoluna kurar ve güncellemede aynı klasörü
-/// yeniler; yol sürümle değişmediği için kural güncellemelerden sonra da geçerli kalır.
-/// </remarks>
+/// <summary>Özel yerel ağ izni: COM ile okunur, yalnız kullanıcının UAC onayladığı yardımcı süreçte yazılır.</summary>
+/// <remarks>Velopack güncellemeleri aynı current klasörünü kullanır; kural uygulama yoluna bağlı kalır.</remarks>
 internal sealed class WindowsFirewall : IFirewall
 {
-    private const string RuleName = "CouchSubs";
-    // NET_FW_PROFILE2_DOMAIN, _PRIVATE, _PUBLIC
-    private static readonly int[] Profiles = [1, 2, 4];
-    // NET_FW_IP_PROTOCOL_TCP, _UDP; 256 = herhangi biri
-    private static readonly int[] Protocols = [6, 17];
-    private const int AnyProtocol = 256;
-    private const int Inbound = 1;
-    private const int Allow = 1;
-
-    private static string? ExePath => Environment.ProcessPath;
+    internal const string ConfigureArgument = "--configure-local-firewall";
 
     public bool HasRule()
     {
-        if (ExePath is not { } exe) return true;
-        var type = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-        if (type is null) return true;
-        dynamic policy = Activator.CreateInstance(type)!;
-        // Her (profil, protokol) için: izin kuralı var mı, engelleme kuralı var mı. Windows'ta engelleme kuralı izni ezer;
-        // kullanıcı ilk açılıştaki soruyu kapattıysa Windows bu exe için engelleme kuralı yazmış olabilir.
-        var allowed = new bool[Profiles.Length, Protocols.Length];
-        var blocked = new bool[Profiles.Length, Protocols.Length];
-        foreach (dynamic rule in (IEnumerable)policy.Rules)
-        {
-            if (!(bool)rule.Enabled || (int)rule.Direction != Inbound) continue;
-            if (!SamePath((string?)rule.ApplicationName, exe)) continue;
-            var profiles = (int)rule.Profiles;
-            var protocol = (int)rule.Protocol;
-            var isAllow = (int)rule.Action == Allow;
-            for (var p = 0; p < Profiles.Length; p++)
-            {
-                if ((profiles & Profiles[p]) == 0) continue;
-                for (var q = 0; q < Protocols.Length; q++)
-                {
-                    if (protocol != AnyProtocol && protocol != Protocols[q]) continue;
-                    if (isAllow) allowed[p, q] = true; else blocked[p, q] = true;
-                }
-            }
-        }
-        for (var p = 0; p < Profiles.Length; p++)
-        {
-            // Güvenlik duvarı bu profilde kapalıysa kural gerekmez.
-            if (!FirewallEnabled(policy, Profiles[p])) continue;
-            for (var q = 0; q < Protocols.Length; q++)
-                if (!allowed[p, q] || blocked[p, q]) return false;
-        }
-        return true;
+        if (Environment.ProcessPath is not { } exe) return false;
+        var store = new ComRuleStore();
+        // Kurallar kayıtlı olsa da Özel profilde bütün gelen bağlantıları engelle ayarı izni geçersiz kılar.
+        bool enabled = store.Policy.FirewallEnabled[LocalFirewallPolicy.PrivateProfile];
+        if (enabled && (bool)store.Policy.BlockAllInboundTraffic[LocalFirewallPolicy.PrivateProfile]) return false;
+        if (enabled && ((int)store.Policy.CurrentProfileTypes & LocalFirewallPolicy.PrivateProfile) != 0
+            && (int)store.Policy.LocalPolicyModifyState != 0) return false;
+        return LocalFirewallPolicy.HasRules(store.Read(), exe, enabled);
     }
 
-    /// <summary>
-    /// Tek UAC sorusuyla: bu exe'nin gelen bağlantı kurallarının hepsi (Windows'un yazdığı engelleme kuralları da) silinir,
-    /// yerine her profilde, her protokolde izin veren tek kural eklenir.
-    /// </summary>
     public async Task<bool> AddRuleAsync()
     {
-        if (ExePath is not { } exe) return false;
-        var program = $"program=\"{exe}\"";
-        var command = $"netsh advfirewall firewall delete rule name=all dir=in {program} >nul"
-                      + $" & netsh advfirewall firewall add rule name=\"{RuleName}\" dir=in action=allow {program} enable=yes profile=any protocol=any";
+        if (Environment.ProcessPath is not { } exe) return false;
         try
         {
-            // /s: cmd yalnız baştaki ve sondaki tırnağı atar; yoldaki tırnaklar korunur.
-            using var process = Process.Start(new ProcessStartInfo("cmd.exe", $"/s /c \"{command}\"")
+            // Kabuk komutu üretmeyiz; boşluk, &, % gibi karakterler içeren kurulum yolları da güvenle çalışır.
+            var start = new ProcessStartInfo(exe)
             {
                 UseShellExecute = true,
                 Verb = "runas",
                 WindowStyle = ProcessWindowStyle.Hidden,
-            });
+            };
+            start.ArgumentList.Add(ConfigureArgument);
+            using var process = ChildProcessGuard.StartUncontained(start);
             if (process is null) return false;
             await process.WaitForExitAsync();
+            if (process.ExitCode != 0) return false;
+            return await Task.Run(HasRule);
         }
-        catch (Win32Exception)
-        {
-            // Kullanıcı Windows'un izin sorusunda Hayır dedi.
-            return false;
-        }
-        try { return await Task.Run(HasRule); }
-        catch (Exception) { return true; }
+        catch (Win32Exception) { return false; } // UAC reddedildi veya yardımcı süreç açılamadı.
+        catch (Exception) { return false; } // Kural doğrulanamadıysa başarı bildirilmez.
     }
 
-    private static bool FirewallEnabled(dynamic policy, int profile)
+    /// <summary>WPF/Velopack başlamadan, yalnız sabit komut satırı seçeneğiyle çalışır; dışarıdan yol kabul etmez.</summary>
+    internal static int ConfigureCurrentProcess()
     {
-        try { return (bool)policy.FirewallEnabled[profile]; }
-        catch (Exception) { return true; }
+        if (Environment.ProcessPath is not { } exe) return 1;
+        try { return LocalFirewallPolicy.Apply(new ComRuleStore(), exe, PublicNetworkConnected()) ? 0 : 1; }
+        catch (Exception) { return 1; }
     }
 
-    private static bool SamePath(string? ruleApp, string exe)
+    /// <summary>Kaldırmada yalnız bu uygulama yolunun yönettiği kurallar silinir; başka kurallar korunur.</summary>
+    public static void RemoveRuleQuietly()
     {
-        if (string.IsNullOrEmpty(ruleApp)) return false;
+        if (Environment.ProcessPath is not { } exe) return;
+        try { LocalFirewallPolicy.RemoveOwned(new ComRuleStore(), exe); }
+        catch (Exception) { } // Kaldırma işlemini yönetici izni yok diye durdurmayız.
+    }
+
+    public bool HasLegacyRule() =>
+        Environment.ProcessPath is { } exe && LocalFirewallPolicy.HasLegacyRule(new ComRuleStore().Read(), exe);
+
+    public bool HasPublicNetwork() => PublicNetworkConnected();
+
+    /// <summary>Ağ listesi COM'u: kategori 0 = Ortak. Ağın kategorisi otomatik değiştirilmez.</summary>
+    private static bool PublicNetworkConnected()
+    {
         try
         {
-            var expanded = Path.GetFullPath(Environment.ExpandEnvironmentVariables(ruleApp));
-            return string.Equals(expanded, Path.GetFullPath(exe), StringComparison.OrdinalIgnoreCase);
+            var type = Type.GetTypeFromCLSID(new Guid("DCB00C01-570F-4A9B-8D69-199FDBA5723B"));
+            if (type is null) return false;
+            dynamic manager = Activator.CreateInstance(type)!;
+            foreach (dynamic connection in (IEnumerable)manager.GetNetworkConnections())
+            {
+                if (!(bool)connection.IsConnected) continue;
+                if ((int)connection.GetNetwork().GetCategory() == 0) return true;
+            }
         }
-        catch (Exception) { return false; }
+        catch (Exception) { }
+        return false;
+    }
+
+    private sealed class ComRuleStore : IFirewallRuleStore
+    {
+        public dynamic Policy { get; } = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2")
+            ?? throw new PlatformNotSupportedException("Windows Firewall COM unavailable"))!;
+
+        public IReadOnlyList<FirewallRule> Read()
+        {
+            var result = new List<FirewallRule>();
+            foreach (dynamic rule in (IEnumerable)Policy.Rules)
+                result.Add(ReadRule(rule));
+            return result;
+        }
+
+        private static FirewallRule ReadRule(dynamic rule)
+        {
+            int protocol = rule.Protocol;
+            var ports = protocol is LocalFirewallPolicy.Tcp or LocalFirewallPolicy.Udp;
+            return new FirewallRule((string)rule.Name, (string?)rule.ApplicationName ?? "", (bool)rule.Enabled,
+                (int)rule.Direction, (int)rule.Action, (int)rule.Profiles, protocol,
+                Scope((string?)rule.RemoteAddresses), Scope((string?)rule.LocalAddresses),
+                ports ? Scope((string?)rule.LocalPorts) : "*", ports ? Scope((string?)rule.RemotePorts) : "*",
+                (string?)rule.ServiceName ?? "", (string?)rule.InterfaceTypes ?? "All", (string?)rule.Grouping ?? "",
+                rule.Interfaces is Array { Length: > 0 }, (bool)rule.EdgeTraversal);
+        }
+
+        private static string Scope(string? value) => string.IsNullOrEmpty(value) ? "*"
+            : value.Equals("LocalSubnet", StringComparison.OrdinalIgnoreCase) ? "LocalSubnet" : value;
+
+        public void Put(FirewallRule spec)
+        {
+            // COM'da görünen ad tekil olmak zorunda değil. Yeniden kurulumda yeni kopyalar eklemek yerine
+            // yalnız bize ait mevcut kuralları yerinde güncelle; aynı adlı yabancı kuralı asla üzerine yazma.
+            var existing = new List<object>();
+            foreach (dynamic rule in (IEnumerable)Policy.Rules)
+            {
+                if (!string.Equals((string)rule.Name, spec.Name, StringComparison.OrdinalIgnoreCase)) continue;
+                var snapshot = ReadRule(rule);
+                if (!LocalFirewallPolicy.SameProgram(snapshot.Program, spec.Program)
+                    || !string.Equals(snapshot.Grouping, spec.Grouping, StringComparison.OrdinalIgnoreCase)
+                    || snapshot.Direction != spec.Direction || snapshot.Action != spec.Action)
+                    throw new InvalidOperationException("Firewall rule name belongs to another policy");
+                existing.Add(rule);
+            }
+            if (existing.Count == 0) Policy.Rules.Add(BuildRule(spec));
+            else foreach (var rule in existing) SetRule(rule, spec);
+        }
+
+        private static object BuildRule(FirewallRule spec)
+        {
+            dynamic rule = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FWRule")
+                ?? throw new PlatformNotSupportedException("Windows Firewall rule COM unavailable"))!;
+            SetRule(rule, spec);
+            return rule;
+        }
+
+        private static void SetRule(dynamic rule, FirewallRule spec)
+        {
+            rule.Name = spec.Name;
+            rule.Description = "CouchSubs: TV and Remote Play on the private local network.";
+            rule.Grouping = spec.Grouping;
+            rule.ApplicationName = spec.Program;
+            rule.Protocol = spec.Protocol; // Portlar protokolden sonra atanmalı (INetFwRule).
+            rule.LocalPorts = spec.LocalPorts;
+            rule.RemotePorts = spec.RemotePorts;
+            rule.LocalAddresses = spec.LocalAddresses;
+            rule.RemoteAddresses = spec.RemoteAddresses;
+            rule.InterfaceTypes = spec.InterfaceTypes;
+            rule.Interfaces = null;
+            rule.Direction = spec.Direction;
+            rule.Profiles = spec.Profiles;
+            rule.Action = spec.Action;
+            rule.EdgeTraversal = false;
+            rule.Enabled = spec.Enabled;
+        }
+
+        public void Remove(string name) => Policy.Rules.Remove(name);
     }
 }

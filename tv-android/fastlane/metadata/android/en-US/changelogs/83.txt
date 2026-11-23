@@ -1,0 +1,1 @@
+0.9.80: On LG, when the TV input reported by your computer or phone is already shown, the picture is no longer rebuilt; the screen no longer goes black and comes back with an "HDR" badge.

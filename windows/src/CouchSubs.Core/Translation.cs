@@ -21,6 +21,29 @@ public interface ITextTranslator
 
     /// <summary>Satırın çevirisini arka planda başlatır; aynı metin için sonraki <see cref="TranslateAsync"/> onu bekler.</summary>
     void Prefetch(string text) { }
+
+    /// <summary>
+    /// <see cref="TranslateAllAsync"/> bütün metinleri tek istekte çevirir (yapay zekâ); öyleyse "ekranı çevir" parça
+    /// parça istek göndermez.
+    /// </summary>
+    bool TranslatesTogether => false;
+
+    /// <summary>
+    /// Hat satır başındaki konuşan adını ("PRICE: …") ayırıp çevirmene yalnız cümleyi verir; ad buradan öğrenilir ve
+    /// sonraki cümlelerin içinde geçince çeviriden korunur (#287).
+    /// </summary>
+    void NoteSpeaker(string name) { }
+
+    /// <summary>
+    /// Birbirinden bağımsız metinleri ("ekranı çevir"deki menü satırları, görev yazıları) aynı sırada çevirir.
+    /// Varsayılan: sırayla tek tek.
+    /// </summary>
+    async Task<IReadOnlyList<string>> TranslateAllAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
+    {
+        var result = new List<string>(texts.Count);
+        foreach (var text in texts) result.Add(await TranslateAsync(text, cancellationToken).ConfigureAwait(false));
+        return result;
+    }
 }
 
 public enum TranslatorStatus
@@ -31,7 +54,7 @@ public enum TranslatorStatus
     /// <summary>Bu dil çifti desteklenmiyor.</summary>
     Unsupported,
     /// <summary>
-    /// Model kurulu ama cihaz üstü çeviri motoru bu bilgisayarda açılamadı (ör. ONNX Runtime'ın yerel DLL'i
+    /// Model kurulu ama cihaz üstü çeviri motoru bu bilgisayarda açılamadı (ör. CTranslate2 çalışma zamanı
     /// yüklenemedi). Kullanıcı çevrimiçi bir motor seçebilir; oyun paketleri çalışmayı sürdürür.
     /// </summary>
     EngineFailed,
@@ -46,10 +69,71 @@ public sealed class TranslatorException(TranslatorStatus status, Exception? inne
 
 /// <summary>
 /// Çevrimiçi çeviri anahtarı (DeepL ya da yapay zekâ hizmeti) denendiğinde ne çıktı. <c>ModelRejected</c>: hizmet model
-/// adını kabul etmedi (yalnız yapay zekâ hizmetlerinde).
+/// adını kabul etmedi (yalnız yapay zekâ hizmetlerinde). <c>Busy</c>: hizmete ulaşıldı ama şu an yoğun (5xx), yanıt
+/// zamanında gelmedi ya da dakikalık sınıra takıldı; anahtar reddedilmedi, internet de çalışıyor (DeepL'in anahtar
+/// denemesinde: 429, çok sık istek).
 /// </summary>
-public enum OnlineKeyState { Valid, Invalid, QuotaExceeded, Unreachable, ModelRejected }
+/// <remarks><see cref="KeychainWriteFailed"/>: hizmet anahtarı kabul etti ama şifreli depoya yazılamadı (geri okunamadı); kayıt
+/// başarılı sayılmaz (Mac'teki Anahtar Zinciri kuralıyla aynı).</remarks>
+public enum OnlineKeyState { Valid, Invalid, QuotaExceeded, Unreachable, ModelRejected, Busy, KeychainWriteFailed }
+
+/// <summary>
+/// DeepL anahtar denemesinin ayrıntılı nedeni (Mac/iPhone: OnlineKeyReason, Android: KeyCheck.Reason; aynı kurallar).
+/// <c>MalformedKey</c>: görünmez karakterler silindikten sonra anahtarda DeepL anahtarında olamayacak karakter kaldı, istek
+/// gönderilmedi. <c>RateLimited</c>: 429. <c>HttpStatus</c>: DeepL'in döndürdüğü kod (<see cref="OnlineKeyCheck.Code"/>).
+/// <c>Network</c>: istek DeepL'e ulaşmadı.
+/// </summary>
+public enum OnlineKeyReason { None, MalformedKey, RateLimited, HttpStatus, Network }
 
 /// <param name="Used">Bu ay kullanılan karakter (geçerli anahtarda).</param>
-/// <param name="Limit">Aylık sınır.</param>
-public sealed record OnlineKeyCheck(OnlineKeyState State, long Used = 0, long Limit = 0);
+/// <param name="Limit">Aylık sınır; 0: DeepL bildirmedi, <see cref="Unlimited"/> ve üstü: sınır yok.</param>
+/// <param name="Reason">Hatanın nedeni (günlük ve ayarlardaki mesaj; anahtarı içermez).</param>
+/// <param name="Code">HttpStatus'ta HTTP kodu.</param>
+public sealed record OnlineKeyCheck(OnlineKeyState State, long Used = 0, long Limit = 0, OnlineKeyReason Reason = OnlineKeyReason.None, int Code = 0)
+{
+    /// <summary>Sınır konmamış hesapta DeepL <c>character_limit</c> olarak bunu döndürür (developers.deepl.com, usage-and-quota).</summary>
+    public const long Unlimited = 1_000_000_000_000;
+
+    /// <summary>Günlük satırı: durum ve neden ("Busy (HTTP 429 (çok sık istek))"); anahtarı içermez.</summary>
+    public string LogDescription => Reason switch
+    {
+        OnlineKeyReason.MalformedKey => $"{State} (anahtarda geçersiz karakter)",
+        OnlineKeyReason.RateLimited => $"{State} (HTTP 429 (çok sık istek))",
+        OnlineKeyReason.HttpStatus => $"{State} (HTTP {Code})",
+        OnlineKeyReason.Network => $"{State} (ağ hatası)",
+        _ => State.ToString(),
+    };
+}
+
+/// <summary>
+/// DeepL anahtarının yazımı (Mac/iPhone ve Android'deki DeepLKey ile aynı kural). Yapıştırırken araya giren boşluk, satır
+/// sonu, sekme, bölünmez boşluk (U+00A0), sıfır genişlikli boşluk, BOM, yumuşak tire gibi görünmez karakterler her yerden
+/// silinir; DeepL anahtarında bunlar hiç yoktur.
+/// </summary>
+public static class DeepLKey
+{
+    public static string Clean(string? key)
+    {
+        if (string.IsNullOrEmpty(key)) return "";
+        var builder = new System.Text.StringBuilder(key.Length);
+        foreach (var rune in key.EnumerateRunes())
+        {
+            switch (System.Text.Rune.GetUnicodeCategory(rune))
+            {
+                case System.Globalization.UnicodeCategory.Control:
+                case System.Globalization.UnicodeCategory.Format:
+                case System.Globalization.UnicodeCategory.SpaceSeparator:
+                case System.Globalization.UnicodeCategory.LineSeparator:
+                case System.Globalization.UnicodeCategory.ParagraphSeparator:
+                    continue;
+                default:
+                    builder.Append(rune.ToString());
+                    break;
+            }
+        }
+        return builder.ToString();
+    }
+
+    /// <summary>Temizlenmiş anahtar DeepL anahtarı olabilir mi: boş değil, yalnız görünür ASCII (harf, rakam, "-", ":" …).</summary>
+    public static bool IsWellFormed(string cleaned) => cleaned.Length > 0 && cleaned.All(c => c is >= '!' and <= '~');
+}

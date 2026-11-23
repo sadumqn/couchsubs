@@ -52,11 +52,12 @@ struct ConsoleStep: View {
                     Text("8-digit code").font(.csCallout).foregroundStyle(Color.csSecondary)
                     // Kod yazılıp Return'e basılınca bağlanılır (eskiden Return, kapalı "Devam"a gidip hiçbir şey yapmıyordu).
                     // Yeni kod yazılınca Bağlan yeniden açılır (onChange macOS 13'te farklı olduğu için bağlamada).
-                    TextField("", text: Binding(get: { pin }, set: { value in
+                    TextField("8-digit code", text: Binding(get: { pin }, set: { value in
                         pin = value
                         if !value.isEmpty { paired = false }
-                    }))
+                    }), prompt: Text(verbatim: "12345678"))
                         .textFieldStyle(CSTextFieldStyle(font: .csCode, height: 52))
+                        .accessibilityLabel(Text("8-digit code"))
                         .frame(maxWidth: 240)
                         .onSubmit { Task { await register() } }
                 }

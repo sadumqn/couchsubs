@@ -1,0 +1,1 @@
+0.9.47: 4K/8K Samsung TV'lerde PS5 görüntüsü sol üst çeyrekte kalmıyor, ekranın tamamını kaplıyor. Görüntü yine ekranı doldurmazsa kumandada Sarı tuş sıradaki yöntemi dener; seçim saklanır. LG'de PS5 görüntüsü uygulamanın içindeyken ses açıkça açık istenir (kapalı ses parçası açılır); bilgi panelinde TV'nin ses çıkışı ve ses düzeyi yazar.

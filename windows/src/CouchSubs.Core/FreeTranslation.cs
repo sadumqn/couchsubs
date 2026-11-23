@@ -13,9 +13,9 @@ public static class FreeTranslation
     /// <summary>
     /// Çeviri öncesi/sonrası kuralların sürümü; kalıcı önbelleğin motor adına girer. Bu dosyadaki ya da
     /// GameEnglish/SubtitleSegmenter/Glossary/TermProtection/TurkishSuffix/TurkishPostEdit'teki kurallar değişince bir
-    /// artırılır: eski kurallarla çevrilmiş satırlar yeniden çevrilir. (1: sürüm yokken.)
+    /// artırılır: eski kurallarla çevrilmiş satırlar yeniden çevrilir. (1: sürüm yokken; 3: oyun terimleri, phrases ve lines.)
     /// </summary>
-    public const int PipelineVersion = 2;
+    public const int PipelineVersion = 3;
 
     /// <summary>Bu sözcük sayısının altındaki cümle önceki cümleyle birlikte çevrilir.</summary>
     public const int ShortLineWords = 4;
@@ -37,7 +37,8 @@ public static class FreeTranslation
     public static string CacheKey(string sentence, string? context, Glossary glossary)
     {
         var basis = context is null ? sentence : context + KeyJoin + sentence;
-        return glossary.Matches(basis) ? glossary.Fingerprint + KeyJoin + basis : basis;
+        var uses = glossary.Matches(basis) || glossary.Rewrites(sentence) || (context is not null && glossary.Rewrites(context));
+        return uses ? glossary.Fingerprint + KeyJoin + basis : basis;
     }
 
     /// <summary>Ayraçtan sonraki kısım; ayraç tam bir kez geçmiyorsa, iki yan da harf içermiyorsa ya da kısım akla yatmayacak kadar uzunsa null.</summary>
@@ -56,13 +57,15 @@ public static class FreeTranslation
 
     /// <summary>
     /// Tek cümleyi çevirir. <paramref name="normalize"/> büyük harf düzenini yapar (öğrenilen adlarla),
-    /// <paramref name="engine"/> modeldir. Önce bağlamla (verildiyse), olmazsa tek başına, terimler korunamadıysa korumasız çevrilir.
+    /// <paramref name="engine"/> modeldir. Sözlükte hazır Türkçesi olan kısa satır ("Reloading!") modele gitmez. Kalanı
+    /// önce bağlamla (verildiyse), olmazsa tek başına, terimler korunamadıysa korumasız çevrilir.
     /// </summary>
     public static string Translate(string sentence, string? context, Glossary glossary, Func<string, string> normalize,
         Func<string, string> engine)
     {
+        if (glossary.Line(sentence) is { } fixedLine) return TurkishPostEdit.Apply(sentence, fixedLine);
         var apostrophe = TurkishPostEdit.Apostrophe(sentence);
-        string Prepare(string text) => GameEnglish.Plain(normalize(text));
+        string Prepare(string text) => GameEnglish.Plain(glossary.Plain(normalize(text)));
 
         if (context is not null)
         {

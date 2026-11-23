@@ -1,0 +1,1 @@
+0.9.55: Samsung 4K ve 8K TV'lerde PS5 görüntüsü sol üst köşede küçük kalmıyor, açılışta Sarı'ya basmadan ekranı dolduruyor. Samsung'da Sarı tuş her zaman etkin: ultra geniş monitörlerde 21:9 ve 32:9 tam genişlik yöntemlerini dener, seçim hatırlanır.

@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="HtmlAgilityPack" Version="1.13.1" />
     <ProjectReference Include="..\CouchSubs.Core\CouchSubs.Core.csproj" />
     <ProjectReference Include="..\CouchSubs.RemotePlay\CouchSubs.RemotePlay.csproj" />
   </ItemGroup>

@@ -19,11 +19,11 @@ public enum SubtitleSegmenter {
     // Etiket: satır ya da cümle başında, en çok üç sözcüklü ad ve iki nokta.
     // Ya tümü büyük harf ("ATREUS:", "OLD MAN:") ya da her sözcüğü büyük harfle başlayan ("Kratos:", "Mimir Head:").
     private static let label = try! NSRegularExpression(pattern:
-        #"^(\p{Lu}[\p{Lu}\d'’.\-]+(?: \p{Lu}[\p{Lu}\d'’.\-]*){0,2}|\p{Lu}\p{Ll}[\p{L}'’.\-]*(?: \p{Lu}[\p{L}'’.\-]*){0,2}):\s+"#)
+        #"^(\p{Lu}[\p{Lu}\d'’.\-]+(?: \p{Lu}[\p{Lu}\d'’.\-]*){0,2}|\p{Lu}\p{Ll}[\p{L}'’.\-]*(?: \p{Lu}[\p{L}'’.\-]*){0,2}):(?:\s+|$)"#)
     private static let dash = try! NSRegularExpression(pattern: #"^[-–—]+\s*"#)
 
     /// Büyük harfle başlayıp iki noktayla biten ama ad olmayan oyun başlıkları; bunlar çevrilir.
-    private static let notNames: Set<String> = [
+    static let notNames: Set<String> = [
         "note", "warning", "tip", "hint", "objective", "objectives", "quest", "goal", "new", "reward", "rewards",
         "location", "chapter", "mission", "task", "tutorial", "update", "info", "status", "level", "controls",
         "press", "hold", "tap", "remember", "example", "question", "answer", "result", "results", "time",
@@ -170,13 +170,66 @@ public enum SubtitleSegmenter {
 }
 
 /// Konuşmacı etiketlerinden öğrenilen karakter adları. Adlar cümle içinde de büyük harfle kalır ve çevrilmez.
+/// Korunan adlar (`protected`) cümle içinde büyük harfle başlayıp tam sözcük olarak geçtiğinde çeviriden korunur
+/// (#287: "Price, get down!" → "Fiyat, yere yat!" olmasın). Windows: CouchSubs.Core/SpeakerNameGuard.cs, Android:
+/// translation/SpeakerNameGuard.kt; kurallar ve hariç tutulan sözcükler aynı.
 public final class SpeakerNames: @unchecked Sendable {
     private let lock = NSLock()
     private var names: Set<String> = []
+    private var kept: Set<String> = []
 
     public init() {}
 
     public var all: Set<String> { lock.withLock { names } }
+
+    /// Çeviriden korunacak adlar, cümlede beklenen yazılışla ("PRICE" etiketi → "Price").
+    public var protected: Set<String> { lock.withLock { kept } }
+
+    /// Görev ve tür sözcükleri: etikette geçse de ad sayılmaz, cümle içinde korunmaz ("SOLDIER:", "OLD MAN:").
+    public static let notNames: Set<String> = [
+        "soldier", "soldiers", "guard", "guards", "man", "men", "woman", "women", "boy", "girl", "kid", "child",
+        "radio", "pilot", "copilot", "officer", "enemy", "enemies", "narrator", "voice", "announcer", "intercom",
+        "speaker", "operator", "driver", "gunner", "sniper", "medic", "civilian", "hostage", "prisoner", "militia",
+        "mercenary", "merc", "terrorist", "agent", "commander", "captain", "sergeant", "sgt", "lieutenant", "lt",
+        "general", "colonel", "major", "corporal", "private", "admiral", "chief", "doctor", "dr", "mr", "mrs", "ms",
+        "sir", "old", "young", "little", "big", "unknown", "stranger", "someone", "everyone", "all", "both", "team",
+        "squad", "leader", "hq", "command", "control", "player", "you", "the", "a", "an", "of", "and", "friendly",
+        "hostile", "female", "male", "tv", "news", "reporter", "crowd", "villager", "worker", "scientist", "nurse",
+        "cop", "police",
+    ]
+
+    /// Etiketteki addan korunacak sözcükler: en az iki harf, yalnız harf/kesme/tire, görev sözcüğü değil. Tümü büyük
+    /// harfli sözcük cümle düzeninde beklenir ("PRICE" → "Price"); küçük harfle başlayan sözcük alınmaz.
+    public static func protectable(fromLabel name: String) -> [String] {
+        name.split(separator: " ").compactMap { part -> String? in
+            let word = String(part)
+            guard word.filter(\.isLetter).count >= 2,
+                  word.allSatisfy({ $0.isLetter || "'’-".contains($0) }),
+                  let first = word.first, first.isUppercase,
+                  !notNames.contains(word.lowercased()) else { return nil }
+            return word.contains(where: \.isLowercase) ? word : String(first) + word.dropFirst().lowercased()
+        }
+    }
+
+    /// `names` içinden metinde tam sözcük olarak geçenler, sıralı. `exact`: yalnız aynı büyük/küçük harfle.
+    public static func occurring(_ names: Set<String>, in text: String, exact: Bool) -> [String] {
+        let string = text as NSString
+        func boundary(_ index: Int) -> Bool {
+            guard index >= 0, index < string.length, let scalar = UnicodeScalar(string.character(at: index)) else { return true }
+            return !CharacterSet.alphanumerics.contains(scalar)
+        }
+        return names.filter { name in
+            var start = 0
+            while start < string.length {
+                let range = string.range(of: name, options: exact ? [.literal] : [.caseInsensitive],
+                                         range: NSRange(location: start, length: string.length - start))
+                guard range.location != NSNotFound else { return false }
+                if boundary(range.location - 1), boundary(range.location + range.length) { return true }
+                start = range.location + 1
+            }
+            return false
+        }.sorted()
+    }
 
     /// Parçalardaki etiketlerden adları öğrenir ("OLD MAN: " → "Old", "Man" değil, "Old Man").
     public func learn(from pieces: [SubtitleSegmenter.Piece]) {
@@ -186,11 +239,16 @@ public final class SpeakerNames: @unchecked Sendable {
             return name.isEmpty ? nil : name
         }
         guard !found.isEmpty else { return }
+        for name in found { learn(name: name) }
+    }
+
+    /// Tek bir adı öğrenir ("OLD MAN" → "OLD", "MAN"; görev sözcükleri korunmaz).
+    public func learn(name: String) {
+        let protectable = Self.protectable(fromLabel: name)
         lock.withLock {
-            for name in found {
-                // Çok sözcüklü adın her sözcüğü ayrıca tanınır: "ATREUS" etiketi cümledeki "ATREUS"u korur.
-                for word in name.split(separator: " ") where word.count >= 2 { names.insert(String(word)) }
-            }
+            // Çok sözcüklü adın her sözcüğü ayrıca tanınır: "ATREUS" etiketi cümledeki "ATREUS"u korur.
+            for word in name.split(separator: " ") where word.count >= 2 { names.insert(String(word)) }
+            kept.formUnion(protectable)
         }
     }
 }

@@ -19,6 +19,9 @@ universal() { [[ -f "$1" ]] && lipo "$1" -verify_arch arm64 && lipo "$1" -verify
 MAC_SLICE=(third-party/build/CChiaki.xcframework/macos-*/libCChiaki.a(N))
 universal "${MAC_SLICE[1]}" || ./scripts/build-chiaki-macos.sh
 
+# Uygulamayla gelen oyun paketleri depoda değil: özel R2'den (PACKS_R2_* ya da ~/.config/couchsubs/packs.env).
+python3 scripts/fetch-packs.py --require
+
 ./scripts/package-tv.sh
 ./scripts/package-tizen.sh
 # Android TV APK'sı verilirse (CI: tv-android iş akışının çıktısı) uygulamaya gömülür.
@@ -40,6 +43,22 @@ APP_VERSION="${APP_VERSION:-$(git describe --tags --abbrev=0 --match 'v*' 2>/dev
 APP_VERSION="${APP_VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-list --count HEAD)}"
 VERSION_ARGS=(MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER")
+# Kullanım verisi (GA4 Measurement Protocol): CI'da GA_MEASUREMENT_ID ve GA_API_SECRET sırlarından, yerelde aynı adlı
+# ortam değişkenlerinden. İkisi de yoksa uygulamada ölçüm tamamen kapalı (UsageStats).
+if [[ -n "$GA_MEASUREMENT_ID" && -n "$GA_API_SECRET" ]]; then
+  VERSION_ARGS+=(GA_MEASUREMENT_ID="$GA_MEASUREMENT_ID" GA_API_SECRET="$GA_API_SECRET")
+else
+  echo "Uyarı: GA_MEASUREMENT_ID/GA_API_SECRET verilmedi; bu pakette kullanım verisi kapalı."
+fi
+
+# Paket isteklerinin imzası (server/packs, PackSigning): CI'da PACKS_APP_SECRET sırrından, yerelde
+# ~/.config/couchsubs/packs.env'den. Yoksa bu pakette paket indirme kapalı.
+[[ -z "$PACKS_APP_SECRET" && -f ~/.config/couchsubs/packs.env ]] && source ~/.config/couchsubs/packs.env
+if [[ -n "$PACKS_APP_SECRET" ]]; then
+  VERSION_ARGS+=(PACKS_APP_SECRET="$PACKS_APP_SECRET")
+else
+  echo "Uyarı: PACKS_APP_SECRET verilmedi; bu pakette paket indirme kapalı."
+fi
 
 SIGN_ARGS=(CODE_SIGN_IDENTITY="-")
 if [[ -n "$DEVELOPER_ID" ]]; then
@@ -97,17 +116,30 @@ if [[ -n "$DEVELOPER_ID" ]]; then
     [[ "$ITEM" == *Downloader.xpc ]] && EXTRA=(--preserve-metadata=entitlements)
     codesign --force --options runtime --timestamp "${EXTRA[@]}" -s "$DEVELOPER_ID" "$ITEM"
   done
+  # Xbox ev yayınının (Beta) WebRTC kitaplığı da bizim kimliğimizle imzalanır (onay için gömülü her kitaplık imzalı olmalı).
+  WEBRTC="$APP/Contents/Frameworks/WebRTC.framework"
+  if [[ -d "$WEBRTC" ]]; then codesign --force --options runtime --timestamp -s "$DEVELOPER_ID" "$WEBRTC"; fi
   codesign --force --options runtime --timestamp --entitlements mac/CouchSubs/CouchSubs.entitlements -s "$DEVELOPER_ID" "$APP"
   codesign --verify --deep --strict "$APP" || { echo "İmza doğrulanamadı."; exit 1; }
 fi
 [[ -x "$APP/Contents/MacOS/couchsubs-tv-helper" ]] || { echo "TV kurulum yardımcısı pakette yok."; exit 1; }
 [[ -x "$APP/Contents/MacOS/pocket-tts" ]] || { echo "Dublaj ses motoru (pocket-tts) pakette yok."; exit 1; }
+# LG ve Samsung paketleri uygulamada yoksa TV kurulumu sessizce gizlenir (AppModel.bundledTVPackage); eksik paket çıkmasın.
+IPKS=("$APP"/Contents/Resources/tv-app/*.ipk(N))
+(( ${#IPKS} > 0 )) || { echo "LG TV paketi (ipk) uygulamada yok."; exit 1; }
+WGTS=("$APP"/Contents/Resources/tv-app/*.wgt(N))
+(( ${#WGTS} > 0 )) || { echo "Samsung TV paketi (wgt) uygulamada yok."; exit 1; }
 # package-tv.sh dist/tv-app'i baştan kurar; APK yalnız ANDROID_APK verilince geri eklenir. Yerel deneme derlemesi için
 # ALLOW_NO_APK=1 ile atlanır.
 APKS=("$APP"/Contents/Resources/tv-app/*.apk(N))
 if [[ -z "$ALLOW_NO_APK" ]] && (( ${#APKS} == 0 )); then
   echo "Android TV paketi (APK) uygulamada yok: ANDROID_APK=/yol/couchsubs-androidtv.apk ile çalıştırın."; exit 1
 fi
+# Paketlerin sürümü kaynaktaki TV uygulamasıyla aynı olmalı: eski paket TV'yi güncelleyemez ("TV uygulaması eski").
+CHECK_ARGS=()
+[[ -n "$ALLOW_NO_APK" ]] && CHECK_ARGS=(--allow-missing apk)
+python3 scripts/check-tv-packages.py "$APP/Contents/Resources/tv-app" "${CHECK_ARGS[@]}" \
+  || { echo "Uygulamadaki TV paketleri eski: package-tv.sh, package-tizen.sh ve bundle-android-apk.sh ile yeniden üretin."; exit 1; }
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist")
 mkdir -p dist
 ZIP="dist/CouchSubs-$VERSION-macos.zip"
@@ -149,6 +181,8 @@ if [[ -n "$DEVELOPER_ID" && -n "$NOTARY_PROFILE" ]]; then
     LENGTH=$(stat -f %z "$ZIP")
     PUBDATE=$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")
     PAGE="https://github.com/yorulmazsinan/couchsubs/releases/tag/v$APP_VERSION"
+    # Güncelleme penceresinde yalnız bu sürümün "Bu sürümde yeni" bölümü görünür (Windows kartıyla aynı bölüm).
+    NOTES=$(python3 scripts/surum-notlari-html.py docs/surum-notlari.md)
     {
       echo '<?xml version="1.0" encoding="utf-8"?>'
       echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
@@ -162,6 +196,7 @@ if [[ -n "$DEVELOPER_ID" && -n "$NOTARY_PROFILE" ]]; then
       echo "      <sparkle:minimumSystemVersion>$MIN_MACOS</sparkle:minimumSystemVersion>"
       echo "      <link>$PAGE</link>"
       echo "      <sparkle:fullReleaseNotesLink>$PAGE</sparkle:fullReleaseNotesLink>"
+      [[ -z "$NOTES" ]] || printf '      <description><![CDATA[%s]]></description>\n' "$NOTES"
       echo "      <enclosure url=\"https://github.com/yorulmazsinan/couchsubs/releases/download/v$APP_VERSION/CouchSubs-macos.zip\""
       echo "                 length=\"$LENGTH\" type=\"application/octet-stream\" sparkle:edSignature=\"$SIGNATURE\" />"
       echo '    </item>'

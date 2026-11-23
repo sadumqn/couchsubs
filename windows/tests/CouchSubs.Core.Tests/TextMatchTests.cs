@@ -95,4 +95,43 @@ public class TextMatchTests
         Assert.False(TextMatch.IsGrowth("Then we go home.", "home"));
         Assert.True(TextMatch.IsGrowth("Then we go home.", "go home"));
     }
+
+    /// Olumsuzluk ya da sayı farkı karakterce küçüktür ama anlamı tersine çevirir: yeniden okuma sayılmamalı.
+    /// Uzun cümlede tek sözcük %85 benzerlik sınırının üstünde kalıyor ("never": 0.86, "5"/"6": 0.92). Kısaltmanın
+    /// "t"si (can't → "can t") tek harf olduğu için sözcük karşılaştırmasına hiç girmiyor.
+    [Theory]
+    [InlineData("I can't do that for you right now.", "I can do that for you right now.")]
+    [InlineData("I said that I would never help you with this.", "I said that I would help you with this.")]
+    [InlineData("He is not coming back tonight.", "He is coming back tonight.")]
+    [InlineData("Meet me at the docks at 6.", "Meet me at the docks at 5.")]
+    public void MeaningChangingRereadIsNotSameSubtitle(string reread, string sent) =>
+        Assert.False(TextMatch.IsSameSubtitle(TextMatch.Normalize(reread), TextMatch.NormalizeRows(sent)));
+
+    /// Olumsuzluk korunurken yalnız yazımı farklı okunan satır yine aynı altyazıdır (düzeltme bunu bozmamalı).
+    [Theory]
+    [InlineData("I can’t do that for you right now.", "I can't do that for you right now.")]
+    [InlineData("I dont know what to do.", "I don't know what to do.")]
+    [InlineData("He is n0t coming back tonight.", "He is not coming back tonight.")]
+    public void SpellingNoiseKeepsNegatedLineSame(string reread, string sent) =>
+        Assert.True(TextMatch.IsSameSubtitle(TextMatch.Normalize(reread), TextMatch.NormalizeRows(sent)));
+
+    /// Yalnız eklenen işaret sayılır: düşen olumsuzluk ya da sayı çoğu zaman OCR kaybıdır. Kesmenin "t"si yalnız
+    /// bilinen olumsuz kısaltmayı tamamlar ("cotton t shirt" değil).
+    [Theory]
+    [InlineData("I can't do that.", "I can do that.", true)]
+    [InlineData("I can do that.", "I can't do that.", false)]
+    [InlineData("Meet me at 6.", "Meet me at 5.", true)]
+    [InlineData("Meet me at", "Meet me at 5.", false)]
+    [InlineData("He is n0t here.", "He is here.", true)]
+    [InlineData("I dont know.", "I don't know.", false)]
+    [InlineData("Buy a t shirt.", "Buy a shirt.", false)]
+    [InlineData("Buy a cotton t shirt.", "Buy a cotton shirt.", false)]
+    [InlineData("I won t go.", "I will go.", true)]
+    [InlineData("We haven t left.", "We have left.", true)]
+    [InlineData("Bring 5 and 5.", "Bring 5.", true)]
+    [InlineData("Bring 5.", "Bring 5 and 5.", false)]
+    [InlineData("It costs $500 now.", "It costs $500.", false)]
+    [InlineData("1 can do that.", "I can do that.", false)]
+    public void AddsMeaningCountsOnlyAddedMarks(string reread, string sent, bool expected) =>
+        Assert.Equal(expected, TextMatch.AddsMeaning(reread, sent));
 }

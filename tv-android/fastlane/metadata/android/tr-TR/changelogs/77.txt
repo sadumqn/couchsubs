@@ -1,0 +1,1 @@
+0.9.74: Görüntü modu varsayılan olarak Otomatik: bilgisayarın ya da telefonun kurduğu TV uygulaması, uygulama içinde görüntünün siyah kaldığı TV'lerde (ör. Philips) doğrudan Katman'da açılır. Bilerek seçilen Uygulama içinde ve Katman tercihleri korunur.

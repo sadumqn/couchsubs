@@ -33,7 +33,25 @@ public readonly record struct TextBox(double Left, double Top, double Right, dou
 /// Yazı tanımanın bulduğu bir satır; kutu okunan alana göredir, bilinmiyorsa null. Güven 0–1'dir; okuyucu vermiyorsa
 /// null (Windows'un yazı tanıması vermez).
 /// </summary>
-public sealed record TextLine(string Text, TextBox? Box = null, double? Confidence = null);
+/// <param name="Words">Okuyucu sözcüklerin yerini de veriyorsa (Windows yazı tanıması) sözcükler, satırla aynı oranlarda;
+/// kumanda simgesini bulmak için (<see cref="ButtonIcons"/>).</param>
+/// <param name="Icons">Metindeki her <see cref="ButtonIcons.Marker"/> için, sırasıyla, simgenin yeri ve okunan hali.</param>
+public sealed record TextLine(string Text, TextBox? Box = null, double? Confidence = null,
+                              IReadOnlyList<TextWord>? Words = null, IReadOnlyList<IconSlot>? Icons = null)
+{
+    // Balonlar düz telefon ekranında gruplanır; Box, TV'de gösterim için oyun görüntüsündeki kutudur.
+    internal TextBox? PhoneBox { get; init; }
+}
+
+/// <summary>Yazı tanımanın bulduğu bir sözcük ve yeri (okunan alanın kenarlarına oranla).</summary>
+public sealed record TextWord(string Text, TextBox Box);
+
+/// <summary>
+/// Yazının içindeki kumanda simgesi ("Hold △ to sprint"). Yazı tanıma simgeyi harf sanar ("A", "Ä") ya da hiç okumaz;
+/// <paramref name="Text"/> okunan hali (boş olabilir), <paramref name="Box"/> karedeki yeri, <paramref name="Image"/>
+/// kareden kesilen simgenin PNG'si (data: adresi; kesilemediyse null).
+/// </summary>
+public sealed record IconSlot(TextBox Box, string Text, string? Image = null);
 
 /// <summary>Bir karenin okunan satırları, yukarıdan aşağı (Mac: CouchSubsCore/Reading.swift).</summary>
 public sealed class Reading
@@ -77,14 +95,60 @@ public sealed class Reading
         Lines.Where(line => line.Confidence is not null).Select(line => line.Confidence!.Value).ToList() is { Count: > 0 } values
             ? values.Average() : null;
 
-    /// <summary>Oyunun düğme ipuçları ("R2 Swing", "△ Pick up") çıkarılmış hali; bunlar altyazı değildir.</summary>
-    public Reading WithoutButtonPrompts() => new(Lines.Where(line => !ButtonPrompts.IsPrompt(line.Text)));
+    /// <summary>
+    /// Oyunun düğme ipuçları ("R2 Swing", "△ Pick up", "Press @ to open the map") çıkarılmış hali; bunlar altyazı
+    /// değildir. Simgesi bulunmuş satır (<see cref="WithButtonIcons"/>; "Ekranı çevir" ve ek alanlar) kalır: simgesiyle
+    /// çevrilir, düğme görünür. Simgesi bulunamayan ipucu atılır; çevrilmediği için üstü örtülmez, düğme yine görünür.
+    /// </summary>
+    public Reading WithoutButtonPrompts() =>
+        new(Lines.Where(line => line.Icons is { Count: > 0 } || !ButtonPrompts.IsPrompt(line.Text)));
 
     /// <summary>
     /// Yazı tanımanın uydurduğu sözcük çöpleri ("ou$3e", "waters2aljd") ayıklanmış hali; çevirmen bunları olduğu
     /// gibi taşıyıp TV'de anlamsız harfler gösteriyordu.
     /// </summary>
-    public Reading WithoutOcrNoise() => new(Lines.Select(line => line with { Text = OcrNoise.Clean(line.Text) }));
+    public Reading WithoutOcrNoise() => WithoutOcrNoise(false);
+    internal Reading WithoutOcrNoise(bool keepIdentifiers) =>
+        new(Lines.Select(line => line with { Text = OcrNoise.Clean(line.Text, keepIdentifiers) }));
+
+    /// <summary>
+    /// Aynı satırda yan yana okunan parçalar soldan sağa tek satır olur. Renkli konuşan adını ("Arthur:", RDR2) yazı
+    /// tanıma cümleden ayrı okuyabiliyor; parçalar yalnız üst kenarlarına göre dizilince ad cümlenin sonuna düşüyor ya da
+    /// ayrı blok sayılıp atılıyordu. Yatayda aralarında en çok <see cref="RowGap"/> (alan genişliğine oranla) olan
+    /// parçalar birleşir; uzaktaki köşe yazısı ayrı kalır (Mac: Reading.joiningRows, Android: Reading.joiningRows).
+    /// </summary>
+    public Reading JoiningRows()
+    {
+        if (Lines.Count < 2 || Lines.Any(line => line.Box is null)) return this;
+        var rows = new List<TextLine>();
+        foreach (var line in Lines.OrderBy(line => line.Box!.Value.Left))
+        {
+            var box = line.Box!.Value;
+            var index = rows.FindIndex(row => SameRow(box, row.Box!.Value));
+            if (index >= 0)
+            {
+                var row = rows[index];
+                double? confidence = row.Confidence is { } a && line.Confidence is { } b ? Math.Min(a, b) : row.Confidence ?? line.Confidence;
+                rows[index] = new TextLine(row.Text + " " + line.Text, row.Box!.Value.Union(box), confidence);
+            }
+            else
+            {
+                rows.Add(line);
+            }
+        }
+        return new Reading(rows.OrderBy(row => row.Box!.Value.Top));
+    }
+
+    /// <summary><see cref="JoiningRows"/>: aynı satırdaki iki parça arasındaki en büyük boşluk (alan genişliğine oranla).</summary>
+    public const double RowGap = 0.05;
+
+    private static bool SameRow(TextBox next, TextBox row)
+    {
+        var overlap = Math.Min(next.Bottom, row.Bottom) - Math.Max(next.Top, row.Top);
+        var smaller = Math.Min(next.Bottom - next.Top, row.Bottom - row.Top);
+        if (smaller <= 0 || overlap < smaller * 0.6) return false;
+        return next.Left - row.Right <= RowGap;
+    }
 
     /// <summary>
     /// Alandaki altyazı bloğu. Seçilen alanda altyazının yanında menü ("MAP / HELP / SETTINGS" alt alta), köşedeki
@@ -92,47 +156,232 @@ public sealed class Reading
     /// gösteriliyordu. Satırlar yerlerine göre bloklara ayrılır; ortalanmış ve menü olmayan en alttaki blok altyazıdır.
     /// Ortalanmış blok yoksa en az üç sözcüklü, menü olmayan en alttaki blok alınır. Satırların yeri bilinmiyorsa
     /// okuma olduğu gibi kalır. <paramref name="area"/>, okunan alanın karedeki yeridir (Mac: Reading.subtitleBlock).
+    /// Tek satırlık etkileşim/HUD etiketi ("TAKE AMMO PACK (0/3)", <see cref="ButtonPrompts.IsActionLabel"/>) ve sahne
+    /// yazısı (tabela, tişört; <see cref="SceneText"/>) altyazı bloğu sayılmaz. <paramref name="band"/>: bu oturumda
+    /// altyazının okunduğu yükseklikler; <paramref name="dropped"/>: sahne yazısı sayılıp atılan her blok ve nedeni
+    /// (altyazı günlüğü için). "Tam ekran" alanda ekranın kenarındaki bildirim kartı (<see cref="ScreenNotices.IsNotice(TextBox)"/>)
+    /// altyazı bloğu sayılmaz, <paramref name="notices"/> ile bildirilir (satır kutuları alana oranlı); kendi yerinde
+    /// çevrilir. Önceden ortalanmış blok yokken altyazı seçilip ekranın ortasında çiziliyordu. <paramref name="age"/>:
+    /// satırın ne kadar süredir değişmeden okunduğu (<see cref="StickyRows.UnchangedMs"/>); verilirse
+    /// <see cref="StaleMs"/>'dir değişmeyen ortalı blok, yanında yeni beliren ortalı blok varken seçilmez, atlanan blok
+    /// <paramref name="stale"/> ile bildirilir.
     /// </summary>
-    public Reading SubtitleBlock(TextBox area)
+    public Reading SubtitleBlock(TextBox area, SubtitleBand? band = null, Action<Reading, string>? dropped = null,
+                                 Action<Reading>? notices = null, Func<string, long?>? age = null,
+                                 Action<Reading>? stale = null)
     {
-        if (Lines.Count == 0 || Lines.Any(line => line.Box is null)) return this;
+        if (Lines.Count == 0 || Lines.Any(line => line.Box is null)) return IsActionLabel ? Empty : this;
         var blocks = new List<List<TextLine>>();
         foreach (var line in Lines.OrderBy(line => line.Box!.Value.Top))
         {
             var box = line.Box!.Value.PlacedIn(area);
-            var index = blocks.FindLastIndex(block => Belongs(box, block, area));
+            var index = blocks.FindLastIndex(block => Belongs(box, block, area, line.Text));
             if (index >= 0) blocks[index].Add(line);
             else blocks.Add([line]);
         }
-        var candidates = blocks.Select(block => new Reading(block)).Where(reading => !reading.IsMenu).ToList();
+        // Tabela, tişört, plaka gibi sahne yazısı (SceneText) altyazı alanına düşse de altyazı değildir.
+        var candidates = blocks.SelectMany(WithoutSignLines).Select(block => new Reading(block)).Where(reading =>
+        {
+            if (reading.IsMenu || reading.IsActionLabel) return false;
+            if (SceneText.Reason(reading, area, band) is not { } reason) return true;
+            dropped?.Invoke(reading, reason);
+            return false;
+        }).Where(reading =>
+        {
+            if (!ScreenNotices.IsWholeScreen(area) || !ScreenNotices.IsNotice(reading.Box!.Value.PlacedIn(area))) return true;
+            notices?.Invoke(reading);
+            return false;
+        }).ToList();
         var centered = candidates.Where(reading =>
         {
             var box = reading.Box!.Value.PlacedIn(area);
             return Math.Abs(((box.Left + box.Right) / 2) - 0.5) <= 0.12;
         }).ToList();
-        if (centered.Count > 0) return centered.MaxBy(reading => reading.Box!.Value.Bottom)!;
+        // Görev satırı altyazıyla aynı anda belirince ayrı blok olur (aralık ya da yazı boyu farkı): konuşan adı taşıyan
+        // blok altyazıdır ("Lucia: …" görevin üstünde de dursa).
+        centered = WithoutStale(centered, age, stale);
+        if (centered.FirstOrDefault(reading => SpeakerPrefix.Parse(reading.Lines[0].Text) is not null) is { } spoken) return spoken;
+        if (centered.Count > 0)
+        {
+            var lowest = centered.MaxBy(reading => reading.Box!.Value.Bottom)!;
+            return ObjectiveBelow(lowest, centered, area) ?? lowest;
+        }
         return candidates.Where(reading => WordCount(reading.Text) >= 3).MaxBy(reading => reading.Box!.Value.Bottom) ?? Empty;
     }
 
-    /// <summary>Bloğun son satırının hemen altında ve yatayda onunla üst üste binen satır o bloğa aittir.</summary>
-    private static bool Belongs(TextBox box, List<TextLine> block, TextBox area)
+    /// <summary>
+    /// En alttaki blok, hemen üstündeki konuşmanın altına onunla aynı anda gelen görev satırı mı: tek satır ve üstündeki
+    /// ortalanmış bloktan (arada en çok üç satır boyu) belirgin kısa (<see cref="StickyRows.JoinedShare"/>). Öyleyse
+    /// altyazı üstteki bloktur. Kullanıcı bildirimi (X, beta.69, GTA 6): "John'u takip et" konuşmayla birlikte belirince
+    /// en alttaki blok olarak altyazı seçiliyor, konuşma hiç çevrilmiyordu. Görev ekranda kalınca sonraki konuşmalarda
+    /// <see cref="StickyRows"/> onu ayırır.
+    /// </summary>
+    private static Reading? ObjectiveBelow(Reading lowest, List<Reading> centered, TextBox area)
+    {
+        if (lowest.Lines.Count != 1) return null;
+        var box = lowest.Box!.Value.PlacedIn(area);
+        var height = box.Bottom - box.Top;
+        var above = centered.Where(reading => !ReferenceEquals(reading, lowest))
+            .Where(reading => reading.Box!.Value.PlacedIn(area) is var other && other.Bottom <= box.Top + height * 0.25
+                              && box.Top - other.Bottom <= height * 3)
+            .MaxBy(reading => reading.Box!.Value.Bottom);
+        return above is not null && Letters(lowest.Text) <= StickyRows.JoinedShare * Letters(above.Text) ? above : null;
+    }
+
+    private static int Letters(string text) => text.Count(char.IsLetter);
+
+    /// <summary>
+    /// Konuşmayla aynı bloğa düşen plaka/tabela satırları ayrı blok olur (sonra <see cref="SceneText"/> ya da
+    /// <see cref="IsActionLabel"/> ile atılır). Kullanıcı bildirimi (GitHub #1052, GTA 6, beta.84): plaka konuşmanın hemen
+    /// üstünde durunca aynı bloğa katılıyor, "FLORIANA / Dunk: Yo. How you know that was me?" diye çevriliyor, plaka
+    /// okundukça aynı replik yeniden işleniyordu. Ayrılan: konuşan adlı satırın üstündeki kısa büyük harfli satırlar
+    /// (<see cref="SceneText.IsSignLine"/>; konuşan adı yeni konuşmanın ilk satırıdır) ve küçük harfli konuşmanın altında,
+    /// cümlenin devamı olmayan, rakam taşıyan kısa büyük harfli satır ("AKB 51"). Tümü büyük harfli altyazının devamı
+    /// ("LUCIA: GET / DOWN!", "I'm with the / FBI.") ayrılmaz (Mac: Reading.withoutSignLines, Android: Reading.withoutSignLines).
+    /// </summary>
+    internal static List<List<TextLine>> WithoutSignLines(List<TextLine> block)
+    {
+        var speaker = Enumerable.Range(1, Math.Max(0, block.Count - 1))
+            .FirstOrDefault(i => SpeakerPrefix.Parse(block[i].Text) is not null, -1);
+        if (speaker > 0 && block.Take(speaker).All(line => SceneText.IsSignLine(line.Text)))
+            return [block.Take(speaker).ToList(), .. WithoutSignLines(block.Skip(speaker).ToList())];
+        if (block.Count < 2 || SpeakerPrefix.Parse(block[0].Text) is null || !block[0].Text.Any(char.IsLower)) return [block];
+        var cut = Enumerable.Range(1, block.Count - 1).FirstOrDefault(i =>
+            SceneText.IsSignLine(block[i].Text) && block[i].Text.Any(char.IsDigit) && !Continues(block[i - 1].Text, block[i].Text), -1);
+        return cut > 0 ? [block.Take(cut).ToList(), block.Skip(cut).ToList()] : [block];
+    }
+
+    /// <summary>
+    /// Ortalı blok bu kadar süredir hiç değişmediyse ve yanında ondan en az <see cref="StickyRows.YoungerByMs"/> daha yeni
+    /// (kırıntı olmayan) ortalı blok varsa altyazı sayılmaz. Kullanıcı bildirimi (GitHub #933, GTA 6): karakter TV izlerken
+    /// haber programının alt bandı konuşma altyazısının altında duruyor, en alttaki ortalı blok olarak her karede bant
+    /// seçiliyor, konuşma hiç çevrilmiyordu. Bant çoğu zaman "EXCLUSIVE: …", "BREAKING NEWS: …" diye başlıyor, konuşan adı
+    /// sanılıp her zaman altyazı seçiliyordu. Tek ortalı blok (değişmeyen uzun cümle) seçilmeye devam eder. Konuşan adlı
+    /// sabit blok yalnız yanındaki yeni blok en az üç sözcüklü bir cümleyse atlanır: kısa görev/HUD yazısı uzun konuşmayı
+    /// geçmez (Mac: Reading.staleMs, Android: Reading.STALE_MS).
+    /// </summary>
+    public const int StaleMs = 5000;
+
+    /// <summary>Ortalı blokların sabit olanları (<see cref="StaleMs"/>) çıkarılmış hali; satır yaşı bilinmiyorsa aynen kalır.</summary>
+    private static List<Reading> WithoutStale(List<Reading> centered, Func<string, long?>? age, Action<Reading>? skipped)
+    {
+        if (age is null || centered.Count < 2) return centered;
+        var ages = centered.Select(block => block.Lines.Select(line => age(line.Text)).Where(value => value is not null)
+            .Select(value => value!.Value).DefaultIfEmpty(0).Min()).ToList();
+        var fresh = Enumerable.Range(0, centered.Count)
+            .Where(i => ages[i] < StaleMs && !OcrNoise.IsCrumb(centered[i].Text)).ToList();
+        if (fresh.Count == 0) return centered;
+        long youngest = fresh.Min(i => ages[i]);
+        var sentences = fresh.Where(i => WordCount(centered[i].Text) >= 3).ToList();
+        long? sentence = sentences.Count > 0 ? sentences.Min(i => ages[i]) : null;
+        var stale = Enumerable.Range(0, centered.Count).Where(i =>
+        {
+            if (ages[i] < StaleMs) return false;
+            var rival = SpeakerPrefix.Parse(centered[i].Lines[0].Text) is null ? youngest : sentence;
+            return rival is { } value && ages[i] - value >= StickyRows.YoungerByMs;
+        }).ToHashSet();
+        if (stale.Count == 0) return centered;
+        foreach (var i in stale.Order()) skipped?.Invoke(centered[i]);
+        return Enumerable.Range(0, centered.Count).Where(i => !stale.Contains(i)).Select(i => centered[i]).ToList();
+    }
+
+    /// <summary>
+    /// Bloğun son satırının hemen altında ve yatayda onunla üst üste binen satır o bloğa aittir. Aradaki boşluk satır
+    /// yüksekliğinin LineGap katından (devam satırında ContinuationGap) büyükse ya da yazı boyları 1,25 kattan çok farklıysa ayrı bloktur (altyazıya bitişik görev
+    /// satırı ayrılır). Yazı boyu yalnız iki satır da en az üç sözcükken karşılaştırılır ve alttaki satır üsttekinin
+    /// devamıysa (<see cref="Continues"/>) hiç karşılaştırılmaz: satır kutusu harflere göre ölçülür, "now." gibi kısa ve
+    /// büyük harfsiz/kuyruksuz satırın kutusu daha alçak çıkıyor, cümlenin devamı ayrı blok sayılıp tek başına
+    /// çevriliyordu (GitHub #715).
+    /// </summary>
+    /// <summary>
+    /// Aynı bloğun satırları arasındaki en büyük boşluk (satır yüksekliğine oranla). GTA 6 gibi geniş satır aralıklı
+    /// altyazılarda 0,6 eşiği iki satırlı altyazıyı iki bloğa bölüyor, yalnız biri çevriliyordu (GitHub #822); 0,8 geri geldi.
+    /// Alttaki satır üsttekinin devamıysa <see cref="ContinuationGap"/> geçerlidir (Mac/Android: aynı eşikler).
+    /// </summary>
+    internal const double LineGap = 0.8;
+    internal const double ContinuationGap = 1.3;
+    /// <summary>
+    /// <see cref="ContinuationGap"/> yalnız üstteki satır en az bu kadar sözcükken geçerlidir: altyazının sarılmış ilk satırı
+    /// uzundur. Tek sözcüklük üst satır (GTA 6 telefon bildiriminde gönderenin adı "Cal", altında "Checked th…") geniş
+    /// boşlukla alttakine katılınca altyazı seçiliyordu (gerçek kare gta6-n4-bildirim; Mac/Android: aynı eşik).
+    /// </summary>
+    internal const int ContinuationMinWords = 3;
+
+    private static bool Belongs(TextBox box, List<TextLine> block, TextBox area, string text)
     {
         var last = block[^1].Box!.Value.PlacedIn(area);
-        var height = Math.Max(box.Bottom - box.Top, last.Bottom - last.Top);
-        if (box.Top - last.Bottom >= height * 0.8 || box.Top < last.Top) return false;
+        double own = box.Bottom - box.Top, previous = last.Bottom - last.Top;
+        var height = Math.Max(own, previous);
+        var continuing = Continues(block[^1].Text, text);
+        var wide = continuing && WordCount(block[^1].Text) >= ContinuationMinWords;
+        if (box.Top - last.Bottom > height * (wide ? ContinuationGap : LineGap) || box.Top < last.Top) return false;
+        var comparable = WordCount(text) >= 3 && WordCount(block[^1].Text) >= 3 && !continuing;
+        if (comparable && Math.Max(own, previous) > 1.25 * Math.Min(own, previous)) return false;
         var overlap = Math.Min(box.Right, last.Right) - Math.Max(box.Left, last.Left);
         var narrower = Math.Min(box.Right - box.Left, last.Right - last.Left);
         return overlap > 0 && overlap >= narrower * 0.5;
     }
 
+    /// <summary>
+    /// <paramref name="next"/> satırı <paramref name="upper"/>'ın devamı mı: üstteki cümle bitmemiş (nokta, ünlem, soru
+    /// işaretiyle bitmiyor) ve alttaki küçük harfle başlıyor ya da üstteki virgül/tireyle bitiyor ya da alttaki en çok üç
+    /// sözcük. Konuşan adlı alt satır ("Lucia: …") yeni konuşmadır, devam sayılmaz (Mac/Android: aynı kural).
+    /// </summary>
+    internal static bool Continues(string upper, string next)
+    {
+        var top = upper.Trim();
+        var below = next.Trim();
+        if (top.Length == 0 || below.Length == 0 || SubtitleStabilizer.EndsSentence(top)) return false;
+        if (SpeakerPrefix.Parse(below) is not null) return false;
+        var first = below.FirstOrDefault(char.IsLetter);
+        return (first != default && char.IsLower(first)) || top.EndsWith(',') || top.EndsWith('-') || top.EndsWith('—')
+               || WordCount(below) <= 3;
+    }
+
     /// <summary>Alt alta kısa ve noktalamasız satırlar ("MAP", "HELP", "SOCIAL CLUB") menüdür, konuşma değil.</summary>
-    internal bool IsMenu => Lines.Count >= 3 &&
-        Lines.All(line => WordCount(line.Text) <= 3 && !SubtitleStabilizer.EndsSentence(line.Text));
+    /// <remarks>
+    /// Satırların yeri biliniyorsa sol ya da sağ kenarları <see cref="MenuEdge"/> içinde hizalı olmalı: ortalanmış kısa
+    /// konuşma satırları ("No / Wait / Go on") menü sanılıp atılmasın. Konuşan adıyla başlayan satır menü değildir
+    /// (Mac/iPhone, Android ile aynı).
+    /// </remarks>
+    internal bool IsMenu
+    {
+        get
+        {
+            if (Lines.Count < 3 || !Lines.All(line => WordCount(line.Text) <= 3 && !SubtitleStabilizer.EndsSentence(line.Text)
+                                                      && SpeakerPrefix.Parse(line.Text) is null)) return false;
+            if (Lines.Any(line => line.Box is null)) return true;
+            static bool Aligned(IEnumerable<double> edges) => edges.Max() - edges.Min() <= MenuEdge;
+            return Aligned(Lines.Select(line => line.Box!.Value.Left)) || Aligned(Lines.Select(line => line.Box!.Value.Right));
+        }
+    }
+
+    /// <summary>Menü satırlarının sol ya da sağ kenarı bu kadar içinde hizalı (okunan alana oranla).</summary>
+    internal const double MenuEdge = 0.012;
+
+    /// <summary>Tek başına okunan etkileşim/HUD etiketi (GTA 6: "SIT", "• ADD TO TRUNK").</summary>
+    internal bool IsActionLabel => Lines.Count == 1 && ButtonPrompts.IsActionLabel(Lines[0].Text);
 
     private static int WordCount(string text) => text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
     /// <summary>Satır kutularını <paramref name="area"/> içindeki oranlardan dış çerçevenin oranlarına taşır.</summary>
-    public Reading PlacedIn(TextBox area) => new(Lines.Select(line => line with { Box = line.Box?.PlacedIn(area) }));
+    public Reading PlacedIn(TextBox area) => new(Lines.Select(line => line with
+    {
+        Box = line.Box?.PlacedIn(area),
+        Words = line.Words?.Select(word => word with { Box = word.Box.PlacedIn(area) }).ToList(),
+        Icons = line.Icons?.Select(icon => icon with { Box = icon.Box.PlacedIn(area) }).ToList(),
+    }));
+
+    /// <summary>Yazının içindeki kumanda simgeleri <see cref="ButtonIcons.Marker"/> ile işaretlenmiş hali (bkz. <see cref="ButtonIcons.Mark"/>).</summary>
+    public Reading WithButtonIcons() => new(ButtonIcons.JoinHints(this).Lines.Select(ButtonIcons.Mark));
+
+    /// <summary>
+    /// <see cref="WithButtonIcons()"/>, ayrıca fiilsiz yerlerdeki simgeler (tuş çubuğu, satır başı) <paramref name="frame"/>'den
+    /// (okunan görüntü) doğrulanarak işaretlenir (<see cref="ButtonIcons.MarkFree"/>).
+    /// </summary>
+    /// <param name="monochrome">Yalnız renksiz simgeler (otomatik ekran yazısı; bkz. <see cref="ButtonIcons.MarkFree"/>).</param>
+    public Reading WithButtonIcons(Frame frame, bool monochrome = false) =>
+        new(ButtonIcons.JoinHints(this).Lines.Select(ButtonIcons.Mark).Select(line => ButtonIcons.MarkFree(line, frame, monochrome)));
 }
 
 /// <summary>
@@ -178,8 +427,98 @@ public static class ButtonPrompts
             !SubtitleStabilizer.EndsSentence(line))
             return true;
         // "Press ✕ to jump", "Hold R2 to aim"
-        if (Verbs.Contains(first) && tokens.Count is >= 2 and <= 10)
-            return Buttons.Contains(tokens[1]) || Lookalikes.Contains(tokens[1]);
-        return false;
+        if (Verbs.Contains(first) && tokens.Count is >= 2 and <= 10 &&
+            (Buttons.Contains(tokens[1]) || Lookalikes.Contains(tokens[1])))
+            return true;
+        return IsIconPrompt(tokens, line);
+    }
+
+    private static readonly HashSet<string> Connectors = new(StringComparer.OrdinalIgnoreCase) { "and", "or" };
+
+    /// <summary>Büyük harfle yazılmış kısa İngilizce sözcükler tuş kalıntısı sayılmaz ("HOLD ON TO IT").</summary>
+    private static readonly HashSet<string> ShortWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "on", "up", "it", "in", "at", "out", "off", "me", "us", "him", "her", "my", "an", "the", "you", "its",
+    };
+
+    /// <summary>"to"dan sonra eylem yerine bunlar gelirse konuşmadır ("Hold to your course").</summary>
+    private static readonly HashSet<string> Objects = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "the", "a", "an", "my", "your", "his", "her", "our", "their", "me", "you", "him", "them", "us", "it", "this", "that",
+    };
+
+    /// <summary>
+    /// Tuş simgesinin yazı tanımadaki kalıntısı: harfsiz ("@", "•", "9"), tek karakter ("D", "i"; "a" hariç), tuş adı,
+    /// "and"/"or" ya da büyük harf içeren en çok üç karakter ("LI", "RE", "Rd", "RB").
+    /// </summary>
+    private static bool IsIconRemnant(string token)
+    {
+        if (!token.Any(char.IsLetter) || Buttons.Contains(token) || Lookalikes.Contains(token) || Connectors.Contains(token))
+            return true;
+        if (token.Length == 1) return token != "a";
+        return token.Length <= 3 && token.Any(char.IsUpper) && !ShortWords.Contains(token);
+    }
+
+    /// <summary>
+    /// GTA 6: "Press/Hold/Use ... to ..." ipucunda tuş simgesi resimdir; yazı tanıma onu ya hiç okumaz ("Press  to open
+    /// the map") ya da harf/simge kalıntısı olarak okur ("Press @ to", "Hold I LI to", "Press [RB] to take cover").
+    /// Çevrilince tuş kaybolur ve konuşma yerine ipucu görünür. Fiil ile "to" arasında en çok üç kalıntı olabilir;
+    /// ünlem, soru, tırnak ya da konuşmacı adı (":") taşıyan satır ve "to"dan sonra eylem yerine nesne gelen satır
+    /// ("Hold to your course") konuşma sayılır (Mac: ButtonPrompts.isIconPrompt, Android: isIconPrompt, havuz:
+    /// server/pool/src/prompts.js).
+    /// </summary>
+    private static bool IsIconPrompt(List<string> tokens, string line)
+    {
+        if (line.Any(c => "!?\"“”:".Contains(c))) return false;
+        var all = tokens.SkipWhile(token => !token.Any(char.IsLetter)).ToList();
+        if (all.Count < 3 || !Verbs.Contains(all[0])) return false;
+        var to = all.FindIndex(1, token => token.Equals("to", StringComparison.OrdinalIgnoreCase));
+        if (to < 1 || to > 4 || !all.Skip(1).Take(to - 1).All(IsIconRemnant)) return false;
+        var next = all.Skip(to + 1).FirstOrDefault(token => token.Any(char.IsLetter));
+        return next is not null && all.Count - to - 1 <= 10 && !Objects.Contains(next);
+    }
+
+    /// <summary>
+    /// <see cref="IsIconPrompt"/> kalıbındaki satırın yazı tanıma sözcüklerinde fiilin ve "to"nun sırası; aralarında en
+    /// az bir tuş kalıntısı yoksa ya da kalıp tutmazsa null. Aradaki kalıntılar ("I LI", "(9 0", "2 and R2") simgenin
+    /// okunuşudur: <see cref="ButtonIcons.Mark"/> onları kareden kesilecek simge yapar ("Ekranı çevir" ve ek alanlarda
+    /// ipucu simgesiyle çevrilir; ana altyazıda ipucu yine atılır).
+    /// </summary>
+    internal static (int Verb, int To)? IconRemnantSpan(IReadOnlyList<string> words, string line)
+    {
+        var tokens = line.Split(Separators, StringSplitOptions.RemoveEmptyEntries)
+            .Select(token => token.Trim(Brackets)).Where(token => token.Length > 0).ToList();
+        if (!IsIconPrompt(tokens, line)) return null;
+        var verb = -1;
+        for (var i = 0; i < words.Count && verb < 0; i++)
+            if (words[i].Trim(Brackets).Any(char.IsLetter)) verb = i;
+        if (verb < 0 || !Verbs.Contains(words[verb].Trim(Brackets))) return null;
+        for (var to = verb + 2; to < words.Count && to <= verb + 4; to++)
+        {
+            if (!words[to].Trim(Brackets).Equals("to", StringComparison.OrdinalIgnoreCase)) continue;
+            var between = words.Skip(verb + 1).Take(to - verb - 1)
+                .SelectMany(word => word.Split(Separators, StringSplitOptions.RemoveEmptyEntries).Select(part => part.Trim(Brackets)))
+                .Where(part => part.Length > 0);
+            return between.All(IsIconRemnant) ? (verb, to) : null;
+        }
+        return null;
+    }
+
+    /// <summary>"and"/"or": iki tuş kalıntısının arasındaki bağlaç, simge değildir ("Release 2 and R2 to breathe out").</summary>
+    internal static bool IsConnector(string token) => Connectors.Contains(token);
+
+    /// <summary>
+    /// Etkileşim/HUD etiketi: en çok üç sözcük, hiç küçük harf yok (en az bir büyük harf var), cümle sonu noktalaması
+    /// yok. GTA 6'nın etkileşim yazıları ("TAKE AMMO PACK (0/3)", "• ADD TO TRUNK", "TURN ON") ve ekipman yazıları
+    /// ("BENCH PRESS") simgeleri harfe dönüşerek okunuyor, altyazı gibi çevriliyordu (#404). Konuşma altyazısı küçük
+    /// harf içerir ya da noktalamayla biter ("Yes.", "OKAY.", "WHAT?"); büyük/küçük harfi olmayan yazılara
+    /// (Japonca) dokunulmaz. Yalnız tek başına okunan satıra uygulanır: tümü büyük harfli altyazının sarılmış
+    /// satırı ("I TOLD YOU" / "NOT TO GO THERE.") bozulmaz (Mac: ButtonPrompts.isActionLabel).
+    /// </summary>
+    public static bool IsActionLabel(string line)
+    {
+        var words = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Count(word => word.Any(char.IsLetter));
+        return words is >= 1 and <= 3 && line.Any(char.IsUpper) && !line.Any(char.IsLower) &&
+            !SubtitleStabilizer.EndsSentence(line);
     }
 }

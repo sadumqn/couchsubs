@@ -15,10 +15,12 @@ public enum SecureStore {
     public static func save<T: Encodable>(_ value: T, for key: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
         let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: key]
-        SecItemDelete(query as CFDictionary)
         var item = query
         item[kSecValueData] = data
-        SecItemAdd(item as CFDictionary, nil)
+        // Bir güncelleme başarısız olursa önceki kayıt yerinde kalsın.
+        if SecItemAdd(item as CFDictionary, nil) == errSecDuplicateItem {
+            SecItemUpdate(query as CFDictionary, [kSecValueData: data] as CFDictionary)
+        }
     }
 
     public static func load<T: Decodable>(_ type: T.Type, for key: String) -> T? {

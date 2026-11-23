@@ -1,0 +1,1 @@
+0.9.24: Bilgisayarda çeviriyi durdurunca TV uygulaması da kapanır, TV kendi HDMI girişine döner.

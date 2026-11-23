@@ -1,0 +1,47 @@
+{
+  "aciklama": "Alt reklam bandında sırayla dönen Enmera uygulamaları (Mac ve Windows aynı dosyayı okur). icon: design/yeni-arayuz/reklam/ altındaki görsel. appStore/googlePlay: mağaza bağlantısı; null ise düğme pasif ve 'Yakında' yazar. Bağlantılar uygulamaların kendi depolarındaki yapılandırmadan alındı (22 Kas 2026).",
+  "popupAciklama": "Günde en çok bir kez açılan açılır reklam (Mac ve Windows aynı): YALNIZ GÖRSEL, görselin oranına göre dikey ya da yatay açılır; tıklanınca link tarayıcıda açılır; köşede × ve küçük REKLAM. image: reklam/ altındaki görsel. Görsel yoksa ya da yüklenemezse açılır reklam hiç açılmaz (yer tutucu yok). Görsel ve bağlantı mobil tanıtım popup'ıyla aynı (site/public/promo.json › popup, popup.webp).",
+  "popups": [
+    {
+      "id": "enmera-commerce-demo-1",
+      "image": "popup-enmera.jpg",
+      "link": "https://enmera.com.tr/urunler/enmera-commerce?utm_source=couchsubs&utm_medium=app&utm_campaign=popup",
+      "alt": "Enmera Commerce: Ücretsiz demo"
+    }
+  ],
+  "ads": [
+    {
+      "id": "cebbin",
+      "icon": "cebbin.png",
+      "title": { "tr": "Cebbin", "en": "Cebbin" },
+      "text": {
+        "tr": "Kişisel ve işletme finanslarınızı tek uygulamada yönetin.",
+        "en": "Manage your personal and business finances in one app."
+      },
+      "appStore": "https://apps.apple.com/tr/app/id6761289792",
+      "googlePlay": null
+    },
+    {
+      "id": "gramla",
+      "icon": "gramla.png",
+      "title": { "tr": "Gramla", "en": "Gramla" },
+      "text": {
+        "tr": "Yemeğinizin fotoğrafını çekin, kalori ve makrolarınızı takip edin.",
+        "en": "Snap your meal and track your calories and macros."
+      },
+      "appStore": "https://apps.apple.com/tr/app/id6815593927",
+      "googlePlay": "https://play.google.com/store/apps/details?id=com.enmera.gramla"
+    },
+    {
+      "id": "bakkal",
+      "icon": "bakkal.png",
+      "title": { "tr": "Bakkal", "en": "Bakkal" },
+      "text": {
+        "tr": "Mini market oyunu: rafları doldurun, satış yapın, bakkalınızı büyütün.",
+        "en": "A mini mart tycoon game: stock the shelves, sell and grow your shop."
+      },
+      "appStore": "https://apps.apple.com/tr/app/id6822638855",
+      "googlePlay": null
+    }
+  ]
+}

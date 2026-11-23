@@ -1,0 +1,211 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Dış PR'lar için yalnız test: native derleme, model indirme, paketleme ve imza yok.
+name: pr-tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # KALICI KURAL: Windows = Mac, Android = iPhone. Ayar alanları ve telefon ayar metinleri karşılaştırılır; bilinçli farklar
+  # scripts/parity-allowlist.json'da gerekçesiyle durur. Ucuz olduğu için her PR'da çalışır.
+  parity:
+    name: Platform eşitliği
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Eşitlik denetimi
+        run: python3 scripts/parity-check.py
+
+  # Yalnız ilgili klasör değişince pahalı (özellikle macOS) işler çalışsın. Elle çalıştırmada hepsi çalışır.
+  changes:
+    name: Değişen yollar
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      windows: ${{ steps.filter.outputs.windows }}
+      swift: ${{ steps.filter.outputs.swift }}
+      android: ${{ steps.filter.outputs.android }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: filter
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BASE_SHA}" ]; then
+            echo "windows=true" >> "$GITHUB_OUTPUT"
+            echo "swift=true" >> "$GITHUB_OUTPUT"
+            echo "android=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"
+          printf '%s\n' "$files"
+          match() { if grep -Eq "$1" <<< "$files"; then echo true; else echo false; fi; }
+          wf='^\.github/workflows/pr-tests\.yml$'
+          res='^core/Sources/CouchSubsCore/Resources/'
+          frames='^testdata/frames/|^tools/frame-regression/|^scripts/regression[-_]frames'
+          echo "windows=$(match "^windows/|^testdata/frames/|${res}|${wf}")" >> "$GITHUB_OUTPUT"
+          # TVAppPairingLiveTests TV uygulamasının kendisini (tv-webos/app.js) Swift sunucusuyla eşleştirir.
+          echo "swift=$(match "^core/|^tv-webos/|^scripts/tv-pair-live\.js$|${frames}|${wf}")" >> "$GITHUB_OUTPUT"
+          # design/yeni-arayuz: Perde belirteçleri (tasarim.json) ve reklam listesi derlemede Android uygulamasına girer.
+          echo "android=$(match "^couchsubs-android/|^tv-webos/|^tv-tizen/|^testdata/frames/|^design/yeni-arayuz/|${res}|${wf}")" >> "$GITHUB_OUTPUT"
+
+  windows:
+    name: Windows / .NET
+    needs: changes
+    if: ${{ needs.changes.outputs.windows == 'true' }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      COUCHSUBS_DOWNLOAD_TEST_MODELS: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # Paketler depoda değil (özel R2). Sır yoksa (dış katkıcı PR'ı) atlanır, gerçek paket testleri kendini atlar.
+      - name: Oyun paketleri (özel R2)
+        shell: bash
+        env:
+          PACKS_R2_ACCESS_KEY_ID: ${{ secrets.PACKS_R2_ACCESS_KEY_ID }}
+          PACKS_R2_SECRET_ACCESS_KEY: ${{ secrets.PACKS_R2_SECRET_ACCESS_KEY }}
+          PACKS_R2_ENDPOINT: ${{ secrets.PACKS_R2_ENDPOINT }}
+        run: python scripts/fetch-packs.py
+      # Çözümün tamamı App/native/paketleme bağımlılıklarını getirir; yalnız test projelerini derle.
+      # Zamanlama testleri CPU paylaşımından etkilenmesin diye projeler sırayla çalışır.
+      - name: .NET testleri
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $failed = $false
+          $projects = @(Get-ChildItem windows/tests/*/*.csproj)
+          if ($projects.Count -eq 0) { throw 'Test projesi bulunamadı.' }
+          foreach ($project in $projects) {
+            dotnet test $project.FullName --configuration Release --logger "console;verbosity=normal" --logger "trx;LogFileName=$($project.BaseName).trx" --results-directory "$env:RUNNER_TEMP/test-results"
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: pr-windows-test-results
+          path: ${{ runner.temp }}/test-results/*.trx
+          if-no-files-found: error
+          retention-days: 7
+
+  swift:
+    name: macOS / Swift core
+    needs: changes
+    if: ${{ needs.changes.outputs.swift == 'true' }}
+    # Package.swift: Swift 6.2; projenin mevcut macOS iş akışıyla aynı runner.
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          # Gerçek kare gerileme seti önceki etiketle karşılaştırır: etiketler gerekli.
+          fetch-depth: 0
+      # Paketler depoda değil (özel R2). Sır yoksa (dış katkıcı PR'ı) atlanır, gerçek paket testleri kendini atlar.
+      - name: Oyun paketleri (özel R2)
+        shell: bash
+        env:
+          PACKS_R2_ACCESS_KEY_ID: ${{ secrets.PACKS_R2_ACCESS_KEY_ID }}
+          PACKS_R2_SECRET_ACCESS_KEY: ${{ secrets.PACKS_R2_SECRET_ACCESS_KEY }}
+          PACKS_R2_ENDPOINT: ${{ secrets.PACKS_R2_ENDPOINT }}
+        run: python3 scripts/fetch-packs.py
+      - name: Swift testleri
+        working-directory: core
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/test-results"
+          swift --version
+          # XCTest'in sıralı çalışmasında xUnit çıktısı Swift sürümüne göre eksik olabilir.
+          # Ham test kaydı, XCTSkip gerekçelerini ve toplamları da korur.
+          swift test 2>&1 | tee "$RUNNER_TEMP/test-results/swift.log"
+      # Gerçek oyun kareleri gerçek Apple Vision ile: altyazı yakalama, yanlış kabul, telefon/harita sınıflama, kutu örtme ve
+      # telefon çevirisi son etiketin altına düşerse kırmızı (scripts/regression-frames.sh). Sürüm iş akışında zorunlu kapı.
+      - name: Gerçek kare gerileme seti
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          REGRESSION_OUT: ${{ runner.temp }}/regression-frames
+        run: scripts/regression-frames.sh 2>&1 | tee "$RUNNER_TEMP/test-results/regression-frames.log"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: pr-swift-test-results
+          path: |
+            ${{ runner.temp }}/test-results/swift.log
+            ${{ runner.temp }}/test-results/regression-frames.log
+            ${{ runner.temp }}/regression-frames/*.json
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android / JVM
+    needs: changes
+    if: ${{ needs.changes.outputs.android == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+          cache-read-only: true
+      # Paketler depoda değil (özel R2). Sır yoksa (dış katkıcı PR'ı) atlanır, gerçek paket testleri kendini atlar.
+      - name: Oyun paketleri (özel R2)
+        shell: bash
+        env:
+          PACKS_R2_ACCESS_KEY_ID: ${{ secrets.PACKS_R2_ACCESS_KEY_ID }}
+          PACKS_R2_SECRET_ACCESS_KEY: ${{ secrets.PACKS_R2_SECRET_ACCESS_KEY }}
+          PACKS_R2_ENDPOINT: ${{ secrets.PACKS_R2_ENDPOINT }}
+        run: python3 scripts/fetch-packs.py
+      - name: TV keşif ve eşleştirme testleri
+        run: node --test scripts/tv-discovery.test.js
+      - name: JVM testleri
+        working-directory: couchsubs-android
+        shell: bash
+        run: |
+          # preBuild varsayılan olarak Samsung paketi üretir ve APK/IPK indirir.
+          # Bunları atla; eksik TV paketi testi JUnit assumption ile açıkça SKIPPED olur.
+          gradle :app:testDebugUnitTest \
+            -Pcouchsubs.skipNative=true -Pcouchsubs.requireTvPackages=false \
+            -x :app:samsungTvPackage -x :app:tvReleasePackages \
+            --no-daemon --console=plain
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: pr-android-test-results
+          path: |
+            couchsubs-android/app/build/test-results/testDebugUnitTest/*.xml
+            couchsubs-android/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: error
+          retention-days: 7

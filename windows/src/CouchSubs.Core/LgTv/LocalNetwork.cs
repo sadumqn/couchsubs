@@ -70,6 +70,11 @@ public static class LocalNetwork
         "virtual", "vethernet", "hyper-v", "virtualbox", "vmware", "vmnet", "wsl", "docker", "tailscale", "zerotier",
         "wireguard", "wintun", "tap-", "tap ", "openvpn", "vpn", "hamachi", "radmin", "nordlynx", "forticlient",
         "fortinet", "anyconnect", "globalprotect", "pangp", "npcap", "loopback", "bluetooth", "teredo", "isatap",
+        // Cloudflare WARP ("CloudflareWARP", 172.16.0.2), Mullvad, Parallels, Clash/sing-box TUN ("Meta"), ZScaler, NetBird.
+        "cloudflare", "warp", "mullvad", "parallels", "clash", "sing-box", "singbox", "mihomo", "meta tunnel", "v2ray",
+        "zscaler", "netbird", "outline", "windscribe", "surfshark", "expressvpn", "proton",
+        // Telefonla USB internet paylaşımı (RNDIS) ve Windows Mobil etkin nokta: TV bu ağlarda değildir.
+        "rndis", "remote ndis", "wi-fi direct", "wan miniport", "kernel debug",
     ];
 
     /// <summary>
@@ -91,27 +96,98 @@ public static class LocalNetwork
         return mask.Length == 4 && mask.Any(b => b != 0) && Enumerable.Range(0, 4).All(i => (address[i] & mask[i]) == (wanted[i] & mask[i]));
     }
 
+    /// <summary>Clash ve sing-box TUN bağdaştırıcısı "Meta" adını taşır; yalnız tam ad eşleşir ("Metadata" sanal değil).</summary>
+    private static bool IsTunName(string name) =>
+        name.Equals("Meta", StringComparison.OrdinalIgnoreCase) || name.StartsWith("tun", StringComparison.OrdinalIgnoreCase)
+                                                               || name.StartsWith("utun", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
-    /// TV'nin ulaşacağı bu bilgisayar adresi. Sıra: TV ile aynı ağdaki gerçek bağdaştırıcı, sonra varsayılan ağ geçidi olan
-    /// gerçek bağdaştırıcı (Wi-Fi ya da Ethernet), sonra herhangi bir gerçek ev ağı adresi; sanal bağdaştırıcı ancak başka
-    /// adres yoksa seçilir. TV adresi bilinmiyorsa (<paramref name="near"/> null) aynı ağ adımı atlanır.
+    /// Gerçek bağdaştırıcılar arasında sıra: Wi-Fi ve Ethernet önce, varsayılan ağ geçidi olan önce, özel (ev ağı) adres
+    /// önce. Eskiden bağdaştırıcı listesindeki ilk "gerçek" adres alınıyordu; Windows'un sırası öncelik değildir.
     /// </summary>
-    public static string? ChooseComputerAddress(IReadOnlyList<AdapterAddress> adapters, IPAddress? near)
+    private static int Rank(AdapterAddress a) =>
+        (a.Type is NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet ? 0 : 4)
+        + (a.HasGateway ? 0 : 2) + (IsPrivate(a.Address) ? 0 : 1);
+
+    private static bool IsReal(AdapterAddress a) => !IsVirtual(a.Name, a.Description, a.Type) && !IsTunName(a.Name);
+
+    /// <summary>
+    /// TV'nin ulaşacağı bu bilgisayar adresi. Sıra: TV ile aynı ağdaki gerçek bağdaştırıcı, sonra varsayılan yolun
+    /// (<paramref name="defaultRoute"/>, internete çıkılan bağdaştırıcı) gerçek adresi, sonra Wi-Fi/Ethernet, ağ geçidi
+    /// olan, ev ağı adresi taşıyan gerçek bağdaştırıcı; sanal bağdaştırıcı ancak başka adres yoksa seçilir. TV adresi
+    /// bilinmiyorsa (<paramref name="near"/> null) aynı ağ adımı atlanır.
+    /// </summary>
+    public static string? ChooseComputerAddress(IReadOnlyList<AdapterAddress> adapters, IPAddress? near) =>
+        ChooseBySubnet(adapters, near, null);
+
+    private static string? ChooseBySubnet(IReadOnlyList<AdapterAddress> adapters, IPAddress? near, IPAddress? defaultRoute)
     {
-        var real = adapters.Where(a => !IsVirtual(a.Name, a.Description, a.Type)).ToList();
+        var real = adapters.Where(IsReal).OrderBy(Rank).ToList();
         if (near is { AddressFamily: AddressFamily.InterNetwork })
         {
-            var sameNetwork = real.Where(a => SameSubnet(a, near)).OrderByDescending(a => a.HasGateway).FirstOrDefault()
+            var sameNetwork = real.FirstOrDefault(a => SameSubnet(a, near))
                               ?? adapters.FirstOrDefault(a => SameSubnet(a, near));
             if (sameNetwork is not null) return sameNetwork.Address.ToString();
         }
-        var best = real.FirstOrDefault(a => a.HasGateway && IsPrivate(a.Address))
-                   ?? real.FirstOrDefault(a => IsPrivate(a.Address))
-                   ?? real.FirstOrDefault()
+        if (defaultRoute is not null && real.FirstOrDefault(a => a.Address.Equals(defaultRoute) && IsPrivate(a.Address)) is { } routed)
+            return routed.Address.ToString();
+        var best = real.FirstOrDefault()
                    ?? adapters.FirstOrDefault(a => IsPrivate(a.Address))
                    ?? adapters.FirstOrDefault();
         return best?.Address.ToString();
     }
+
+    /// <summary>
+    /// Bu bilgisayarın gerçek (VPN ve sanal olmayan) bağdaştırıcılarındaki ev ağı adresleri, tercih sırasıyla ve
+    /// tekrarsız. Birden çoksa Samsung kurulumunda TV'nin kabul etmediği durumda denenecek diğer adresler gösterilir.
+    /// </summary>
+    public static IReadOnlyList<string> HomeAddresses(IReadOnlyList<AdapterAddress> adapters) =>
+        [.. adapters.Where(a => IsReal(a) && IsPrivate(a.Address)).OrderBy(Rank).Select(a => a.Address.ToString()).Distinct()];
+
+    /// <summary>
+    /// TV'ye giden bağlantının kaynak adresi: işletim sistemi <paramref name="target"/>'a hangi bağdaştırıcıdan çıkacaksa
+    /// onun adresi. UDP soketi "bağlanır" (paket gönderilmez) ve yerel uç okunur; TCP bağlantısı da aynı adresi kullanır.
+    /// Birden çok bağdaştırıcıda (Wi-Fi + Ethernet, VPN, WSL) TV'nin göreceği adres budur. Okunamazsa null.
+    /// </summary>
+    public static IPAddress? RouteSourceAddress(IPAddress target)
+    {
+        if (target.AddressFamily != AddressFamily.InterNetwork) return null;
+        try
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            socket.Connect(new IPEndPoint(target, 8001));
+            return (socket.LocalEndPoint as IPEndPoint)?.Address;
+        }
+        catch (SocketException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// TV'nin göreceği bu bilgisayar adresi: TV'ye giden yolun kaynak adresi (<paramref name="routeSource"/>) açık bir
+    /// bağdaştırıcınınsa o; yoksa <see cref="ChooseComputerAddress(IReadOnlyList{AdapterAddress}, IPAddress?)"/>.
+    /// Alt ağ tahmini birden çok bağdaştırıcıda (aynı ağda Wi-Fi ve Ethernet, Hyper-V dış anahtarı) yanlış adresi
+    /// seçebiliyordu; Samsung "Host PC IP" ile karşılaştırılan adres yanlış olunca TV bağlantıyı kesiyordu (#343).
+    /// </summary>
+    public static string? ChooseComputerAddress(IReadOnlyList<AdapterAddress> adapters, IPAddress? near, IPAddress? routeSource) =>
+        ChooseComputerAddress(adapters, near, routeSource, null);
+
+    /// <summary>
+    /// <see cref="ChooseComputerAddress(IReadOnlyList{AdapterAddress}, IPAddress?, IPAddress?)"/>; TV adresi bilinmiyorsa
+    /// <paramref name="defaultRoute"/> (internete çıkılan bağdaştırıcının adresi) gerçek bir ev ağı adresiyse o seçilir.
+    /// </summary>
+    public static string? ChooseComputerAddress(IReadOnlyList<AdapterAddress> adapters, IPAddress? near, IPAddress? routeSource,
+        IPAddress? defaultRoute)
+    {
+        if (routeSource is { AddressFamily: AddressFamily.InterNetwork } source && !IPAddress.IsLoopback(source)
+            && !source.Equals(IPAddress.Any) && (adapters.Count == 0 || adapters.Any(a => a.Address.Equals(source))))
+            return source.ToString();
+        return ChooseBySubnet(adapters, near, defaultRoute);
+    }
+
+    /// <summary>İnternete giden varsayılan yolun kaynak adresi (paket gönderilmez); TV adresi bilinmiyorken kullanılır.</summary>
+    public static IPAddress? DefaultRouteSourceAddress() => RouteSourceAddress(IPAddress.Parse("1.1.1.1"));
 
     public static bool IsPrivate(IPAddress address)
     {

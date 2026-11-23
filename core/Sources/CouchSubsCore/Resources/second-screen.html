@@ -1,0 +1,232 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- CouchSubs ikinci ekran: telefon ya da tablet tarayıcısında büyük, okunaklı canlı altyazı. Bilgisayar ve telefon
+     uygulaması bu dosyayı /view?k=<erişim anahtarı> adresinden verir (aynı dosya); internet gerekmez, altyazılar aynı
+     ağdaki CouchSubs'ın /events akışından gelir. Anahtarsız istek sunucuda reddedilir. -->
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="referrer" content="no-referrer">
+<title>CouchSubs</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none; user-select: none; touch-action: manipulation;
+  }
+  /* Altyazı ekranın ortasında: telefon monitörün yanında ya da masada dururken göz hep aynı yere bakar. */
+  #stage {
+    position: absolute; inset: 0; box-sizing: border-box;
+    padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.6em;
+  }
+  #previous {
+    max-width: 100%; text-align: center; white-space: pre-line; overflow-wrap: anywhere;
+    font-weight: 500; line-height: 1.25; color: rgba(255, 255, 255, 0.45); font-size: 24px;
+    min-height: 1.25em;
+  }
+  #line {
+    max-width: 100%; text-align: center; white-space: pre-line; overflow-wrap: anywhere;
+    font-weight: 600; line-height: 1.22; font-size: 48px;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  #line.on { opacity: 1; }
+  #line.bold { font-weight: 800; }
+  #status {
+    position: absolute; left: 0; right: 0; bottom: max(12px, env(safe-area-inset-bottom));
+    text-align: center; font-size: 15px; color: rgba(255, 255, 255, 0.5);
+  }
+  #status .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px;
+    background: #8a8a8a; vertical-align: 1px;
+  }
+  #status.live .dot { background: #34c759; }
+  #status.lost .dot { background: #ff453a; }
+  #status.quiet { opacity: 0; transition: opacity 0.6s; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="previous"></div><div id="line"></div></div>
+<div id="status"><span class="dot"></span><span id="status-text"></span></div>
+<script>
+(function () {
+  'use strict';
+  var turkish = /^tr/i.test(navigator.language || '');
+  var TEXT = turkish
+    ? { connecting: 'Bağlanıyor…', live: 'Bağlı. Altyazılar burada görünecek.', lost: 'Bağlantı koptu, yeniden deneniyor…',
+        hint: 'Tam ekran için dokunun.' }
+    : { connecting: 'Connecting…', live: 'Connected. Subtitles will appear here.', lost: 'Connection lost, retrying…',
+        hint: 'Tap for full screen.' };
+  document.documentElement.lang = turkish ? 'tr' : 'en';
+
+  var stage = document.getElementById('stage');
+  var line = document.getElementById('line');
+  var previous = document.getElementById('previous');
+  var status = document.getElementById('status');
+  var statusText = document.getElementById('status-text');
+  var timer = null;
+  var quietTimer = null;
+  var current = '';
+  var color = '#ffffff';
+
+  function setStatus(state) {
+    status.className = state;
+    statusText.textContent = TEXT[state] + (state === 'live' && canFullscreen() ? ' ' + TEXT.hint : '');
+    clearTimeout(quietTimer);
+    // Bağlıyken bilgi satırı birkaç saniye sonra kaybolur; altyazının dikkatini dağıtmasın.
+    if (state === 'live') quietTimer = setTimeout(function () { status.className = 'live quiet'; }, 6000);
+  }
+
+  // Konuşanın adı ve rengi ([{name, color}]); geçersiz öğeler atlanır.
+  function speakerMap(list) {
+    if (!list || typeof list.length !== 'number') return null;
+    var map = null;
+    for (var i = 0; i < list.length && i < 16; i++) {
+      var item = list[i];
+      if (!item || typeof item.name !== 'string' || !item.name || item.name.length > 40) continue;
+      if (typeof item.color !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(item.color)) continue;
+      map = map || {};
+      map[item.name] = item.color;
+    }
+    return map;
+  }
+
+  // Yalnız satır başındaki "Ad:" konuşanın renginde; cümle seçilen yazı renginde kalır (TV ile aynı).
+  function paint(el, text, map) {
+    el.textContent = '';
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (i > 0) el.appendChild(document.createTextNode('\n'));
+      var found = null;
+      var length = 0;
+      if (map) {
+        for (var name in map) {
+          if (!Object.prototype.hasOwnProperty.call(map, name)) continue;
+          var mark = /^ ?[:：]/.exec(lines[i].substr(name.length));
+          if (lines[i].substr(0, name.length) === name && mark && (!found || name.length > found.length)) {
+            found = name;
+            length = name.length + mark[0].length;
+          }
+        }
+      }
+      if (!found) { el.appendChild(document.createTextNode(lines[i])); continue; }
+      var span = document.createElement('span');
+      span.style.color = map[found];
+      span.textContent = lines[i].slice(0, length);
+      el.appendChild(span);
+      el.appendChild(document.createTextNode(lines[i].slice(length)));
+    }
+  }
+
+  // Yazı ekrana en çok iki satırda sığacak en büyük boyda: önce ekrana göre büyük başlar, sığmazsa küçülür.
+  function fit(el, maxLines) {
+    var width = stage.clientWidth - 40;
+    var height = stage.clientHeight;
+    var size = Math.max(24, Math.min(width / 9, height / 3.2));
+    var floor = 18;
+    el.style.fontSize = size + 'px';
+    for (var i = 0; i < 40 && size > floor; i++) {
+      var lineHeight = parseFloat(getComputedStyle(el).lineHeight) || size * 1.22;
+      if (el.scrollHeight <= lineHeight * maxLines + 1 && el.scrollWidth <= width + 1) break;
+      size = Math.max(floor, size * 0.92);
+      el.style.fontSize = size + 'px';
+    }
+    previous.style.fontSize = Math.max(16, size * 0.45) + 'px';
+  }
+
+  function show(text, duration, speakers) {
+    clearTimeout(timer);
+    if (!text) return hide();
+    if (current && current !== text) previous.textContent = current.replace(/\n/g, ' ');
+    current = text;
+    // Uygulamanın satır bölmesi tarayıcı genişliğine uymaz: satırlar birleşir, bölmeyi tarayıcı yapar
+    // (konuşan satırları, "Ad:" ile başlayanlar, ayrı kalır).
+    var joined = text.split('\n').reduce(function (all, part) {
+      if (!all.length) return [part];
+      return /^\S[^:\n]{0,39} ?[:：]/.test(part) ? all.concat([part]) : all.slice(0, -1).concat([all[all.length - 1] + ' ' + part]);
+    }, []).join('\n');
+    paint(line, joined, speakerMap(speakers));
+    line.style.color = color;
+    line.className = 'on' + (bold ? ' bold' : '');
+    fit(line, 2);
+    if (duration > 0) timer = setTimeout(hide, Math.min(duration, 60000));
+  }
+
+  function hide() {
+    clearTimeout(timer);
+    if (current) previous.textContent = current.replace(/\n/g, ' ');
+    current = '';
+    line.className = '';
+  }
+
+  var bold = false;
+  function applyStyle(style) {
+    if (!style) return;
+    // Yeni arayüzün yazı rengi (style.textHex) varsa o; yoksa eski beyaz/sarı.
+    color = typeof style.textHex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(style.textHex) ? style.textHex
+      : style.textColor === 'yellow' ? '#ffe135' : '#ffffff';
+    bold = !!style.bold;
+    if (current) { line.style.color = color; line.className = 'on' + (bold ? ' bold' : ''); fit(line, 2); }
+  }
+
+  function canFullscreen() {
+    var root = document.documentElement;
+    return !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  }
+
+  // Dokununca tam ekran (tarayıcı destekliyorsa); yeniden dokununca çıkar.
+  document.addEventListener('click', function () {
+    var root = document.documentElement;
+    var active = document.fullscreenElement || document.webkitFullscreenElement;
+    try {
+      if (active) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else if (root.requestFullscreen) root.requestFullscreen({ navigationUI: 'hide' }).catch(function () {});
+      else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+    } catch (err) {}
+    keepAwake();
+  });
+
+  // Ekran açık kalsın (Wake Lock API varsa; sekme arka plana gidince kilit düşer, geri gelince yeniden istenir).
+  var lock = null;
+  function keepAwake() {
+    if (lock || !navigator.wakeLock || document.visibilityState !== 'visible') return;
+    navigator.wakeLock.request('screen').then(function (made) {
+      lock = made;
+      made.addEventListener('release', function () { lock = null; });
+    }).catch(function () {});
+  }
+  document.addEventListener('visibilitychange', keepAwake);
+  keepAwake();
+
+  window.addEventListener('resize', function () { if (current) fit(line, 2); });
+
+  var key = new URLSearchParams(location.search).get('k') || '';
+  setStatus('connecting');
+  var events = new EventSource('/events?viewer=second&k=' + encodeURIComponent(key));
+  events.onopen = function () { setStatus('live'); };
+  events.onerror = function () { setStatus('lost'); };
+  events.addEventListener('style', function (e) { try { applyStyle(JSON.parse(e.data)); } catch (err) {} });
+  events.addEventListener('subtitle', function (e) {
+    try { var d = JSON.parse(e.data); show(d.text, d.duration, d.speakerNames || d.speakers); } catch (err) {}
+  });
+  events.addEventListener('clear', hide);
+  // "Ekranı çevir" sonuçları da yazı olarak gösterilir (yerleri telefonda anlamsız).
+  events.addEventListener('screen', function (e) {
+    try {
+      var d = JSON.parse(e.data);
+      var texts = (d.items || []).map(function (item) { return item && item.text; }).filter(Boolean);
+      if (texts.length) show(texts.join('\n'), d.duration);
+    } catch (err) {}
+  });
+  events.addEventListener('screen-clear', hide);
+})();
+</script>
+</body>
+</html>

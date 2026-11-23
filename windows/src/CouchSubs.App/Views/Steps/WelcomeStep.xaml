@@ -1,17 +1,40 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- 01 · Konsol (Mac ConsoleChoiceStep): üç seçenek kartı (PlayStation 5, Xbox Series, Oyun Penceresi). "Oyun Penceresi" seçiliyken
+     Devam, görüntüyü seçilen pencereden okur ve kurulumu bitirir (pencere Ayarlar'dan seçilir). -->
 <UserControl x:Class="CouchSubs.App.Views.Steps.WelcomeStep"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:c="clr-namespace:CouchSubs.App.Controls"
              xmlns:t="clr-namespace:CouchSubs.App.Theme">
-    <c:StepLayout Title="{t:T 'Welcome to CouchSubs'}"
-                  Message="{t:T 'CouchSubs reads the English subtitles of your PS5 games and shows a Turkish translation on your TV, on top of the game. You keep playing on the TV with your own controller.'}">
-        <c:Card Title="{t:T 'You will need:'}">
-            <StackPanel>
-                <TextBlock Text="{t:T 'A PS5 on the same network as this computer'}" Margin="0,0,0,8" />
-                <TextBlock Text="{t:T 'An LG TV with the CouchSubs TV app'}" Margin="0,0,0,8" />
-                <TextBlock Text="{t:T 'A free second PlayStation Network account'}" />
-            </StackPanel>
-        </c:Card>
+    <c:StepLayout x:Name="Layout" Title="{t:T 'Which console do you play on?'}"
+                  Message="{t:T 'CouchSubs gets the picture from the console over your local network. Nothing is installed on your console.'}">
+        <c:SpacedStack Gap="l">
+            <UniformGrid Rows="1">
+                <!-- Kartın üstünde 64'lük renkli simge karesi (Perde): PS5 gök mavisi, Xbox zeytin, pencere şeftali; seçiliyken amber. -->
+                <RadioButton x:Name="Ps5" Style="{StaticResource ConsoleCard}" GroupName="consoleKind" Margin="{t:Sp '0,0,s,0'}" Checked="OnSelected">
+                    <RadioButton.Tag>
+                        <c:IconSquare Glyph="&#xE7FC;" Tone="Sky" Size="64" />
+                    </RadioButton.Tag>
+                    <c:SectionTitle Title="PlayStation 5" Text="{t:T 'With Remote Play'}" />
+                </RadioButton>
+                <RadioButton x:Name="Xbox" Style="{StaticResource ConsoleCard}" GroupName="consoleKind" Margin="{t:Sp 'xs,0,xs,0'}" Checked="OnSelected">
+                    <RadioButton.Tag>
+                        <c:IconSquare Glyph="&#xE7FC;" Tone="Olive" Size="64" />
+                    </RadioButton.Tag>
+                    <c:SectionTitle Title="{t:T 'Xbox Series'}" Text="{t:T 'With Remote Features'}" />
+                </RadioButton>
+                <RadioButton x:Name="GameWindow" Style="{StaticResource ConsoleCard}" GroupName="consoleKind" Margin="{t:Sp 's,0,0,0'}" Checked="OnWindow">
+                    <RadioButton.Tag>
+                        <c:IconSquare Glyph="&#xE8A7;" Tone="Peach" Size="64" />
+                    </RadioButton.Tag>
+                    <c:SectionTitle Title="{t:T 'Game Window'}" Text="{t:T 'Remote Play, OBS, Capture Card'}" />
+                </RadioButton>
+            </UniformGrid>
+            <TextBlock x:Name="Requirements" TextWrapping="Wrap" Style="{StaticResource HintText}" />
+            <!-- Kullanım verisi ilk açılışta bir kez söylenir (telefonlardaki karşılama ekranıyla aynı anlam). -->
+            <TextBlock TextWrapping="Wrap" Style="{StaticResource HintText}"
+                       Text="{t:T 'CouchSubs measures how the app is used without linking it to you; no subtitle text, picture or account data is sent. You can turn this off in Settings › Game packs › Usage data.'}"
+                       Visibility="{Binding ShowsUsageNotice, Converter={StaticResource VisibleIf}}" />
+        </c:SpacedStack>
     </c:StepLayout>
 </UserControl>

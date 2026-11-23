@@ -19,6 +19,48 @@ public class PsnAccountTests
         Assert.Null(PsnAccount.CodeFromRedirect(new Uri("https://example.com/redirect?code=AbC123")));
     }
 
+    [Theory]
+    [InlineData("https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123&cid=x")]
+    [InlineData("  https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123&cid=x\r\n")]
+    [InlineData("\"https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123\"")]
+    [InlineData("redirect https://remoteplay.dl.playstation.net/remoteplay/redirect?code=AbC123 copied")]
+    public void PastedBrowserAddressGivesRedirectWithCode(string pasted)
+    {
+        var redirect = PsnAccount.RedirectFromPastedText(pasted);
+        Assert.NotNull(redirect);
+        Assert.Equal("AbC123", PsnAccount.CodeFromRedirect(redirect!));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("https://my.account.sony.com/central/signin/")]
+    [InlineData("https://remoteplay.dl.playstation.net/remoteplay/redirect")]
+    [InlineData("https://example.com/?u=https://remoteplay.dl.playstation.net/remoteplay/redirectx")]
+    public void PastedTextWithoutCodeIsRejected(string? pasted) =>
+        Assert.Null(PsnAccount.RedirectFromPastedText(pasted));
+
+    [Fact]
+    public void PastedSonyErrorRedirectIsKeptForItsMessage()
+    {
+        var redirect = PsnAccount.RedirectFromPastedText(PsnAccount.RedirectPrefix + "?error=access_denied&error_description=denied");
+        Assert.NotNull(redirect);
+        Assert.StartsWith("access_denied", PsnAccount.ErrorFromRedirect(redirect!));
+    }
+
+    [Theory]
+    [InlineData("Can't connect to the server.")]
+    [InlineData("Can’t connect to the server. Try again later.")]
+    [InlineData("Sign In\nCANNOT CONNECT TO THE SERVER")]
+    [InlineData("Unable to connect to the server")]
+    public void SonyServerErrorIsRecognized(string text) => Assert.True(PsnAccount.LooksServerUnreachable(text));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Sign In\nSign-In ID (Email Address)\nNext")]
+    [InlineData("Connect to the server to continue")]
+    public void OrdinarySignInPageIsNotAnError(string? text) => Assert.False(PsnAccount.LooksServerUnreachable(text));
+
     [Fact]
     public void UserIdBecomesEightLittleEndianBytes()
     {

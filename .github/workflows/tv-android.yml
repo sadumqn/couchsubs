@@ -2,18 +2,24 @@
 # Android TV uygulaması. İki çıktı:
 #   - CouchSubs-androidtv.apk (sideload): masaüstü uygulamalarına gömülür, ADB ile kurulur; katman modu vardır.
 #   - CouchSubs-androidtv-play.aab (play): Google Play'e elle yüklenir; katman modu yoktur (docs/play-store-tv.md).
-# İmza isteğe bağlıdır; şu depo sırları tanımlıysa yapılır:
-#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD: sürüm anahtarı (APK; yükleme anahtarı yoksa AAB de)
-#   ANDROID_UPLOAD_KEYSTORE_BASE64, ANDROID_UPLOAD_KEYSTORE_PASSWORD, ANDROID_UPLOAD_KEY_ALIAS: Play yükleme anahtarı (AAB)
+# İmza şu depo sırlarından yapılır (adlar TV'ye özel; telefon uygulamasının anahtarı ayrıdır):
+#   TV_KEYSTORE_BASE64, TV_KEYSTORE_PASSWORD, TV_KEY_ALIAS: TV sürüm anahtarı (APK ve AAB; Play'in uygulama imza anahtarı)
+#   TV_UPLOAD_KEYSTORE_BASE64, TV_UPLOAD_KEYSTORE_PASSWORD, TV_UPLOAD_KEY_ALIAS: ayrı Play yükleme anahtarı (isteğe bağlı)
+# Sürüm derlemesinde (release.yml, require-signing) sürüm anahtarı yoksa iş hata verir; geliştirme anahtarına düşmez.
 name: tv-android
 
 on:
   push:
     branches: [main, "feat/windows-*"]
-    paths: ["tv-android/**", "tv-webos/**", ".github/workflows/tv-android.yml"]
+    paths: ["tv-android/**", "tv-webos/**", "scripts/tv-discovery.test.js", ".github/workflows/tv-android.yml"]
   workflow_dispatch:
   # Sürüm iş akışı (release.yml) paketi buradan alır.
   workflow_call:
+    inputs:
+      require-signing:
+        description: Sürüm anahtarı yoksa geliştirme anahtarıyla imzalamak yerine hata ver
+        type: boolean
+        default: false
 
 jobs:
   apk:
@@ -27,24 +33,33 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.11.1
+      # TV sayfasının ortak kodu (tv-webos): altyazı kaynağını ağda bulma.
+      - name: TV sayfası testleri
+        run: node --test scripts/tv-discovery.test.js
       - name: İmza anahtarı
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          TV_KEYSTORE_BASE64: ${{ secrets.TV_KEYSTORE_BASE64 }}
+          TV_KEYSTORE_PASSWORD: ${{ secrets.TV_KEYSTORE_PASSWORD }}
+          TV_UPLOAD_KEYSTORE_BASE64: ${{ secrets.TV_UPLOAD_KEYSTORE_BASE64 }}
+          REQUIRE_SIGNING: ${{ inputs.require-signing && 'true' || 'false' }}
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
-            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          if [ -n "$TV_KEYSTORE_BASE64" ] && [ -n "$TV_KEYSTORE_PASSWORD" ]; then
+            echo "$TV_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            echo "TV_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          elif [ "$REQUIRE_SIGNING" = "true" ]; then
+            echo "::error::TV_KEYSTORE_BASE64 / TV_KEYSTORE_PASSWORD sırları yok; sürüm paketi geliştirme anahtarıyla imzalanmaz."
+            exit 1
           fi
-          if [ -n "$ANDROID_UPLOAD_KEYSTORE_BASE64" ]; then
-            echo "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
-            echo "ANDROID_UPLOAD_KEYSTORE_FILE=$RUNNER_TEMP/upload.keystore" >> "$GITHUB_ENV"
+          if [ -n "$TV_UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "$TV_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
+            echo "TV_UPLOAD_KEYSTORE_FILE=$RUNNER_TEMP/upload.keystore" >> "$GITHUB_ENV"
           fi
       - name: Derle
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
-          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          TV_KEYSTORE_PASSWORD: ${{ secrets.TV_KEYSTORE_PASSWORD }}
+          TV_KEY_ALIAS: ${{ secrets.TV_KEY_ALIAS }}
+          TV_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.TV_UPLOAD_KEYSTORE_PASSWORD }}
+          TV_UPLOAD_KEY_ALIAS: ${{ secrets.TV_UPLOAD_KEY_ALIAS }}
         working-directory: tv-android
         run: |
           gradle testSideloadReleaseUnitTest testPlayReleaseUnitTest assembleSideloadRelease bundlePlayRelease --no-daemon

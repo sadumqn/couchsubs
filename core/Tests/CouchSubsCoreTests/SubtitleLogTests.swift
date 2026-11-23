@@ -5,6 +5,21 @@ import XCTest
 @testable import CouchSubsCore
 
 final class SubtitleLogTests: XCTestCase {
+    /// "oturum başladı" satırında altyazı alanı ve otomatik ekran yazısı görünür (iPhone 1.0.6 günlüğünde yoktu).
+    func testAreaSummaryNamesThePresetAndBounds() {
+        var settings = UserSettings()
+        settings.autoScreenText = true
+        XCTAssertEqual(SubtitleLog.areaSummary(settings), "alan: bottom (0.62-0.97 x 0.14-0.86), otomatik ekran yazısı: açık")
+        settings.selectAreaPreset(.full)
+        settings.autoScreenText = false
+        XCTAssertEqual(SubtitleLog.areaSummary(settings), "alan: full (0.00-1.00 x 0.00-1.00), otomatik ekran yazısı: kapalı")
+    }
+
+    func testMenuStateLines() {
+        XCTAssertEqual(ScreenTextDetector.menuLog(true), "ekran menüsü açık: altyazı okunmuyor")
+        XCTAssertEqual(ScreenTextDetector.menuLog(false), "ekran menüsü kapandı: altyazı okunuyor")
+    }
+
     func testWritesOnlyWhileEnabledAndKeepsOneBackup() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("altyazi-log-\(UUID())")
         let file = folder.appendingPathComponent("altyazi.log")
@@ -55,6 +70,19 @@ final class SubtitleLogTests: XCTestCase {
         clock.now += 1234
         XCTAssertEqual(tracker.note("[chiaki info] Received IDR frame, resuming decode"), "görüntü sürdü: IDR karesi geldi (1234 ms boşluk)")
         XCTAssertNil(tracker.note("[chiaki info] StreamConnection requesting IDR frame"))
+    }
+
+    /// İstenen IDR hiç gelmeyince oturum yeniden kurulur; altyazı günlüğünde duraklamanın neden bitmediği görünür.
+    func testVideoStallTrackerNotesTheSessionRebuiltForNoPicture() {
+        let clock = TestClock()
+        let tracker = VideoStallTracker(clock: clock.read)
+        _ = tracker.note("[chiaki info] FEC failed, waiting for IDR frame")
+        XCTAssertNil(tracker.note("[chiaki warning] Video FEC failure, already waiting for requested IDR"))
+        clock.now += 8000
+        XCTAssertEqual(tracker.note("PS5'ten 8 sn'dir görüntü gelmiyor (bağlantı açık); oturum yeniden kuruluyor"),
+                       "görüntü gelmedi, IDR karesi gelmeyecek: PS5 oturumu yeniden kuruluyor (8000 ms boşluk)")
+        // Yeni oturumun ilk duraklaması yeniden yazılır.
+        XCTAssertEqual(tracker.note("[chiaki info] FEC failed, waiting for IDR frame"), "görüntü durdu: FEC hatası, IDR karesi bekleniyor")
     }
 
     /// Önbellekten dönen satır "önbellek", motorun yeni çevirdiği satır o motorun adıyla görünür.

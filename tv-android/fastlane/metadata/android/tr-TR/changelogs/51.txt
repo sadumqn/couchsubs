@@ -1,0 +1,1 @@
+0.9.48: LG'de PS5 görüntüsü uygulamanın içindeyken ses odağı açıkça istenir; görüntü açılırken TV'nin sesi kısılı kalırsa açılır. Bilgi panelinde TV'nin dijital ses çıkışı da yazar. Soundbar bağlıyken uygulamada ses yoksa PS5'te Ses Biçimi'ni Linear PCM yapmayı deneyin.

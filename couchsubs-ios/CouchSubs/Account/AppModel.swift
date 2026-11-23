@@ -28,29 +28,87 @@ final class AppModel: ObservableObject {
         self.defaults = defaults
     }
 
-    /// Açılışta ve uygulama öne gelince: paketler haftada bir yenilenir.
+    /// Açılışta paket listesine hemen bakılır, sonra uygulama açık kaldıkça günde bir (Android'deki gibi).
     func start() async {
-        await refreshPacks(force: false)
+        await refreshPacks(force: true)
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(PackStore.refreshInterval))
+            guard !Task.isCancelled else { break }
+            await refreshPacks(force: false)
+        }
     }
 
-    /// Paketleri sunucudan indirir (haftalık; `force` ile hemen). Sunucu yoksa ya da ulaşılamazsa uygulamayla gelen
-    /// paketler kullanılmaya devam eder.
-    func refreshPacks(force: Bool) async {
-        guard let packStore else { return }
+    /// PS5'te yeni bir oyun başladı: o oyunun (havuzdan otomatik) paketi sunucuda yeni çıkmış olabilir; son bakış on
+    /// dakikadan eskiyse hemen bakılır.
+    func gameStarted() async {
+        await refreshPacks(force: false, maxAge: PackStore.gameCheckInterval)
+    }
+
+    /// Paketleri sunucudan indirir (son bakış `maxAge`'den eskiyse; `force` ile hemen). Sunucu yoksa ya da ulaşılamazsa
+    /// uygulamayla gelen paketler kullanılmaya devam eder.
+    /// Dönen değer: hata olduysa uyarıda gösterilecek Türkçe neden (başarıda nil).
+    @discardableResult
+    func refreshPacks(force: Bool, maxAge: TimeInterval = PackStore.refreshInterval) async -> String? {
+        guard let packStore else { return nil }
         packStatus = .downloading
         do {
-            let downloaded = try await packStore.refresh(force: force)
+            let downloaded = try await packStore.refresh(force: force, maxAge: maxAge)
             if downloaded > 0 {
                 library.reload()
                 analytics.log(.packsUpdated(count: downloaded))
                 onPacksChanged?()
+                // "Yeni paketler ve güncellemeler" (Profil; Android ile aynı kural): ilk indirme bildirilmez.
+                let (titles, first) = (await packStore.lastDownloaded.map(\.title), await packStore.lastWasFirstCheck)
+                PackNotice.postIfWanted(titles: titles, firstCheck: first)
             }
             packStatus = .ready
+            return nil
         } catch let failure as PackStore.Failure {
+            await packsArrivedDespite(packStore)
             packStatus = .failed(Self.describe(failure))
+            return Self.reason(failure)
         } catch {
+            await packsArrivedDespite(packStore)
             packStatus = .failed(error.localizedDescription)
+            return error.localizedDescription
         }
+    }
+
+    /// Elle güncelleme: süresine bakmadan listeyi sunucudan (yerel önbelleği atlayarak, gerekirse yedek adresten) alır,
+    /// değişen paketleri indirir ve neyin geldiğini özetler. Paket sunucusu yapılandırılmamışsa nil.
+    func updatePacksNow() async -> PackUpdateOutcome? {
+        guard let packStore else { return nil }
+        let before = library.packs.map { (id: $0.id, lines: $0.entries) }
+        let failure = await refreshPacks(force: true)
+        let after = library.packs
+        let downloaded = await packStore.lastDownloaded.map { entry in
+            // Satır sayısı yeniden okunan kitaplıktan (gerçekte yüklenen), yoksa sunucudaki listeden.
+            PackUpdateSummary.Downloaded(id: entry.id, title: entry.title,
+                                         lines: after.last { $0.id == entry.id }?.entries ?? entry.entries ?? 0)
+        }
+        let summary = PackUpdateSummary(before: before, downloaded: downloaded)
+        if let failure { return .failed(failure, summary) }
+        return summary.isEmpty ? .upToDate : .updated(summary)
+    }
+
+    /// Uyarıdaki hata nedeni.
+    static func reason(_ failure: PackStore.Failure) -> String {
+        switch failure {
+        case .network: String(localized: "No internet connection, or the pack server could not be reached.")
+        case .server(429): String(localized: "Too many attempts. Wait a few minutes and try again.")
+        case let .server(code): String(format: String(localized: "The pack server did not respond (HTTP %lld)."), code)
+        case .badChecksum: String(localized: "A downloaded pack could not be verified; it may have arrived incomplete.")
+        case .badResponse: String(localized: "The response from the pack server could not be read.")
+        }
+    }
+
+    /// Bir paket inemese de inenler hemen kullanılsın (Android'deki gibi).
+    private func packsArrivedDespite(_ packStore: PackStore) async {
+        let downloaded = await packStore.lastDownloadCount
+        guard downloaded > 0 else { return }
+        library.reload()
+        analytics.log(.packsUpdated(count: downloaded))
+        onPacksChanged?()
     }
 
     static func describe(_ failure: PackStore.Failure) -> String {

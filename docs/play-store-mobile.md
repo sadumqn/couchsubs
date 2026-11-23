@@ -60,7 +60,7 @@ Not: TV uygulamasının adı "CouchSubs: Türkçe Altyazı". Telefon için "Tür
 geliştirici sayfasında yan yana durur. "Yama" sözcüğü oyun dosyasını değiştiriyor gibi anlaşılırsa (inceleyici
 sorarsa) ad "CouchSubs: Türkçe Altyazı" yapılabilir.
 
-### Tam açıklama: tr-TR (2451 karakter, sınır 4000)
+### Tam açıklama: tr-TR (2418 karakter, sınır 4000)
 
 ```
 CouchSubs, Türkçe dil desteği olmayan PS5 oyunlarına Türkçe yama getirir. Telefonun oyundaki İngilizce altyazıyı okur, Türkçeye çevirir ve TV'de ya da kendi ekranında gösterir. Sen kumandayı bırakmadan, her zamanki gibi oynarsın.
@@ -78,7 +78,6 @@ Bu oyunların bütün metni önceden çevrildi. Oyunu açınca yama kendiliğind
 • Mafia: The Old Country
 • Assassin's Creed Shadows
 • Death Stranding 2
-• Death Stranding Director's Cut
 • Marvel's Spider-Man 2
 • Call of Duty: Modern Warfare (2019)
 Yeni yamalar ve düzeltmeler kendiliğinden iner. Listede olmayan oyunlar da çalışır: yamada olmayan satırı seçtiğin çeviri motoru çevirir.
@@ -103,7 +102,7 @@ Kurulum rehberi ve SSS: https://couchsubs.enmeraapps.com
 CouchSubs bağımsız bir uygulamadır; Sony Interactive Entertainment ile bağlantılı değildir, onun tarafından onaylanmamış ya da desteklenmemiştir. PlayStation, PS5 ve Remote Play, Sony Interactive Entertainment Inc.'in markalarıdır ve burada yalnız uyumluluğu anlatmak için anılır. Oyun adları sahiplerinin markalarıdır.
 ```
 
-### Tam açıklama: en-US (2529 karakter)
+### Tam açıklama: en-US (2496 karakter)
 
 ```
 CouchSubs brings Turkish subtitles to PS5 games that have no Turkish language option. Your phone reads the English subtitles in the game, translates them into Turkish and shows them on your TV or on the phone itself. You keep playing as usual, controller in hand.
@@ -123,7 +122,6 @@ The full text of these games is already translated. The pack is picked automatic
 • Mafia: The Old Country
 • Assassin's Creed Shadows
 • Death Stranding 2
-• Death Stranding Director's Cut
 • Marvel's Spider-Man 2
 • Call of Duty: Modern Warfare (2019)
 New packs and fixes download automatically. Other games work too: lines that are not in a pack are translated by the engine you choose.
@@ -154,7 +152,7 @@ CouchSubs is an independent app. It is not affiliated with, endorsed or sponsore
   "Bu oyunların Türkçe yaması hazır" listesi. Paketler her derlemede uygulamayla gelir (`copyCouchSubsPacks`), yenileri
   `server/packs`'ten iner. Yeni paket eklenince iki açıklama da güncellenmeli.
 - Remote Play yalnız ev ağında: `couchsubs-jni.c`'de `holepunch_info = NULL` (internet üzerinden bağlantı yok).
-- Android 8+, 64 bit: `minSdk 26`, `abiFilters arm64-v8a`.
+- Android 8+, 64 ve 32 bit ARM: `minSdk 26`, `abiFilters arm64-v8a, armeabi-v7a`.
 - Çeviri motorları: `EngineChoice { FREE, DEEPL, GEMINI, OPENAI, CLAUDE }`; ücretsiz motor `MlKitTranslator` (model
   ~30 MB, ilk kullanımda iner).
 - TV'de gösterme: telefon ev ağında 8787 portunda altyazı sunucusu açar, TV uygulaması telefonu bulur. LG/Samsung TV
@@ -223,6 +221,8 @@ URL: `https://couchsubs.enmeraapps.com/gizlilik` (canlı, HTTP 200). Sayfada And
 "Uygulamanızda reklam var mı?" → **Hayır.** (Doğrulandı: AdMob/UMP bağımlılığı yok; `AD_ID`,
 `ACCESS_ADSERVICES_AD_ID` ve `ACCESS_ADSERVICES_ATTRIBUTION` izinleri manifestte `tools:node="remove"` ile çıkarılıyor.
 Meta App Events reklam göstermez; bkz. §4.6.)
+
+> **Not (19 Kas 2026):** Mobil tanıtım penceresi (Enmera'nın kendi ürünleri ve sponsor bağlantıları, `promo.json`) yayına girince Play'deki "Reklam içerir" beyanı yeniden değerlendirilecek.
 
 ### 4.3 Uygulama erişimi
 
@@ -368,7 +368,12 @@ Play Console › Uygulama içeriği › **Ön plan hizmeti izinleri**.
   6. (İsteğe bağlı, 45–55 sn) Aynı akış "Bu telefonda" hedefiyle: yatay altyazı ekranı.
   Videonun açıklamasına bir satır: "CouchSubs foreground service (connectedDevice) demo: PS5 Remote Play stream +
   subtitle server for a TV on the local network."
-- Diğer ön plan hizmeti türleri: yok (`specialUse`, `mediaProjection`, `dataSync` kullanılmıyor).
+- Diğer ön plan hizmeti türleri: yok (`specialUse`, `mediaProjection`, `dataSync` kullanılmıyor). `mediaProjection`
+  telefonun kendi ekranını kaydetmek içindir (burada görüntü PS5/Xbox'tan ağla gelir); `dataSync` Android 15'te 24 saatte
+  6 saatle sınırlı ve veri aktarımı içindir. Ağdaki harici cihazla süren oturum `connectedDevice`'a uyar.
+- Kalıcı bildirim: "CouchSubs çeviriyor" + "Çeviriyi durdur" düğmesi. Profil › "Arka planda sürdür (Resim içinde
+  resim)" yalnız Activity PiP penceresi açar (oyun görüntüsü + canlı altyazı); ön plan hizmetini değiştirmez, ayrı beyan
+  gerekmez.
 
 ### 4.8 Diğer beyanlar
 
@@ -424,4 +429,6 @@ Play Console › Uygulama içeriği › **Ön plan hizmeti izinleri**.
    anahtarını kabul edin › AAB'yi yükleyin › sürüm notu (tr-TR, en-US).
 6. **İncelemeye gönder.** Ön plan hizmeti beyanı ve uygulama erişimi elle incelenir; birkaç gün sürebilir, istekler
    hesabın e-postasına gelir.
-7. Yayından sonra siteye Play bağlantısını ekleyin; doğrudan APK "deneme" olarak kalabilir.
+7. Yayından sonra siteye Play bağlantısını ekleyin; doğrudan APK "deneme" olarak kalabilir. **Yapıldı:** uygulama
+   Play'de herkese açık (https://play.google.com/store/apps/details?id=com.couchsubs.mobile); site, README ve sürüm notları Play'e yönlendiriyor, APK
+   "Play Store'u olmayan cihazlar için" ikincil bağlantı.

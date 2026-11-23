@@ -14,6 +14,8 @@ public partial class PsnLoginWindow : Window
     private Uri? redirect;
     /// <summary>Pencerenin gördüğü son sorun (sayfa açılamadı, Sony'nin HTTP hatası, WebView2 çöktü); kapanınca bildirilir.</summary>
     private string? problem;
+    /// <summary>Sony'nin sayfası "Can't connect to the server" dedi: giriş sistem tarayıcısında sürdürülmeli.</summary>
+    private bool useBrowser;
 
     private PsnLoginWindow()
     {
@@ -34,13 +36,36 @@ public partial class PsnLoginWindow : Window
     }
 
     /// <summary>Giriş tamamlanırsa yönlendirme adresini döner; tamamlanmadan kapanırsa adres null, <c>Problem</c> pencerenin
-    /// gördüğü sorun (kullanıcı kendisi kapattıysa null).</summary>
-    public static (Uri? Redirect, string? Problem) Show(Window? owner)
+    /// gördüğü sorun (kullanıcı kendisi kapattıysa null). <c>UseBrowser</c>: Sony'nin sayfası uygulama içinde sunucuya
+    /// bağlanamadı, giriş tarayıcıda yapılmalı.</summary>
+    public static (Uri? Redirect, string? Problem, bool UseBrowser) Show(Window? owner)
     {
         var window = new PsnLoginWindow { Owner = owner };
         window.ShowDialog();
-        return (window.redirect, window.redirect is null ? window.problem : null);
+        return window.redirect is null ? (null, window.problem, window.useBrowser) : (window.redirect, null, false);
     }
+
+    /// <summary>Sony'nin sayfasındaki görünür metni (değiştikçe, en çok yarım saniyede bir) uygulamaya gönderir. Sony
+    /// arka plan çağrısı başarısız olunca sayfa yenilenmeden "Can't connect to the server" yazar; gezinme olayı gelmez.</summary>
+    private const string PageTextWatcher = """
+        (() => {
+          if (window.top !== window || !window.chrome || !window.chrome.webview) return;
+          let last = '', timer = 0;
+          const send = () => {
+            timer = 0;
+            const text = document.body ? (document.body.innerText || '').slice(0, 4000) : '';
+            if (text === last) return;
+            last = text;
+            window.chrome.webview.postMessage('couchsubs-page-text:' + text);
+          };
+          const schedule = () => { if (!timer) timer = setTimeout(send, 500); };
+          const start = () => {
+            schedule();
+            new MutationObserver(schedule).observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+          };
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+        })();
+        """;
 
     /// <summary>Microsoft'un WebView2 indirme sayfası (Evergreen kurulumu).</summary>
     public const string BrowserDownloadUrl = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
@@ -69,6 +94,8 @@ public partial class PsnLoginWindow : Window
         await Browser.EnsureCoreWebView2Async(environment);
         Browser.CoreWebView2.NavigationStarting += OnNavigation;
         Browser.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+        Browser.CoreWebView2.WebMessageReceived += OnPageText;
+        await Browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PageTextWatcher);
         Browser.CoreWebView2.ProcessFailed += (_, e) =>
         {
             problem = $"WebView2 {e.ProcessFailedKind}";
@@ -112,6 +139,29 @@ public partial class PsnLoginWindow : Window
             problem = null;
         if (problem is not null) RemotePlayLog.Note($"PSN giriş sayfası: {problem}");
     }
+
+    /// <summary>Sony "Can't connect to the server" dedi: pencere kapanır, giriş sistem tarayıcısında sürdürülür (iki
+    /// kullanıcıda uygulama içi giriş bu hatayla kaldı, aynı hesapla tarayıcıdan giriş çalıştı).</summary>
+    private void OnPageText(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        if (redirect is not null || useBrowser) return;
+        if (!Uri.TryCreate(e.Source, UriKind.Absolute, out var source) || !IsSonyHost(source.Host)) return;
+        string message;
+        try { message = e.TryGetWebMessageAsString(); }
+        catch (ArgumentException) { return; }
+        const string prefix = "couchsubs-page-text:";
+        if (!message.StartsWith(prefix, StringComparison.Ordinal) || !PsnAccount.LooksServerUnreachable(message[prefix.Length..])) return;
+        useBrowser = true;
+        problem = "Sony: Can't connect to the server";
+        RemotePlayLog.Note($"PSN giriş sayfası sunucuya bağlanamadı ({source.Host}); giriş tarayıcıya taşınıyor");
+        Close();
+    }
+
+    private static bool IsSonyHost(string host) =>
+        host.EndsWith("sony.com", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith("sonyentertainmentnetwork.com", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith("playstation.com", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith("playstation.net", StringComparison.OrdinalIgnoreCase);
 
     private void OnCancel(object sender, RoutedEventArgs e) => Close();
 }

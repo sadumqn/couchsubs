@@ -12,7 +12,8 @@ işaret, sakin koyu zemin, büyük ve okunaklı yazı. Uygulama TV karşısında
 bakılarak kullanılır; her şey bir bakışta okunmalı. Telefon uygulamalarıyla ortak dil; tasarım tuvali:
 https://claude.ai/artifact/UQhATNYKLby6t52HQCvSu9 (masaüstü aynı dili daha geniş ölçülerle kullanır).
 
-1. **Tek ızgara, tek boşluk.** Pencere kenarı her yerde 32, karolar arası 16, karo içi 20.
+1. **Tek ızgara, tek boşluk.** Pencere kenarı her yerde 24, karolar arası 12, karo içi 16 (telefonla aynı ritim;
+   telefonda pencere kenarı 20).
 2. **Beş yazı boyu** (28/22/17/15/13), kalınlık 400–600. Altyazı içeriği hariç başka boy kullanılmaz.
 3. **Bir ekranda tek birincil düğme**, tek vurgu: sarı yalnız birincil düğme, seçili şey ve canlı Türkçe satırda.
 4. **Parıltı, degrade, hale, bulanık leke ve renkli gölge yok.** (Yalnız grafiklerin içinde izinli; uygulamada grafik
@@ -20,7 +21,15 @@ https://claude.ai/artifact/UQhATNYKLby6t52HQCvSu9 (masaüstü aynı dili daha ge
 5. **Tek köşe ölçeği** (16/12/8/6), **cümle düzeni** (yalnız ilk harf büyük; "Check for updates…"), tablo rakamları.
 6. **Metin her zaman okunur** (kontrast kuralı aşağıda).
 
+7. **Her şeyin bir durumu var.** Tıklanabilen her şey fareyle üzerine gelince, basılınca ve klavye odağında
+   değişir; tıklanamayan bilgi tıklanabilir gibi görünmez.
+
 Masaüstünde ücret, paywall ve Pro yoktur; oyun paketleri ücretsizdir ("Ücretsiz · n oyun" etiketi).
+
+2026-11-17: ölçüler sıkılaştırıldı (denetim yükseklikleri 40/44/52, düğme yazısı 15, boşluk 24/12/16; yazı boyları
+aynı). Ana ekranda çeviri motoru ve kısayol durum karosu gibi değil, tek bilgi karosunda satır olarak durur.
+Telefonda (iPhone ve Android) denetimler bilerek daha büyüktür: düğme ve satır 52, küçük ve simge düğmesi 44, düğme
+yazısı 17; dokunma alanı Android'de en az 48 dp, iOS'ta en az 44 pt kalır.
 
 2026-11-12: onaylı tuvale göre sadeleştirildi (AI Design Check 136 → 0 bulgu). Telefon ayrıntıları ve tuval:
 `TASARIM-MOBIL.md` (tasarım tuvali klasörü).
@@ -79,16 +88,17 @@ Windows'ta aynı sayılar efektif piksel (epx) olarak kullanılır.
 | `headline` | 17 | yarı kalın | Karo başlığı, karodaki değer |
 | `body` | 15 | normal | Tüm metinler (varsayılan) |
 | `callout` / `caption` | 13 | orta | Karo etiketi, açıklama ve ipuçları, rozet, yasal not; ikincil renkte |
-| `button` | 17 | yarı kalın | Düğme yazısı (`headline` ile aynı boy) |
+| `button` | 15 | yarı kalın | Düğme yazısı (`body` ile aynı boy; ana ekrandaki büyük eylem `headline`) |
 | `code` | 22 | yarı kalın, eş genişlikli rakam | PS5 eşleme kodu |
 
 Altyazı içeriği arayüz değil içeriktir: canlı altyazı karosunda son satır 28 pt yarı kalın ve altyazı sarısında
-(`accentText`), öncekiler 17 pt normal ve `textSecondary` renginde (opaklıkla soldurulmaz). Paragraflarda satır arası yazı boyutunun yaklaşık 1,3 katıdır. 13 pt'nin altı
+(`accentText`), öncekiler 17 pt normal ve `textSecondary` renginde, altlarındaki özgün metin `caption` (opaklıkla
+soldurulmaz; çeviri ile özgün metin boyla ayrılır). Paragraflarda satır arası yazı boyutunun yaklaşık 1,3 katıdır. 13 pt'nin altı
 kullanılmaz.
 
 ## Boşluk ve biçim
 
-- Boşluk: `screen` 32 (pencere kenarı), `gap` 16 (karolar ve bölümler arası), `tile` 20 (karo içi), `inline` 8
+- Boşluk: `screen` 24 (pencere kenarı), `gap` 12 (karolar ve bölümler arası), `tile` 16 (karo içi), `inline` 8
   (simge ile yazı), `hair` 4 (başlık ile altındaki satır). Eski ölçek (`xs` 4 … `xxl` 32) karo içindeki küçük
   aralıklar için durur.
 - Köşe (tek ölçek): karolar `card` 16, denetimler (düğme, alan, bölmeli seçim rayı, kenar çubuğu ve adım satırı)
@@ -102,18 +112,28 @@ kullanılmaz.
 Her iki platformda aynı adla bulunur.
 
 - **LogoView** – logo, kenar boşluğu kırpılmış hâliyle; koyu temada kenarı seçilsin diye 1 pt `border` çerçeve.
-- **Düğme** – yükseklik 44 (`buttonHeight`), sihirbazın Geri / Devam ve Ayarların Bitti düğmesi 52 (`buttonLarge`),
-  ana ekrandaki "Çeviriyi başlat/durdur" 64 (`primaryActionHeight`), yatay iç boşluk `tile`.
+- **Düğme** – yükseklik 40 (`buttonHeight`), sihirbazın Geri / Devam ve Ayarların Bitti düğmesi 44 (`buttonLarge`),
+  ana ekrandaki "Çeviriyi başlat/durdur" 52 (`primaryActionHeight`, yazısı `headline`), yatay iç boşluk `tile`.
   - *Birincil*: düz `accent` dolgu, `onAccent` yazı, gölge yok; basılıyken `accentHi`. Ekranda en fazla bir tane.
   - *İkincil*: `surface2` dolgu, `border` çerçeve, `textPrimary` yazı.
   - *Tehlikeli*: `dangerSoft` dolgu, `danger` yazı, çerçevesiz ("Çeviriyi durdur", "Yeniden kur").
   - *Hayalet*: dolgusuz, `accentText` yazı, yatay iç boşluk 12.
-  - Basılıyken %97 ölçek; devre dışıyken %40 saydamlık.
+  - Üzerine gelince: birincil `accentHi`, ikincil `border` dolgu, tehlikeli `dangerBorder` çerçeve, hayalet `surface2`
+    dolgu. Basılıyken %97 ölçek. Klavye odağında 2 pt `accentText` çerçeve.
+  - Devre dışı: birincil `surface2` dolgu ve `textSecondary` yazı (soldurulmuş sarı kullanılmaz); diğerleri %40
+    saydamlık.
 - **Card (karo)** – düz `surface` zemin, 1 pt `tileBorder` çerçeve, `card` köşe, `tile` iç boşluk, isteğe bağlı
   `headline` başlık. Türleri: *düz* ve *etkin* (seçili seçenek: 1 pt `accent` çerçeve; parıltı yok). Paket karosu
   düz karodur; yalnız paket simgesi mor.
 - **StatusTile** – durum karosu: üstte etiket satırı (18 pt kutusuz simge `textSecondary`, `caption` ad, sağda durum
-  noktası), altında `headline` değer.
+  noktası), altında `headline` değer. Değer kısa bir durumdur ("Bağlı", "Kurulmadı"); bağlı değilken gelen açıklama
+  cümlesi ("PS5-123 ile eşleşti. Çeviriyi başlatınca bağlanır.") `body`/`textSecondary` yazılır.
+- **InfoCard (bilgi karosu)** – durum değil, ayar bilgisi gösteren düz karo: satırlar arasında 1 pt `border` ayraç,
+  satır en az `rowHeight` 40; solda `body`/`textSecondary` ad, sağda değer (`body` yarı kalın, `textPrimary`). Bir
+  ayara götüren satırın sonunda `›` (`textSecondary`) durur ve satır tıklanır (üzerine gelince `surface2` zemin,
+  `inner` köşe). Simge yoktur.
+- **Keycap (tuş)** – kısayol tuşu: `keycap` 24 yükseklik, `tag` köşe, `surface2` zemin, 1 pt `border` çerçeve, yatay
+  iç boşluk 8, `caption` yazı `textPrimary`. Birden çok kısayol arasında `caption`/`textSecondary` "ya da".
 - **TileIcon** – kutusuz simge, `textSecondary` (paket simgesi `pro`). Renkli kare içine simge konmaz.
 - **Pill (etiket)** – 24 yükseklik, `tag` köşe, `caption` (orta kalınlık), `surface2` zemin + `textSecondary` yazı;
   paket için `proSoft` + `pro`. Canlı durum etiket değildir: atan nokta + kelime, zeminsiz.
@@ -123,13 +143,20 @@ Her iki platformda aynı adla bulunur.
 - **NumberedRow** – 28 pt `surface2` dairede numara (`textPrimary`), yanında `body` metin.
 - **StatusRow** – 10 pt durum noktası, kalın ad, sağda değer. Nokta: bağlı `success`, çeviri sürerken
   bağlantı yok `warning`, çeviri başlamamışken `textSecondary` (boşta olmak uyarı değildir).
-- **Metin alanı** – `surface2` zemin, 1 pt `border` çerçeve, `control` köşe, en az 44 yükseklik; PS5 kodu
-  alanı 52 yükseklik ve `code` yazı. Etiketi alanın üstünde `callout`/`textSecondary`.
+- **Metin alanı** – `surface2` zemin, 1 pt `border` çerçeve (odaktayken `accent`), `control` köşe, en az 40 yükseklik;
+  PS5 kodu alanı 52 yükseklik ve `code` yazı. Etiketi alanın üstünde `callout`/`textSecondary`.
 - **Bölmeli seçim** – 2–4 seçenek: `surface2` ray (`control` köşe, 4 iç boşluk), seçili parça yükseltilmiş zemin
   (`inner` köşe) ve yarı kalın yazı; halka ve parıltı yok (Mac'te sistemin büyük boy segmented denetimi).
+  Telefonda seçili parça ayrıca 1 pt `accent` çerçeve alır: küçük ekranda yükseltilmiş zemin ile ray arasındaki fark
+  (yaklaşık 1,2:1) tek başına seçimi belli etmiyor.
 - **Seçenek karoları** – her seçeneğin kısa notu olan seçim (çeviri motoru): yan yana küçük karolar (ad
   `headline`, not `caption`), seçili olan *etkin* karo.
-- **Anahtar** – açık/kapalı ayarlar (oyun paketleri, ortak havuz): başlık solda, anahtar sağda.
+- **Anahtar** – açık/kapalı ayarlar (oyun paketleri, ortak havuz): başlık (`body`) solda, anahtar sağda. Açık/kapalı
+  ayarların hepsi anahtardır; onay kutusu kullanılmaz.
+- **Seçenek düğmesi** – listeden tek seçim (PS5 listesi): 20 pt daire, 1,5 pt `border` çerçeve; seçiliyken `accent`
+  çerçeve ve içinde 10 pt `accent` nokta. Yazı `body`.
+- **Kaydırma** – tekerlek ve dokunmatik yüzey adımla orantılı kaydırır (120 birim = 48 pt) ve 120 ms yumuşatılır;
+  azaltılmış harekette yumuşatma yoktur. Dokunmatik yüzeyin küçük adımları tam satır sayılmaz.
 - **Kaydırıcı** – 8 pt ray (`border`), dolu kısım `accent`, düz 24 pt tutamaç.
 - **Bağlantı** – `accentText` renginde.
 - **DoneLabel** – `success` renkli onay simgesi ve metin.
@@ -140,22 +167,28 @@ Her iki platformda aynı adla bulunur.
 ## Ekranlar
 
 **Kurulum sihirbazı**: solda kenar çubuğu (logo + "Kurulum"; adımlar: biten adım yeşil dairede onay, sıradaki adım sarı
-dairede numara ve `surface2` zeminli satır, gelecek adım gri numaralı; altta "Adım n / toplam" ve ilerleme çubuğu); sağda adımın karosu
-(kaydırılabilir StepLayout), altında solda "Geri" (ikincil), sağda "Devam" (birincil). Son adım isteğe bağlı "Daha iyi çeviri (ücretsiz)": tek cümle
+dairede numara ve `surface2` zeminli satır, gelecek adım gri numaralı; altta "Adım n / toplam" ve ilerleme çubuğu); sağda adım
+(kaydırılabilir StepLayout; Ayarlar sayfası gibi başlık zeminde, bloklar kendi karolarında, dış karo yok), altında solda "Geri" (ikincil), sağda "Devam" (birincil). Son adım isteğe bağlı "Daha iyi çeviri (ücretsiz)": tek cümle
 açıklama, numaralı üç satır ve "Ücretsiz anahtar al" (birincil, Google AI Studio'nun anahtar sayfası),
 gizli anahtar alanı ve "Kaydet ve dene" (ikincil), altta veri kullanımı ve dakikalık sınır HintText'i.
 Anahtar yokken alttaki düğme "Şimdilik geç" (ikincil) olur; kaydedilince "Gemini hazır" (DoneLabel) ve "Devam".
 
 **Ana ekran** (bento, iki sütun): üstte logo + "CouchSubs" + sağda "Ayarlar" (ikincil, dişli simgeli).
-Sol sütun: "Çeviriyi başlat" (birincil) ya da "Çeviriyi durdur" (tehlikeli), 64 yükseklik; altında iki sütunlu
+Sol sütun: "Çeviriyi başlat" (birincil) ya da "Çeviriyi durdur" (tehlikeli), 52 yükseklik; altında iki sütunlu
 karolar: PS5 ve TV durum karoları (altyazı yalnız bilgisayar ekranındaysa TV karosu yoktur; TV seçili ama bağlı
 değilse "Kurulmadı" ve "TV bağla"), iki sütun genişliğinde "Altyazıyı göster: TV / Bilgisayar ekranı / İkisi de"
-karosu (bilgisayar ekranı seçiliyse "Tıklamalar geçsin" ve "Altyazı penceresini ayarla"), "Çeviri" (seçili motor)
-ve "Kısayol" (ekranı çevir) karoları; gerekiyorsa uyarı karoları (dil paketi, çevrimiçi motor, yazı tanıma).
+karosu (bilgisayar ekranı seçiliyse "Tıklamalar geçsin" ve "Altyazı penceresini ayarla"), iki satırlı bilgi karosu:
+"Çeviri" (seçili motor ve `›`; Ayarlar › Çeviri'yi açar) ve "Ekranı çevir" (seçili kısayollar, her biri bir tuş:
+varsayılan `Num 9` ya da `Ctrl+Shift+9`, Mac'te `⌃⇧9`; Ayarlar › Kısayollar'dan değişir, hiç yoksa "kısayol yok"); gerekiyorsa uyarı karoları (dil paketi, çevrimiçi motor, yazı tanıma).
 Sağ sütun: oyun paketleri açıksa (İngilizce→Türkçe, paket kurulu) paket karosu (mor paket simgesi) "Oyun paketleri
 açık · n oyunun çevirisi hazır"; altında kalan yüksekliği dolduran "Canlı altyazı" karosu: son çeviri 28 pt altyazı
-sarısında, altında özgün metin `caption`; önceki satırlar ayraçlarla, `textSecondary` renginde ve kaydırılabilir.
-Çeviri sürerken sağ üstte "Çevriliyor" (atan nokta + kelime). Karo parlamaz.
+sarısında, altında özgün metin `caption`; önceki satırlar ayraçlarla, 17 pt ve kaydırılabilir. Yeni satır 0,18 sn
+solarak gelir (azaltılmış harekette geçiş yok). Çeviri sürerken sağ üstte "Çevriliyor" (atan nokta + kelime). Karo parlamaz.
+
+**Telefon ana ekranı** (iPhone ve Android aynı): PS5 ve Altyazı durum karoları (dokununca ilgili ayar açılır,
+sağ üstte `›`), paket karosu (başlık ve not tek satır, sağda yalnız `›`; paketler kapalıysa nötr "Kapalı" etiketi),
+altında iki satırlı bilgi karosu: "Çeviri" (motor, `›`, çeviri ayarlarını açar) ve "Son oturum" (süre, `›`, geçmişi
+açar). Süreler ve sayaçlar tablo rakamlıdır; bir saati geçen süre "1 sa 12 dk" ya da "1:12:10" yazılır.
 
 **Ayarlar**: solda kenar çubuğu ("Ayarlar" ve bölümler: Altyazı görünümü, Türkçe dublaj, Çeviri, Oyun paketleri,
 Dil, Altyazı bölgesi, OBS katmanı, Hakkında; Windows'ta TV uygulaması da), sağda seçili bölümün `display` başlığı
@@ -182,8 +215,8 @@ TV kurulumu atlanır, deneme adımı örnek altyazıyı bilgisayar ekranında g�
 Play dahil) üstünde; odağı almaz, görev çubuğunda / Dock'ta görünmez. Altyazı kutusu TV'dekinin aynısıdır (yazı boyu
 1080 satırlık ekrana göre ölçeklenir, beyaz ya da sarı yazı, siyah yarı saydam zemin, üstteki satırlar küçük ve soluk,
 en çok üç satır). Altyazı yokken pencere gizlenir. "Tıklamalar geçsin" kapalıyken yazıdan tutup sürüklenir; açıkken
-fare alttaki pencereye gider, geri almak için Mac'te ⌥⌘L ya da menü çubuğundaki CouchSubs simgesi, Windows'ta Num 7
-(ya da sayı tuş takımı olmayan klavyede Ctrl+Shift+7) ya da ana ekran. "Altyazı penceresini ayarla": `accent` kesik çizgili çerçeve (parıltısız), üstte açıklama ve "Bitti" (birincil),
+fare alttaki pencereye gider, geri almak için Num 7 (ya da sayı tuş takımı olmayan
+klavyede Ctrl+Shift+7, Mac'te ⌃⇧7; Ayarlar › Kısayollar'dan değişir), Mac'te menü çubuğundaki CouchSubs simgesi ya da ana ekran. "Altyazı penceresini ayarla": `accent` kesik çizgili çerçeve (parıltısız), üstte açıklama ve "Bitti" (birincil),
 iki yanda genişletme tutamakları; yer, genişlik ve ekran hatırlanır.
 
 **Hakkında**: 88 pt logo, ad, sürüm, lisans, teşekkür, bağlantılar, Sony ile ilişkisizlik notu.
@@ -192,8 +225,8 @@ iki yanda genişletme tutamakları; yer, genişlik ve ekran hatırlanır.
 
 TV'de her zaman koyu temanın renkleri kullanılır (oyunun üstünde durur). Bilgi paneli ve "uygulamayı açın"
 ekranı `background` %92–94 saydam zemin, 2 px `border` çerçeve, 24–32 px köşe; başlıkta logo. Kumanda
-tuşları satır satır, tuş adı `accent` renginde. Altyazı kutusu siyah %72 saydam zemin üstünde beyaz,
-yarı kalın yazı (okunaklılık için tema rengi değil). Bekleme ekranı açıkken panel kendiliğinden açılmaz.
+tuşları satır satır, tuş adı `accent` renginde. Altyazı kutusu mavimsi siyah (`#0c0e12`) %90 zemin üstünde beyaz,
+normal kalınlıkta yazı (okunaklılık için tema rengi değil); iç boşluk ve köşe yazı boyuna göre (em). Bekleme ekranı açıkken panel kendiliğinden açılmaz.
 Bekleme ekranında tek düğme "Demoyu izle"dir; seçili düğme `accent` dolgu ve beyaz çerçeveyle belli olur.
 Demo sırasında sağ üstte panel biçiminde "DEMO" notu durur. Geri tuşu önce demoyu ya da paneli kapatır,
 giriş ekranında TV'nin ana ekranına döner (mağaza kuralı).

@@ -1,0 +1,648 @@
+{
+ "cases": [
+  {
+   "name": "görev kartı: başlık, iki cümle, ödül",
+   "lines": [
+    {
+     "text": "VICE CITY",
+     "box": [
+      0.3,
+      0.22,
+      0.4,
+      0.246
+     ]
+    },
+    {
+     "text": "THE MARINA JOB",
+     "box": [
+      0.62,
+      0.4,
+      0.8,
+      0.43
+     ]
+    },
+    {
+     "text": "Brian wants the boat moved before",
+     "box": [
+      0.62,
+      0.442,
+      0.9,
+      0.464
+     ]
+    },
+    {
+     "text": "the harbor patrol makes its rounds.",
+     "box": [
+      0.62,
+      0.4717,
+      0.89,
+      0.4937
+     ]
+    },
+    {
+     "text": "Bring Lucia along for backup.",
+     "box": [
+      0.62,
+      0.5014,
+      0.85,
+      0.5234
+     ]
+    },
+    {
+     "text": "Reward $4,500",
+     "box": [
+      0.62,
+      0.5511,
+      0.74,
+      0.5731
+     ]
+    },
+    {
+     "text": "SET WAYPOINT",
+     "box": [
+      0.84,
+      0.92,
+      0.96,
+      0.94
+     ]
+    },
+    {
+     "text": "Legend",
+     "box": [
+      0.86,
+      0.95,
+      0.93,
+      0.97
+     ]
+    }
+   ],
+   "cards": [
+    {
+     "title": "THE MARINA JOB",
+     "subtitles": [],
+     "body": [
+      "Brian wants the boat moved before the harbor patrol makes its rounds.",
+      "Bring Lucia along for backup."
+     ],
+     "details": [
+      "Reward $4,500"
+     ],
+     "helpCorner": false
+    }
+   ]
+  },
+  {
+   "name": "uzun başlık ve alt başlık",
+   "lines": [
+    {
+     "text": "ESCAPE FROM THE PORT OF LEONIDA",
+     "box": [
+      0.56,
+      0.5,
+      0.86,
+      0.53
+     ]
+    },
+    {
+     "text": "Lucia · Story Mission",
+     "box": [
+      0.56,
+      0.538,
+      0.72,
+      0.56
+     ]
+    },
+    {
+     "text": "Get out before the cartel locks",
+     "box": [
+      0.56,
+      0.574,
+      0.84,
+      0.596
+     ]
+    },
+    {
+     "text": "down the docks.",
+     "box": [
+      0.56,
+      0.6037,
+      0.68,
+      0.6257
+     ]
+    },
+    {
+     "text": "Distance 2.4 mi",
+     "box": [
+      0.56,
+      0.6514,
+      0.68,
+      0.6734
+     ]
+    }
+   ],
+   "cards": [
+    {
+     "title": "ESCAPE FROM THE PORT OF LEONIDA",
+     "subtitles": [
+      "Lucia · Story Mission"
+     ],
+     "body": [
+      "Get out before the cartel locks down the docks."
+     ],
+     "details": [
+      "Distance 2.4 mi"
+     ],
+     "helpCorner": false
+    }
+   ]
+  },
+  {
+   "name": "iki satıra sarılmış başlık",
+   "lines": [
+    {
+     "text": "RETURN THE STOLEN",
+     "box": [
+      0.6,
+      0.3,
+      0.8,
+      0.33
+     ]
+    },
+    {
+     "text": "PROPERTY",
+     "box": [
+      0.6,
+      0.336,
+      0.7,
+      0.366
+     ]
+    },
+    {
+     "text": "Jason left the bag in the trunk of a car",
+     "box": [
+      0.6,
+      0.378,
+      0.93,
+      0.4
+     ]
+    },
+    {
+     "text": "parked outside the motel on Route 1.",
+     "box": [
+      0.6,
+      0.4077,
+      0.9,
+      0.4297
+     ]
+    }
+   ],
+   "cards": [
+    {
+     "title": "RETURN THE STOLEN PROPERTY",
+     "subtitles": [],
+     "body": [
+      "Jason left the bag in the trunk of a car parked outside the motel on Route 1."
+     ],
+     "details": [],
+     "helpCorner": false
+    }
+   ]
+  },
+  {
+   "name": "sol üst köşedeki başlıklı yardım kutusu",
+   "lines": [
+    {
+     "text": "STAMINA",
+     "box": [
+      0.03,
+      0.05,
+      0.12,
+      0.08
+     ]
+    },
+    {
+     "text": "Sprinting for a long time drains your",
+     "box": [
+      0.03,
+      0.09,
+      0.3,
+      0.112
+     ]
+    },
+    {
+     "text": "stamina. Rest to recover it.",
+     "box": [
+      0.03,
+      0.1197,
+      0.24,
+      0.1417
+     ]
+    }
+   ],
+   "cards": [
+    {
+     "title": "STAMINA",
+     "subtitles": [],
+     "body": [
+      "Sprinting for a long time drains your stamina. Rest to recover it."
+     ],
+     "details": [],
+     "helpCorner": true
+    }
+   ]
+  },
+  {
+   "name": "ekran genişliğinde yazı kart değil",
+   "lines": [
+    {
+     "text": "CHAPTER ONE",
+     "box": [
+      0.1,
+      0.4,
+      0.3,
+      0.43
+     ]
+    },
+    {
+     "text": "The sun was setting over the Keys when the call finally came through from the boss",
+     "box": [
+      0.1,
+      0.44,
+      0.92,
+      0.462
+     ]
+    }
+   ],
+   "cards": []
+  },
+  {
+   "name": "yalnız büyük harfli menü satırları",
+   "lines": [
+    {
+     "text": "MAP",
+     "box": [
+      0.7,
+      0.3,
+      0.76,
+      0.33
+     ]
+    },
+    {
+     "text": "BRIEF",
+     "box": [
+      0.7,
+      0.35,
+      0.78,
+      0.38
+     ]
+    },
+    {
+     "text": "STATS",
+     "box": [
+      0.7,
+      0.4,
+      0.78,
+      0.43
+     ]
+    },
+    {
+     "text": "SETTINGS",
+     "box": [
+      0.7,
+      0.45,
+      0.82,
+      0.48
+     ]
+    }
+   ],
+   "cards": []
+  },
+  {
+   "name": "başlıkla hizasız cümle",
+   "lines": [
+    {
+     "text": "GAS STATION",
+     "box": [
+      0.6,
+      0.3,
+      0.74,
+      0.33
+     ]
+    },
+    {
+     "text": "Fill up the tank and grab some snacks for the road",
+     "box": [
+      0.4,
+      0.36,
+      0.8,
+      0.382
+     ]
+    }
+   ],
+   "cards": []
+  },
+  {
+   "name": "#856 portreli kart: başlık portrenin sağında, açıklama portrenin altından",
+   "lines": [
+    {
+     "text": "ISLAND DREAMS",
+     "box": [
+      0.187,
+      0.193,
+      0.35,
+      0.244
+     ]
+    },
+    {
+     "text": "Keep an eye on the bachelor party",
+     "box": [
+      0.147,
+      0.276,
+      0.429,
+      0.31
+     ]
+    },
+    {
+     "text": "while searching Kenton's dive spot for",
+     "box": [
+      0.146,
+      0.326,
+      0.462,
+      0.363
+     ]
+    },
+    {
+     "text": "treasure.",
+     "box": [
+      0.145,
+      0.382,
+      0.222,
+      0.409
+     ]
+    }
+   ],
+   "cards": [
+    {
+     "title": "ISLAND DREAMS",
+     "subtitles": [],
+     "body": [
+      "Keep an eye on the bachelor party while searching Kenton's dive spot for treasure."
+     ],
+     "details": [],
+     "helpCorner": true
+    }
+   ]
+  },
+  {
+   "name": "#856 görev listesi: her görevin başlığı ve açıklaması ayrı",
+   "lines": [
+    {
+     "text": "ISLAND DREAMS",
+     "box": [
+      0.269,
+      0.181,
+      0.39,
+      0.215
+     ]
+    },
+    {
+     "text": "Keep an eye on the bachelor party while",
+     "box": [
+      0.271,
+      0.237,
+      0.512,
+      0.274
+     ]
+    },
+    {
+     "text": "searching Kenton's dive spot for treasure.",
+     "box": [
+      0.269,
+      0.269,
+      0.522,
+      0.297
+     ]
+    },
+    {
+     "text": "HIGH TIDE",
+     "box": [
+      0.269,
+      0.33,
+      0.349,
+      0.365
+     ]
+    },
+    {
+     "text": "Meet Boobie at the marina and pick up the",
+     "box": [
+      0.269,
+      0.388,
+      0.528,
+      0.414
+     ]
+    },
+    {
+     "text": "package before the coast guard arrives.",
+     "box": [
+      0.269,
+      0.416,
+      0.512,
+      0.447
+     ]
+    },
+    {
+     "text": "DOWN BY THE DOCKS",
+     "box": [
+      0.267,
+      0.474,
+      0.425,
+      0.519
+     ]
+    },
+    {
+     "text": "Follow the cargo truck to Port Gellhorn and",
+     "box": [
+      0.271,
+      0.533,
+      0.533,
+      0.57
+     ]
+    },
+    {
+     "text": "find out who is buying the stolen goods.",
+     "box": [
+      0.269,
+      0.566,
+      0.515,
+      0.594
+     ]
+    }
+   ],
+   "cards": [
+    {
+     "title": "ISLAND DREAMS",
+     "subtitles": [],
+     "body": [
+      "Keep an eye on the bachelor party while searching Kenton's dive spot for treasure."
+     ],
+     "details": [],
+     "helpCorner": false
+    },
+    {
+     "title": "HIGH TIDE",
+     "subtitles": [],
+     "body": [
+      "Meet Boobie at the marina and pick up the package before the coast guard arrives."
+     ],
+     "details": [],
+     "helpCorner": false
+    },
+    {
+     "title": "DOWN BY THE DOCKS",
+     "subtitles": [],
+     "body": [
+      "Follow the cargo truck to Port Gellhorn and find out who is buying the stolen goods."
+     ],
+     "details": [],
+     "helpCorner": false
+    }
+   ]
+  },
+  {
+   "name": "X chiaki: yarı saydam harita kartının solunda uzaklık, simge kırıntısı ve yan menü harfi (kartın satır arasına giriyor); kısa ilk açıklama satırı",
+   "lines": [
+    {
+     "text": "JASON & LUCIA",
+     "box": [
+      0.356,
+      0.033,
+      0.451,
+      0.062
+     ]
+    },
+    {
+     "text": "2:38 pm",
+     "box": [
+      0.015,
+      0.041,
+      0.085,
+      0.072
+     ]
+    },
+    {
+     "text": "LEROY'S",
+     "box": [
+      0.545,
+      0.393,
+      0.606,
+      0.429
+     ]
+    },
+    {
+     "text": "F",
+     "box": [
+      0.02,
+      0.426,
+      0.038,
+      0.463
+     ]
+    },
+    {
+     "text": "Nautical-themed souvenir",
+     "box": [
+      0.547,
+      0.447,
+      0.762,
+      0.475
+     ]
+    },
+    {
+     "text": "1F))",
+     "box": [
+      0.496,
+      0.452,
+      0.536,
+      0.506
+     ]
+    },
+    {
+     "text": "store selling accessories and",
+     "box": [
+      0.545,
+      0.491,
+      0.789,
+      0.522
+     ]
+    },
+    {
+     "text": "124 ft",
+     "box": [
+      0.474,
+      0.509,
+      0.542,
+      0.571
+     ]
+    },
+    {
+     "text": "summer wear.",
+     "box": [
+      0.547,
+      0.535,
+      0.667,
+      0.561
+     ]
+    },
+    {
+     "text": "SOUVENIR",
+     "box": [
+      0.737,
+      0.5806,
+      0.802,
+      0.61
+     ]
+    },
+    {
+     "text": "STYLE",
+     "box": [
+      0.545,
+      0.5812,
+      0.586,
+      0.61
+     ]
+    },
+    {
+     "text": "RECENTER",
+     "box": [
+      0.882,
+      0.703,
+      0.954,
+      0.732
+     ]
+    },
+    {
+     "text": "Sunbelt Hwy",
+     "box": [
+      0.043,
+      0.938,
+      0.147,
+      0.97
+     ]
+    }
+   ],
+   "cards": [
+    {
+     "title": "LEROY'S",
+     "subtitles": [],
+     "body": [
+      "Nautical-themed souvenir store selling accessories and summer wear."
+     ],
+     "details": [
+      "SOUVENIR",
+      "STYLE"
+     ],
+     "helpCorner": false
+    }
+   ]
+  }
+ ]
+}

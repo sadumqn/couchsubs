@@ -8,6 +8,10 @@ import Foundation
 /// bakmaz, yalnız tam sözcüklerde olur, uzun terim önce gelir ("Leviathan Axe", "Axe"dan önce).
 /// `keepExact` da adları bırakır ama yalnız yazıldığı gibi (büyük/küçük harf aynı) geçince: aynı zamanda sıradan bir
 /// sözcük olan adlar için ("Soul" kahramanın adıyken "soul" ruh demek; Phantom Blade Zero).
+/// `phrases` çeviriden önce oyun argosunu düz İngilizceye çevirir (anahtar düzenli ifade, tam sözcük, büyük/küçük harfe
+/// bakmaz: "toss a smoke" → "throw a smoke grenade"); `lines` kısa ünlem satırlarının hazır Türkçesidir ("Reloading!"
+/// → "Şarjör değiştiriyorum!"): satır baştaki/sondaki noktalama ve büyük/küçük harf yok sayılarak birebir eşleşirse
+/// motora hiç gitmez. Cihaz üstü motorlar bu satırları sözcük sözcük çeviriyordu ("Toss a smoke" → "sigara at").
 /// Uygulamayla gelen genel sözlüğün üstüne kullanıcının klasöründeki `*.json` dosyaları eklenir (ad sırasıyla;
 /// aynı terimde sonraki dosya kazanır).
 public final class Glossary: @unchecked Sendable {
@@ -27,13 +31,18 @@ public final class Glossary: @unchecked Sendable {
     private let terms: [String: Term]
     /// Uzundan kısaya terimler; arama bu sırayla yapılır.
     private let ordered: [Term]
+    /// Düzenli ifade → düz İngilizce; anahtar sırasıyla uygulanır.
+    private let phrases: [String: String]
+    private let phrasePatterns: [(NSRegularExpression, String)]
+    /// `lineKey` → Türkçe.
+    private let lines: [String: String]
 
     /// Büyük harfle kalması gereken sözcükler (küçük harfle); `normalizeCase`'e ad olarak verilir.
     public let capitalWords: Set<String>
     /// Sözlüğün içeriğinden kısa bir iz; terim içeren satırların önbellek anahtarına girer, sözlük değişince yeniden çevrilir.
     public let fingerprint: String
 
-    public static let empty = Glossary(terms: [:])
+    public static let empty = Glossary(terms: [:], phrases: [:], lines: [:])
 
     /// Uygulamayla gelen genel oyun terimleri (Resources/glossary-en-tr.json; Windows da aynı dosyayı gömer).
     public static let builtIn: Glossary = {
@@ -42,8 +51,13 @@ public final class Glossary: @unchecked Sendable {
         return glossary
     }()
 
-    private init(terms: [String: Term]) {
+    private init(terms: [String: Term], phrases: [String: String], lines: [String: String]) {
         self.terms = terms
+        self.phrases = phrases
+        self.lines = lines
+        phrasePatterns = phrases.keys.sorted(by: { $0.utf8.lexicographicallyPrecedes($1.utf8) }).compactMap { key in
+            (try? NSRegularExpression(pattern: "\\b(?:" + key + ")\\b", options: .caseInsensitive)).map { ($0, phrases[key]!) }
+        }
         ordered = terms.values.sorted { $0.english.utf16.count != $1.english.utf16.count
             ? $0.english.utf16.count > $1.english.utf16.count : $0.english < $1.english }
         var words: Set<String> = []
@@ -53,7 +67,7 @@ public final class Glossary: @unchecked Sendable {
             for word in term.english.split(separator: " ") where word.count >= 2 { words.insert(word.lowercased()) }
         }
         capitalWords = words
-        fingerprint = Self.makeFingerprint(ordered)
+        fingerprint = Self.makeFingerprint(ordered, phrases: phrases, lines: lines)
     }
 
     public var count: Int { terms.count }
@@ -78,7 +92,24 @@ public final class Glossary: @unchecked Sendable {
         if let keep = root["keepExact"] as? [Any] {
             for case let name as String in keep { add(&terms, name, name, exact: true) }
         }
-        return Glossary(terms: terms)
+        var phrases: [String: String] = [:]
+        if let map = root["phrases"] as? [String: Any] {
+            for (key, value) in map {
+                // Bozuk düzenli ifade alınmaz.
+                guard let plain = value as? String, !key.isEmpty, !plain.isEmpty,
+                      (try? NSRegularExpression(pattern: key)) != nil else { continue }
+                phrases[key] = plain
+            }
+        }
+        var lines: [String: String] = [:]
+        if let map = root["lines"] as? [String: Any] {
+            for (key, value) in map {
+                let line = lineKey(key)
+                guard let turkish = value as? String, !line.isEmpty, !collapse(turkish).isEmpty else { continue }
+                lines[line] = collapse(turkish)
+            }
+        }
+        return Glossary(terms: terms, phrases: phrases, lines: lines)
     }
 
     public static func parse(_ json: String) throws -> Glossary { try parse(Data(json.utf8)) }
@@ -91,11 +122,28 @@ public final class Glossary: @unchecked Sendable {
         terms[english.lowercased()] = (english, turkish, exact)
     }
 
+    /// Konuşmacı etiketlerinden öğrenilen adlar `keepExact` olarak eklenmiş sözlük (#287). Yalnız `text` içinde (büyük/küçük
+    /// harfe bakmadan) geçen adlar eklenir: önbellek anahtarındaki iz, oturumda öğrenilen bütün adlara değil, satırdakilere
+    /// bağlı kalır. Sözlükte zaten olan terim değişmez. Eklenecek ad yoksa sözlüğün kendisi döner.
+    public func keepingNames(_ names: Set<String>, in text: String) -> Glossary {
+        let present = SpeakerNames.occurring(names, in: text, exact: false).filter { terms[$0.lowercased()] == nil }
+        guard !present.isEmpty else { return self }
+        var merged = terms
+        for name in present { Self.add(&merged, name, name, exact: true) }
+        return Glossary(terms: merged, phrases: phrases, lines: lines)
+    }
+
     /// Sözlükleri birleştirir; aynı terimde sonraki kazanır.
     public static func merge(_ glossaries: [Glossary]) -> Glossary {
         var terms: [String: Term] = [:]
-        for glossary in glossaries { terms.merge(glossary.terms) { _, new in new } }
-        return Glossary(terms: terms)
+        var phrases: [String: String] = [:]
+        var lines: [String: String] = [:]
+        for glossary in glossaries {
+            terms.merge(glossary.terms) { _, new in new }
+            phrases.merge(glossary.phrases) { _, new in new }
+            lines.merge(glossary.lines) { _, new in new }
+        }
+        return Glossary(terms: terms, phrases: phrases, lines: lines)
     }
 
     /// Genel sözlük ve klasördeki `*.json` dosyaları; okunamayan ya da bozuk dosya atlanır.
@@ -139,6 +187,44 @@ public final class Glossary: @unchecked Sendable {
 
     public func matches(_ text: String) -> Bool { !find(text).isEmpty }
 
+    /// Satırın hazır Türkçesi (`lines`); Türkçede son noktalama yoksa kaynağınki (".", "!", "?", "…") eklenir.
+    public func line(_ sentence: String) -> String? {
+        guard !lines.isEmpty, let turkish = lines[Self.lineKey(sentence)] else { return nil }
+        if let last = turkish.last, Self.endings.contains(last) { return turkish }
+        let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        return turkish + String(trimmed.reversed().prefix { Self.endings.contains($0) }.reversed())
+    }
+
+    /// Oyun argosu düz İngilizceye çevrilir (`phrases`); eşleşmenin baş harfi büyükse karşılığınınki de büyük olur.
+    public func plain(_ text: String) -> String {
+        var text = text
+        for (pattern, plain) in phrasePatterns {
+            for match in pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
+                guard let found = Range(match.range, in: text) else { continue }
+                let upper = text[found].first?.isUppercase == true
+                text.replaceSubrange(found, with: upper ? plain.prefix(1).uppercased() + plain.dropFirst() : plain)
+            }
+        }
+        return text
+    }
+
+    /// Metin bir `lines` ya da `phrases` kuralına giriyor mu (önbellek anahtarına sözlüğün izi girsin diye).
+    public func rewrites(_ text: String) -> Bool {
+        if !lines.isEmpty, lines[Self.lineKey(text)] != nil { return true }
+        let range = NSRange(location: 0, length: (text as NSString).length)
+        return phrasePatterns.contains { $0.0.firstMatch(in: text, range: range) != nil }
+    }
+
+    private static let endings: Set<Character> = [".", "!", "?", "…"]
+
+    /// `lines` anahtarı: küçük harf, düz kesme, tek boşluk; baştaki ve sondaki harf/rakam dışı karakterler atılır.
+    static func lineKey(_ text: String) -> String {
+        var key = collapse(text.lowercased().replacingOccurrences(of: "’", with: "'").replacingOccurrences(of: "‘", with: "'"))
+        while let first = key.first, !(first.isLetter || first.isNumber) { key.removeFirst() }
+        while let last = key.last, !(last.isLetter || last.isNumber) { key.removeLast() }
+        return key
+    }
+
     private static func isBoundary(_ string: NSString, _ index: Int) -> Bool {
         guard index >= 0, index < string.length, let scalar = UnicodeScalar(string.character(at: index)) else { return true }
         return !CharacterSet.alphanumerics.contains(scalar)
@@ -149,14 +235,17 @@ public final class Glossary: @unchecked Sendable {
     }
 
     /// FNV-1a (32 bit), terimler İngilizcesine göre sıralı; Windows'ta da aynı hesap.
-    private static func makeFingerprint(_ terms: [Term]) -> String {
+    private static func makeFingerprint(_ terms: [Term], phrases: [String: String], lines: [String: String]) -> String {
         var hash: UInt32 = 2_166_136_261
+        func mix(_ text: String) { for byte in text.utf8 { hash = (hash ^ UInt32(byte)) &* 16_777_619 } }
         for term in terms.sorted(by: { $0.english.lowercased().utf8.lexicographicallyPrecedes($1.english.lowercased().utf8) }) {
             // `exact` işareti yalnız varsa eklenir; eski sözlüklerin izi değişmez.
-            for byte in (term.english.lowercased() + "\u{1}" + term.turkish + (term.exact ? "\u{3}" : "") + "\u{2}").utf8 {
-                hash = (hash ^ UInt32(byte)) &* 16_777_619
-            }
+            mix(term.english.lowercased() + "\u{1}" + term.turkish + (term.exact ? "\u{3}" : "") + "\u{2}")
         }
+        // `phrases` ve `lines` de yalnız varsa girer.
+        let byBytes: (String, String) -> Bool = { $0.utf8.lexicographicallyPrecedes($1.utf8) }
+        for key in phrases.keys.sorted(by: byBytes) { mix(key + "\u{4}" + phrases[key]! + "\u{5}") }
+        for key in lines.keys.sorted(by: byBytes) { mix(key + "\u{6}" + lines[key]! + "\u{7}") }
         return "g" + String(format: "%08x", hash)
     }
 }

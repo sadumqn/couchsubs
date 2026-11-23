@@ -50,7 +50,8 @@ public static class Program
 
         Log.Write("panel", $"CouchSubs {Version} hazır. Panel: http://{AppController.LocalAddress("192.168.1.1") ?? "localhost"}:{port}");
         Log.Write("panel", $"Veri klasörü: {AppPaths.Data} · PS5 kütüphanesi: {(Diagnostics.NativeAvailable ? "var" : "YOK")} · " +
-                           $"yazı tanıma: {(TesseractReader.HasLanguage("en") ? "var" : "YOK")} · LG paketi: {services.BundledTvAppVersion ?? "YOK"}");
+                           $"yazı tanıma: {(TesseractReader.HasLanguage("en") ? "var" : "YOK")} · LG paketi: {services.BundledTvAppVersion ?? "YOK"} · " +
+                           $"Android TV paketi: {services.BundledApp(TvBrand.AndroidTv)?.Version ?? "YOK"}");
 
         // Sunucu yeniden başladığında çeviri kendiliğinden sürsün istenirse. Varsayılan kapalı: açıkken dinlenme
         // modundaki PS5'i de uyandırır.
@@ -72,16 +73,19 @@ internal static class Panel
     private sealed record RegisterRequest(string Host, string Pin);
     private sealed record PairRequest(string Name, string Host, TvBrand Brand);
     private sealed record PassphraseRequest(string Passphrase);
+    private sealed record HostRequest(string Host);
     private sealed record KeyRequest(string Key);
     private sealed record TextRequest(string Text);
     private sealed record SettingsRequest(CropRegion? Region, SubtitleStyle? Style, bool? OnlineTranslation);
+    private sealed record TvPairingRequest(string Code, bool Accept);
 
     public static void Map(WebApplication app, AppController controller, LinuxServices services, UiThread ui)
     {
+        var pairing = new TvPairingPrompt(controller);
         app.MapGet("/", () => Results.Content(Resource("panel.html"), "text/html; charset=utf-8"));
         app.MapGet("/logo.svg", () => Results.Content(Resource("logo.svg"), "image/svg+xml"));
 
-        app.MapGet("/api/state", () => ui.Run(() => State(controller, services)));
+        app.MapGet("/api/state", () => ui.Run(() => State(controller, services, pairing)));
         app.MapGet("/api/log", () => new { lines = Log.Tail() });
 
         // --- Kurulum sihirbazı ---
@@ -91,12 +95,21 @@ internal static class Panel
         app.MapGet("/api/consoles", () => Query(ui, async () => (object)await controller.DiscoverConsolesAsync()));
         app.MapPost("/api/register", (RegisterRequest body) => Act(ui, () => controller.RegisterAsync(body.Host.Trim(), body.Pin)));
         app.MapGet("/api/tvs", () => Query(ui, async () => (object)await controller.DiscoverTvsAsync()));
+        // Aramada çıkmayan TV'nin adresi: LG mi Samsung mu olduğu TV'ye sorulur (Windows'taki elle ekleme gibi, #617).
+        app.MapGet("/api/tv-at", (string host) => Query(ui, async () => (object)await LgDiscovery.TvAtAsync(
+            LgDiscovery.NormalizeHost(host) ?? throw new InvalidOperationException(Program.Text["This is not a valid IP address. Type it like 192.168.1.20, without http:// or a port number."]))));
         app.MapPost("/api/pair", (PairRequest body) => Act(ui, () => controller.PairAsync(new LgTv(body.Name, body.Host.Trim(), body.Brand))));
         app.MapPost("/api/tv-app/install", (PassphraseRequest body) => Act(ui, () => controller.InstallTvAppAsync(body.Passphrase)));
         app.MapPost("/api/tv-app/refresh", () => Act(ui, controller.RefreshTvAppAsync));
+        // Birden çok Android TV bulununca seçilen TV'ye kurulur (#425).
+        app.MapPost("/api/tv-app/android-tv", (HostRequest body) => Act(ui, () => controller.ChooseAndroidTvAsync(body.Host.Trim())));
         app.MapPost("/api/model/download", () => Act(ui, controller.StartModelDownload));
         app.MapPost("/api/test-subtitle", () => Act(ui, controller.SendTestSubtitle));
         app.MapPost("/api/reset", () => Act(ui, controller.ResetSetup));
+
+        // --- TV eşleştirme onayı (güncel TV uygulamaları anahtarı yalnız kullanıcı onayıyla alır) ---
+        app.MapPost("/api/tv-pairing/open", () => Act(ui, controller.OpenTvPairingAsync));
+        app.MapPost("/api/tv-pairing", (TvPairingRequest body) => Act(ui, () => pairing.Resolve(body.Code, body.Accept)));
 
         // --- Çeviri ---
         app.MapPost("/api/start", () => Act(ui, controller.StartAsync));
@@ -145,22 +158,24 @@ internal static class Panel
         }));
     }
 
-    private static object State(AppController c, LinuxServices services) => new
+    private static object State(AppController c, LinuxServices services, TvPairingPrompt pairing) => new
     {
+        tvPairingCode = pairing.Code,
         version = Program.Version,
         language = Program.Text.Language,
         step = c.Step,
         stepNumber = c.StepNumber,
-        stepCount = AppController.StepCount,
+        stepCount = c.StepCount,
         canAdvance = c.CanAdvance,
         hasAccount = c.HasAccount,
         psnLoginUrl = PsnAccount.AuthorizeUrl.AbsoluteUri,
         redirectPrefix = PsnAccount.RedirectPrefix,
         console = c.Console is { } console ? new { console.Name, console.Host } : null,
         tv = c.Tv,
-        tvApp = new { kind = c.TvApp.Kind, c.TvApp.Version, error = c.TvApp.Error?.ToString(), url = c.TvApp.Url?.AbsoluteUri, c.TvApp.Reason },
+        tvApp = new { kind = c.TvApp.Kind, c.TvApp.Version, error = c.TvApp.Error?.ToString(), url = c.TvApp.Url?.AbsoluteUri, c.TvApp.Reason, c.TvApp.Hosts },
         canInstallTvApp = c.CanInstallTvApp,
         bundledTvApp = services.BundledTvAppVersion,
+        bundledAndroidTvApp = services.BundledApp(TvBrand.AndroidTv)?.Version,
         devModeHoursLeft = c.DevModeHoursLeft,
         computerAddress = c.ComputerAddress,
         serverPort = c.ServerPort,
@@ -238,4 +253,48 @@ internal static class Panel
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }
+}
+
+/// <summary>
+/// Linux'un eşleştirme onayı. Windows ve Mac'te açılan onay penceresinin yerine panel bekleyen isteği gösterir.
+/// TV'yi yalnız istek sırrı (<see cref="SubtitlePairing.Ticket.Id"/>) eşleştirir; bu sır panele hiç gönderilmez,
+/// panel yalnız TV'de görünen kodu karşılaştırma için gösterir ve onayı o kodla verir. Yalnız UI iş parçacığında kullanılır.
+/// </summary>
+internal sealed class TvPairingPrompt
+{
+    private readonly AppController controller;
+    private SubtitlePairing.Ticket? ticket;
+
+    public TvPairingPrompt(AppController controller)
+    {
+        this.controller = controller;
+        controller.TvPairingRequested += request => ticket = request;
+    }
+
+    /// <summary>Bekleyen isteğin kodu; süresi dolmuş ya da yanıtlanmış istek gösterilmez.</summary>
+    public string? Code
+    {
+        get
+        {
+            // Gösterilen istek yerini yenisine bıraktıysa (TV'de yeniden denendi) bekleyen yeni istek gösterilir.
+            if (ticket is not { } current || !controller.IsTvPairingPending(current.Id)) ticket = controller.PendingTvPairing;
+            return ticket?.Code;
+        }
+    }
+
+    /// <summary>Panelde görünen kodla yanıtlar; sayfa eski bir kodu gösteriyorsa onay yeni bir isteğe geçmez.</summary>
+    public void Resolve(string code, bool accept)
+    {
+        if (ticket is not { } current || current.Code != code.Trim())
+        {
+            if (accept) throw Expired();
+            return;
+        }
+        ticket = null;
+        if (!controller.ResolveTvPairing(current.Id, accept) && accept) throw Expired();
+    }
+
+    private static InvalidOperationException Expired() => new(Program.Text.Language == "tr"
+        ? "Eşleştirme isteğinin süresi doldu. TV'de yeniden deneyin."
+        : "The pairing request expired. Try again on the TV.");
 }

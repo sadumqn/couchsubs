@@ -1,42 +1,76 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- PS5'e bağlanma (Perde, Mac ConnectPS5Step): arama kartı (arama halkası ya da sonuç dairesi, başlık, küçük "Yeniden Ara"; bulunan
+     PS5'ler simge kareli seçenek kartları), bulunamazsa denetim kartı, "Bağlantı" kartında adım çizelgesi + 8 haneli kod + tek ana
+     düğme; eşleşince başarı anı, hata olursa hata kutusu. İşlev eski adımla aynı. -->
 <UserControl x:Class="CouchSubs.App.Views.Steps.ConsoleStep"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:c="clr-namespace:CouchSubs.App.Controls"
              xmlns:t="clr-namespace:CouchSubs.App.Theme"
              xmlns:v="clr-namespace:CouchSubs.App.Views">
-    <c:StepLayout Title="{t:T 'Connect your PS5'}"
-                  Message="{t:T 'Turn on the PS5. As the second user, open Settings › System › Remote Play › Pair Device and enter the 8-digit code shown there.'}">
-        <StackPanel>
-            <TextBlock x:Name="Done" Style="{StaticResource DoneText}" Margin="0,0,0,16" />
+    <c:StepLayout Title="{t:T 'Let\'s Connect to the PS5'}"
+                  Message="{t:T 'You signed in with your free second PlayStation account. Now we\'re looking for the PS5 on the same network.'}">
+        <c:SpacedStack Gap="l">
             <c:Card>
                 <StackPanel>
-                    <Grid Margin="0,0,0,12">
-                        <TextBlock Text="PS5" Style="{StaticResource HeadlineText}" VerticalAlignment="Center" />
-                        <Button x:Name="Search" Content="{t:T 'Search again'}" HorizontalAlignment="Right" Click="OnSearch" />
-                    </Grid>
-                    <TextBlock x:Name="NotFound" Style="{StaticResource HintText}" Margin="0,0,0,8"
+                    <DockPanel Margin="{t:Sp '0,0,0,s'}">
+                        <!-- Arama sürerken arama halkası dalgası; bitince büyüteç (bulunamadı) ya da yeşil tik (bulundu). -->
+                        <Grid DockPanel.Dock="Left" Width="56" Height="56" Margin="{t:Sp '0,0,m,0'}">
+                            <c:SearchRings x:Name="Rings" Size="56" />
+                            <Grid x:Name="ResultMark" Visibility="Collapsed">
+                                <Ellipse x:Name="ResultDisc" Fill="{DynamicResource amberSoftBrush}" />
+                                <TextBlock x:Name="ResultGlyph" Text="&#xE721;" Style="{StaticResource GlyphText}" FontSize="16" FontWeight="Bold"
+                                           HorizontalAlignment="Center" Foreground="{DynamicResource amberTextBrush}" />
+                            </Grid>
+                        </Grid>
+                        <Button x:Name="Search" DockPanel.Dock="Right" Content="{t:T 'Search Again'}" Style="{StaticResource CompactButton}" VerticalAlignment="Center"
+                                Click="OnSearch" />
+                        <StackPanel VerticalAlignment="Center" Margin="{t:Sp '0,0,s,0'}">
+                            <TextBlock x:Name="SearchTitle" Text="{t:T 'Searching for the PS5'}" Style="{StaticResource HeadlineText}" />
+                            <TextBlock x:Name="Done" Style="{StaticResource HintText}" Margin="{t:Sp '0,xxs,0,0'}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock x:Name="NotFound" Style="{StaticResource HintText}" Margin="{t:Sp '0,0,0,xs'}"
                                Text="{t:T 'No PS5 found. Make sure it is on and on the same network, or enter its IP address.'}" />
-                    <TextBox x:Name="ManualHost" MaxWidth="320" HorizontalAlignment="Left" Width="320" PreviewKeyDown="OnFieldKeyDown" />
-                    <StackPanel x:Name="Consoles" />
+                    <TextBox x:Name="ManualHost" MaxWidth="320" HorizontalAlignment="Left" Width="320" FontFamily="{StaticResource MonoFont}" PreviewKeyDown="OnFieldKeyDown" />
+                    <c:SpacedStack x:Name="Consoles" Gap="xs" />
                 </StackPanel>
             </c:Card>
-            <TextBlock Text="{t:T '8-digit code'}" Style="{StaticResource HintText}" Margin="0,20,0,6" />
-            <!-- Enter bağlanır (eskiden kapalı "Devam"a gidip hiçbir şey yapmıyordu); boşluk ve tire için uzunluk payı var. -->
-            <TextBox x:Name="Pin" Width="240" HorizontalAlignment="Left" FontSize="{DynamicResource codeFontSize}" FontWeight="SemiBold"
-                     MinHeight="52" MaxLength="16" PreviewKeyDown="OnFieldKeyDown" TextChanged="OnPinChanged" />
-            <Button x:Name="Connect" Content="{t:T 'Connect'}" Style="{StaticResource PrimaryButton}" Margin="0,16,0,0"
-                    Click="OnConnect" />
-            <TextBlock x:Name="Working" Style="{StaticResource HintText}" Margin="0,12,0,0" Visibility="Collapsed"
-                       Text="{t:T 'Connecting to the PS5… This can take up to 30 seconds.'}" />
-            <!-- Eşleşme başarılı: düğmenin hemen altında yeşil ileti (üstteki ad kaydırınca görünmüyordu). -->
-            <TextBlock x:Name="Paired" Style="{StaticResource DoneText}" TextWrapping="Wrap" Margin="0,12,0,0" Visibility="Collapsed" />
-            <TextBlock x:Name="Error" Style="{StaticResource ErrorText}" Margin="0,12,0,0" />
-            <!-- Eşleştirme olmazsa gönderilecek remoteplay.log Dosya Gezgini'nde seçili açılır. -->
-            <Button x:Name="ShowLog" Content="{t:T 'Show log file'}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                    Visibility="Collapsed" Click="OnShowLog" />
+            <!-- PS5 bulunamadı: denetimler kendiliğinden yapılır; okunamayan madde "Bilinmiyor" (tuval 04). -->
+            <c:Card x:Name="ChecksCard" Kind="Experimental" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="{t:T 'Couldn\'t connect to the PS5'}" Style="{StaticResource CardTitleText}" Foreground="{DynamicResource liveTextBrush}" />
+                    <TextBlock Text="{t:T 'Here\'s What We Checked'}" Style="{StaticResource HeadlineText}" Margin="{t:Sp '0,unitGap,0,0'}" />
+                    <TextBlock Style="{StaticResource HintText}" Margin="{t:Sp '0,titleBody,0,m'}"
+                               Text="{t:T 'Fix the item with a problem and press Try Again. Things we couldn\'t read are shown as &quot;Unknown&quot;.'}" />
+                    <StackPanel x:Name="ChecksRows" />
+                    <Button x:Name="TryAgain" Content="{t:T 'Try Again'}" Style="{StaticResource PrimaryButton}" Margin="{t:Sp '0,m,0,0'}" Click="OnSearch" />
+                    <c:SectionTitle Title="{t:T 'Do You Know the PS5\'s Address?'}" Margin="{t:Sp '0,l,0,0'}"
+                                    Text="{t:T 'On the PS5, the IP address is shown in Settings › Network › Connection Status.'}" />
+                </StackPanel>
+            </c:Card>
+            <!-- Bağlantı: adım çizelgesi (hesap, PS5 bulundu, eşleştirme ve ilk görüntü), 8 haneli kod ve tek ana düğme. -->
+            <c:Card Title="{t:T 'Connection'}">
+                <StackPanel>
+                    <c:StepTimeline x:Name="Timeline" />
+                    <TextBlock Text="{t:T '8-digit code'}" Style="{StaticResource HintText}" Margin="{t:Sp '0,l,0,titleBody'}" />
+                    <!-- Enter bağlanır (eskiden kapalı "Devam"a gidip hiçbir şey yapmıyordu); boşluk ve tire için uzunluk payı var. -->
+                    <TextBox x:Name="Pin" Width="240" HorizontalAlignment="Left" FontFamily="{StaticResource MonoFont}" FontSize="{DynamicResource codeFontSize}" FontWeight="SemiBold"
+                             MinHeight="52" MaxLength="16" PreviewKeyDown="OnFieldKeyDown" TextChanged="OnPinChanged" />
+                    <Button x:Name="Connect" Content="{t:T 'Connect'}" Style="{StaticResource PrimaryButton}" Margin="{t:Sp '0,s,0,0'}"
+                            Click="OnConnect" />
+                    <TextBlock x:Name="Working" Style="{StaticResource HintText}" Margin="{t:Sp '0,s,0,0'}" Visibility="Collapsed"
+                               Text="{t:T 'Connecting to the PS5… This can take up to 30 seconds.'}" />
+                    <!-- Eşleşme başarılı: düğmenin altında başarı anı (≤ 1 sn; hareket azaltılmışsa yalnız tik). -->
+                    <ContentControl x:Name="Paired" Focusable="False" Margin="{t:Sp '0,m,0,0'}" Visibility="Collapsed" />
+                    <!-- Eşleştirme olmazsa: neden + gönderilecek remoteplay.log Dosya Gezgini'nde seçili açılır. -->
+                    <c:ErrorBox x:Name="Error" Title="{t:T 'Couldn\'t connect to the PS5'}" Margin="{t:Sp '0,m,0,0'}">
+                        <Button x:Name="ShowLog" Content="{t:T 'Show log file'}" Style="{StaticResource CompactButton}" Click="OnShowLog" />
+                    </c:ErrorBox>
+                </StackPanel>
+            </c:Card>
             <!-- Eşleştirme başarısızsa ve güvenlik duvarında izin yoksa -->
-            <v:FirewallCard Margin="0,12,0,0" />
-        </StackPanel>
+            <v:FirewallCard />
+        </c:SpacedStack>
     </c:StepLayout>
 </UserControl>

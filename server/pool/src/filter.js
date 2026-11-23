@@ -6,6 +6,8 @@
 // eski sürümler süzmeden gönderdiği için sunucu da süzer (D1 yazma kotası boşa gitmesin). Uygulamanın yazı tanıma
 // çöpü denetimi (OcrNoise) burada yok; yerine harf oranı bakılır.
 
+import { isVerbPrompt } from "./prompts.js";
+
 export const MAX_LENGTH = 300;
 export const MIN_WORDS = 2;
 const MIN_SHORT_LENGTH = 15;
@@ -103,5 +105,6 @@ function mostlySymbols(text) {
 export function accepts(text) {
   if (!text || text.length > MAX_LENGTH) return false;
   if (wordsOf(text).length < MIN_WORDS) return false;
-  return !mostlySymbols(text) && !isFragment(text) && !looksTurkish(text) && !looksLikeSystemText(text);
+  return !mostlySymbols(text) && !isFragment(text) && !looksTurkish(text) && !looksLikeSystemText(text) &&
+    !isVerbPrompt(text);
 }

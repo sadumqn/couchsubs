@@ -19,6 +19,10 @@ enum AppConfig {
 
     /// Paket sunucusu (Cloudflare Worker, server/packs). Yoksa yalnız uygulamayla gelen paketler kullanılır.
     static var packsBaseURL: URL? { value("CSPacksBaseURL").flatMap(URL.init(string:)) }
+    /// Yedek paket sunucusu adresi (workers.dev'e ulaşamayan ağlar için, #583); aynı Worker.
+    static var packsFallbackURL: URL? { value("CSPacksFallbackURL").flatMap(URL.init(string:)) }
+    /// Paket isteklerinin imzası (`PackSigning`); yoksa paket indirme kapalı (sunucu imzasız isteği reddeder).
+    static var packsSecret: String? { value("CSPacksAppSecret") }
 
     static let privacyURL = URL(string: "https://github.com/yorulmazsinan/couchsubs/blob/main/PRIVACY.md")!
     static let helpURL = URL(string: "https://github.com/yorulmazsinan/couchsubs/issues")!

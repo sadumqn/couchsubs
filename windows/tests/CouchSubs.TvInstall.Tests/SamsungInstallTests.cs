@@ -35,10 +35,12 @@ public class SamsungInstallTests
     public void InstallOutputIsClassified(string output, string expected) =>
         Assert.Equal(expected, SamsungInstallDiagnostics.Classify(output).ToString());
 
-    /// 2017 (Tizen 3.0) ve sonrası kurulur; Tizen 3.0–4.0 TV'ler kurulumdan önce cihaz profilini ister.
+    /// 2016 (Tizen 2.4) ve sonrası kurulur (telefonlarla aynı); Tizen 2.4–4.0 TV'ler kurulumdan önce cihaz profilini ister.
     [Theory]
-    [InlineData("2.4", true, false)]
+    [InlineData("2.4", false, true)]
+    [InlineData("2.4.0", false, true)]
     [InlineData("2.3.1", true, false)]
+    [InlineData("2.3", true, false)]
     [InlineData("3.0", false, true)]
     [InlineData("4.0", false, true)]
     [InlineData("4.0.0", false, true)]
@@ -51,6 +53,18 @@ public class SamsungInstallTests
         Assert.Equal(tooOld, SamsungTvInstaller.IsTooOld(platform));
         Assert.Equal(needsProfile, SamsungTvInstaller.NeedsDeviceProfile(platform));
     }
+
+    /// <summary>
+    /// Tizen 2.x cihaz profilini /home/developer'da arar (Samsung'un belgesi, Apps2Samsung, #71); 3.0–4.0 sdk_toolpath'te
+    /// (#890). Android'deki SamsungInstallerTest ve iPhone ile aynı.
+    /// </summary>
+    [Theory]
+    [InlineData("2.4.0", "/opt/usr/apps/tmp", "/home/developer/device-profile.xml")]
+    [InlineData("2.4", "/opt/usr/apps/tmp", "/home/developer/device-profile.xml")]
+    [InlineData("3.0", "/home/owner/share/tmp/sdk_tools", "/home/owner/share/tmp/sdk_tools/device-profile.xml")]
+    [InlineData("4.0", "/home/owner/share/tmp/sdk_tools", "/home/owner/share/tmp/sdk_tools/device-profile.xml")]
+    public void DeviceProfileGoesWhereTheTvReadsIt(string platform, string toolPath, string expected) =>
+        Assert.Equal(expected, SamsungTvInstaller.DeviceProfileRemotePath(platform, toolPath));
 
     [Fact]
     public void InstalledVersionIsReadFromTheAppList()
@@ -72,7 +86,24 @@ public class SamsungInstallTests
         Assert.Null(SamsungTvInstaller.InstalledVersion(listing.Replace("CouchSubsT.CouchSubs", "Baska.App")));
         Assert.Null(SamsungTvInstaller.InstalledVersion("closed"));
         Assert.Null(SamsungTvInstaller.InstalledVersion(null));
+        Assert.Equal("CouchSubs", SamsungTvInstaller.InstalledTitle(listing));
+        Assert.False(SamsungTvInstaller.IsForeignTitle(SamsungTvInstaller.InstalledTitle(listing)));
+        // Bizim kimliğimizle (CouchSubsT.CouchSubs) başka adlı uygulama: yabancı.
+        var foreign = listing.Replace("app_title  =  CouchSubs", "app_title  =  Başka Uygulama");
+        Assert.Equal("Başka Uygulama", SamsungTvInstaller.InstalledTitle(foreign));
+        Assert.True(SamsungTvInstaller.IsForeignTitle(SamsungTvInstaller.InstalledTitle(foreign)));
+        // Ad yoksa yabancı sayılmaz.
+        Assert.False(SamsungTvInstaller.IsForeignTitle(null));
+        Assert.False(SamsungTvInstaller.IsForeignTitle(" couchsubs "));
     }
+
+    [Theory]
+    // Gerçek Samsung TV'nin (Tizen 9.0) yanıtı.
+    [InlineData("launch app CouchSubsT.CouchSubs\napp_id[CouchSubsT.CouchSubs] launch start\napp_id[CouchSubsT.CouchSubs] launched\nspend time for wascmd is [331]ms", true)]
+    [InlineData("launch app CouchSubsT.CouchSubs\napp_id[CouchSubsT.CouchSubs] launch start\napp_id[CouchSubsT.CouchSubs] launch failed", false)]
+    [InlineData("", false)]
+    public void LaunchReplyIsRead(string reply, bool launched) =>
+        Assert.Equal(launched, SamsungTvInstaller.Launched(reply));
 
     [Fact]
     public void UnrelatedFailedWordIsNotAFailure()
@@ -160,6 +191,94 @@ public class SamsungInstallTests
         Assert.Equal(expected, error.Error);
         Assert.Empty(tv.Commands);
         Assert.Equal(1, tv.Installs);
+    }
+
+    private const string Bare118 = "app_id[CouchSubsT.CouchSubs] install start\napp_id[CouchSubsT.CouchSubs] install failed[118]";
+
+    /// <summary>Tizen 2.4 (#638): TV iki kez sebepsiz [118] derse başka biçimde hazırlanan paket bir kez denenir.</summary>
+    [Fact]
+    public async Task BareFailureTwiceTriesTheAlternativePackageOnce()
+    {
+        var tv = new FakeTv(Bare118, Bare118, Success);
+        var log = TempLog();
+        var prepared = 0;
+        await SamsungTvInstaller.InstallWithRecoveryAsync(tv, null, log, CancellationToken.None, alternative: () =>
+        {
+            prepared++;
+            return "yalın paket";
+        });
+        Assert.Equal(3, tv.Installs);
+        Assert.Equal(1, prepared);
+        Assert.Equal(4, tv.Commands.Count);
+        Assert.Contains("Üçüncü deneme (yalın paket) vd_appinstall çıktısı", File.ReadAllText(log.Path!));
+    }
+
+    /// <summary>Tizen 2.x'te TV'de (elle kurulmuş) kopya varsa ya da liste okunamadıysa kopya kaldırılmaz (#638).</summary>
+    [Fact]
+    public async Task KeepExistingNeverRemovesTheCopyOnTheTv()
+    {
+        var tv = new FakeTv(Bare118, Bare118);
+        var log = TempLog();
+        var prepared = 0;
+        await Assert.ThrowsAsync<SamsungInstallException>(() =>
+            SamsungTvInstaller.InstallWithRecoveryAsync(tv, null, log, CancellationToken.None, () =>
+            {
+                prepared++;
+                return "yalın paket";
+            }, keepExisting: true));
+        Assert.Equal(2, tv.Installs);
+        Assert.Equal(1, prepared);
+        Assert.Empty(tv.Commands);
+        Assert.Contains("eski kopya kaldırılmıyor", File.ReadAllText(log.Path!));
+
+        var lean = new FakeTv(Bare118, Success);
+        await SamsungTvInstaller.InstallWithRecoveryAsync(lean, null, new InstallLog(null), CancellationToken.None, () => "yalın paket",
+            keepExisting: true);
+        Assert.Equal(2, lean.Installs);
+        Assert.Empty(lean.Commands);
+
+        var mismatch = new FakeTv(AuthorMismatch, Success);
+        await Assert.ThrowsAsync<SamsungInstallException>(() =>
+            SamsungTvInstaller.InstallWithRecoveryAsync(mismatch, null, new InstallLog(null), CancellationToken.None, keepExisting: true));
+        Assert.Equal(1, mismatch.Installs);
+        Assert.Empty(mismatch.Commands);
+    }
+
+    [Fact]
+    public async Task AlternativeThatAlsoFailsIsReportedWithTheTvsWords()
+    {
+        var tv = new FakeTv(Bare118, Bare118, Bare118);
+        var error = await Assert.ThrowsAsync<SamsungInstallException>(() =>
+            SamsungTvInstaller.InstallWithRecoveryAsync(tv, null, new InstallLog(null), CancellationToken.None, alternative: () => "yalın paket"));
+        Assert.Equal(SamsungInstallError.InstallFailed, error.Error);
+        Assert.Contains("install failed[118]", error.Detail);
+        Assert.Equal(3, tv.Installs);
+    }
+
+    [Fact]
+    public async Task AlternativeIsNotPreparedWhenTheRetryWorksOrTheTvGivesAReason()
+    {
+        var prepared = 0;
+        string? Alternative()
+        {
+            prepared++;
+            return "yalın paket";
+        }
+
+        var cleared = new FakeTv(Bare118, Success);
+        await SamsungTvInstaller.InstallWithRecoveryAsync(cleared, null, new InstallLog(null), CancellationToken.None, Alternative);
+        Assert.Equal(2, cleared.Installs);
+
+        var mismatch = new FakeTv(AuthorMismatch, AuthorMismatch);
+        await Assert.ThrowsAsync<SamsungInstallException>(() =>
+            SamsungTvInstaller.InstallWithRecoveryAsync(mismatch, null, new InstallLog(null), CancellationToken.None, Alternative));
+        Assert.Equal(2, mismatch.Installs);
+
+        var none = new FakeTv(Bare118, Bare118);
+        await Assert.ThrowsAsync<SamsungInstallException>(() =>
+            SamsungTvInstaller.InstallWithRecoveryAsync(none, null, new InstallLog(null), CancellationToken.None, () => null));
+        Assert.Equal(2, none.Installs);
+        Assert.Equal(0, prepared);
     }
 
     [Fact]

@@ -16,8 +16,55 @@ internal static class StartupGuard
 {
     static bool Turkish => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "tr";
 
-    static string LogPath =>
+    internal static string LogPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "hata.log");
+
+    internal const string UninstallHook = "--veloapp-uninstall";
+
+    /// <summary>
+    /// Velopack'in kurulum, güncelleme ve kaldırma sırasında uygulamayı çağırdığı seçenek (küçük harfle); normal açılışta
+    /// null. Kancada arayüz açılmaz, süreç hemen 0 ile döner.
+    /// </summary>
+    internal static string? InstallHook(string[] args)
+    {
+        if (args.Length == 0) return null;
+        var name = args[0].ToLowerInvariant();
+        return name is "--veloapp-install" or "--veloapp-updated" or "--veloapp-obsolete" or UninstallHook ? name : null;
+    }
+
+    /// <summary>
+    /// Açılışı durduran hatanın iletisi. Yüklenemeyen DLL'de dosyanın adı ve olası neden (güvenlik yazılımı) söylenir:
+    /// Akıllı Uygulama Denetimi ve antivirüsler yeni sürümün dosyalarını engelleyebiliyor.
+    /// </summary>
+    public static string LaunchMessage(Exception error)
+    {
+        for (var inner = error; inner is not null; inner = inner.InnerException)
+        {
+            var file = inner switch
+            {
+                FileLoadException load => load.FileName,
+                FileNotFoundException missing => missing.FileName,
+                BadImageFormatException bad => bad.FileName,
+                _ => null,
+            };
+            if (string.IsNullOrWhiteSpace(file)) continue;
+            // Derleme adı "CouchSubs.Shell, Version=…" biçiminde gelir.
+            var name = file.Split(',')[0].Trim();
+            return (Turkish
+                ? $"CouchSubs açılamadı: Windows şu dosyayı yükleyemedi:\n\n  • {name}\n\n" +
+                  "Dosya eksik olabilir ya da bir güvenlik programı (antivirüs, Windows Güvenliği, Akıllı Uygulama Denetimi) " +
+                  "engelliyor olabilir. Güvenlik programınızın geçmişinde CouchSubs'a ait engellenen dosya varsa izin verip " +
+                  "CouchSubs'ı yeniden kurun.\n\n"
+                : $"CouchSubs could not start: Windows could not load this file:\n\n  • {name}\n\n" +
+                  "It may be missing, or a security program (antivirus, Windows Security, Smart App Control) may be blocking " +
+                  "it. If your security program's history lists a blocked CouchSubs file, allow it and install CouchSubs again.\n\n") +
+                $"{inner.GetType().Name}: {inner.Message}\n\n" +
+                (Turkish
+                    ? $"Ayrıntılar {LogPath} dosyasında. Sorunu bu dosyayla birlikte GitHub'daki Issues sayfasından bildirebilirsiniz."
+                    : $"Details are in {LogPath}. Please report it on the GitHub Issues page with that file.");
+        }
+        return ErrorMessage(error);
+    }
 
     /// <summary>
     /// deps.json'da listelenen ama klasörde olmayan DLL'ler. Antivirüs bir dosyayı karantinaya alınca .NET açılışta
@@ -73,6 +120,8 @@ internal static class StartupGuard
         Log(message, error);
         if (renderFolder is null)
         {
+            // Arayüz açılamadı: düzeltilmiş sürüm varsa kurulup uygulama yeniden başlar (RescueUpdate).
+            RescueUpdate.TryNow();
             MessageBox.Show(message, "CouchSubs", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         else

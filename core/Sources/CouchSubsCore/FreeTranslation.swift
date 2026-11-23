@@ -9,8 +9,9 @@ import Foundation
 public enum FreeTranslation {
     /// Çeviri öncesi/sonrası kuralların sürümü; kalıcı önbelleğin motor adına girer. Bu dosyadaki ya da
     /// GameEnglish/SubtitleSegmenter/Glossary/TermProtection/TurkishSuffix/TurkishPostEdit'teki kurallar değişince bir
-    /// artırılır: eski kurallarla çevrilmiş satırlar yeniden çevrilir. (1: sürüm yokken.)
-    public static let pipelineVersion = 2
+    /// artırılır: eski kurallarla çevrilmiş satırlar yeniden çevrilir. (1: sürüm yokken; 3: oyun terimleri, `phrases`
+    /// ve `lines`.)
+    public static let pipelineVersion = 3
 
     /// Bu sözcük sayısının altındaki cümle önceki cümleyle birlikte çevrilir.
     public static let shortLineWords = 4
@@ -32,7 +33,8 @@ public enum FreeTranslation {
     /// Cümlenin önbellek anahtarı: bağlamla çevrildiyse bağlam da, sözlük terimi içeriyorsa sözlüğün izi de girer.
     public static func cacheKey(_ sentence: String, context: String?, glossary: Glossary) -> String {
         let basis = context.map { $0 + keyJoin + sentence } ?? sentence
-        return glossary.matches(basis) ? glossary.fingerprint + keyJoin + basis : basis
+        let uses = glossary.matches(basis) || glossary.rewrites(sentence) || context.map(glossary.rewrites) == true
+        return uses ? glossary.fingerprint + keyJoin + basis : basis
     }
 
     /// Ayraçtan sonraki kısım; ayraç tam bir kez geçmiyorsa, iki yan da harf içermiyorsa ya da kısım akla yatmayacak
@@ -50,12 +52,14 @@ public enum FreeTranslation {
     }
 
     /// Tek cümleyi çevirir. `normalize` büyük harf düzenini yapar (öğrenilen adlarla), `engine` çeviri motorudur.
-    /// Önce bağlamla (verildiyse), olmazsa tek başına, terimler korunamadıysa korumasız çevrilir.
+    /// Sözlükte hazır Türkçesi olan kısa satır ("Reloading!") motora gitmez. Kalanı önce bağlamla (verildiyse), olmazsa
+    /// tek başına, terimler korunamadıysa korumasız çevrilir.
     public static func translate(_ sentence: String, context: String?, glossary: Glossary,
                                  normalize: (String) -> String,
                                  engine: (String) async throws -> String) async rethrows -> String {
+        if let fixed = glossary.line(sentence) { return TurkishPostEdit.apply(source: sentence, translation: fixed) }
         let apostrophe = TurkishPostEdit.apostrophe(for: sentence)
-        func prepare(_ text: String) -> String { GameEnglish.plain(normalize(text)) }
+        func prepare(_ text: String) -> String { GameEnglish.plain(glossary.plain(normalize(text))) }
 
         if let context {
             let protector = TermProtector(glossary: glossary, sources: [sentence, context])
@@ -124,6 +128,9 @@ public final class FreeLineTranslator: @unchecked Sendable {
         recent = RecentLines(clock: clock)
     }
 
+    /// Hattın ayırdığı konuşan adı (satır başındaki "PRICE: "); cümle içinde korunur.
+    public func noteSpeaker(_ name: String) { names.learn(name: name) }
+
     /// Satırı çevirir; seslendirme cümleleri `spokenLines(for:)` ile alınır.
     public func translate(_ text: String, engine: (String) async throws -> String) async throws -> String {
         // Kısa cümlenin bağlamı: aynı satırdaki önceki cümle, yoksa bu satırdan önce gösterilen satırın son cümlesi.
@@ -154,7 +161,8 @@ public final class FreeLineTranslator: @unchecked Sendable {
     }
 
     private func translateSentence(_ sentence: String, context: String?, engine: (String) async throws -> String) async throws -> String {
-        let glossary = glossaryStore.glossary
+        // Konuşan etiketlerinden öğrenilen adlar cümle içinde de korunur ("Price, get down!"; #287).
+        let glossary = glossaryStore.glossary.keepingNames(names.protected, in: context.map { $0 + "\n" + sentence } ?? sentence)
         let key = FreeTranslation.cacheKey(sentence, context: context, glossary: glossary)
         if let cached = cache.value(for: key) { return cached }
         let known = names.all.union(glossary.capitalWords)

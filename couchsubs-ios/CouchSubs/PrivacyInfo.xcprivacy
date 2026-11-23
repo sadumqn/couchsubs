@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  CouchSubs iPhone uygulamasının gizlilik bildirimi. Reklam yok, izleme yok (ATT istenmez, IDFA toplanmaz).
+  CouchSubs iPhone uygulamasının gizlilik bildirimi. Üçüncü taraf reklamı yok, izleme yok (ATT istenmez, IDFA toplanmaz).
+  Kendi ürünlerimizin tanıtım görseli (promo.json) veri toplamaz: gösterim ve tıklama bildirilmez, yeni veri türü yok.
   Kullanım istatistikleri Firebase Analytics ve Meta App Events ile, hata raporları Crashlytics ile kimliğe bağlanmadan
   ölçülür; ortak havuza okunan ve hiçbir pakette olmayan İngilizce oyun satırları gider (kapatılabilir).
   SDK'ların kendi bildirimleri paketleriyle gelir. Değişirse PRIVACY.md ve App Store gizlilik etiketi de güncellenir.

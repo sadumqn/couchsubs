@@ -92,6 +92,62 @@ final class GamePackTests: XCTestCase {
         XCTAssertNil(library.match("Who is that?"))
     }
 
+    /// İki küçük paket: Elden Ring ve RDR2, ikisinde de "Let's go.".
+    private func eldenAndRdr() throws -> GamePackLibrary {
+        let directory = temporaryDirectory()
+        let common = PackKey.key("Let's go.")!
+        let tarnished = PackKey.key("Rise, Tarnished.")!
+        let horse = PackKey.key("Easy, girl.")!
+        let elden = "{\"format\":1,\"id\":\"elden-ring\",\"title\":\"Elden Ring\",\"entries\":{\"\(common)\":\"Gidelim.\",\"\(tarnished)\":\"Kalk, Lekeli.\"}}"
+        let rdr = "{\"format\":1,\"id\":\"rdr-2\",\"title\":\"Red Dead Redemption 2\",\"entries\":{\"\(common)\":\"Hadi gidelim.\",\"\(horse)\":\"Sakin ol kızım.\"}}"
+        try Data(elden.utf8).write(to: directory.appendingPathComponent("a.json"))
+        try Data(rdr.utf8).write(to: directory.appendingPathComponent("b.json"))
+        return GamePackLibrary(bundled: directory, user: nil)
+    }
+
+    /// Elle seçilen oyunda satırlar yalnız o oyunun paketinde aranır; paketi yoksa hiç aranmaz. Başka oyunların ortak
+    /// satırları ("Let's go.") yanlış çeviri getirmez, oyunu da o pakete kaydırmaz (#218).
+    func testChosenGameLimitsTheSearchToItsPack() throws {
+        let library = try eldenAndRdr()
+        // Seçim yokken bütün paketlerde aranır, aynı satırda sonraki paket kazanır.
+        XCTAssertEqual(library.match("Let's go.")?.text, "Hadi gidelim.")
+
+        // Paketi olmayan oyun: hiçbir pakette aranmaz.
+        library.limit(toGame: "Marvel's Wolverine")
+        XCTAssertNil(library.match("Let's go."))
+        XCTAssertNil(library.match("Rise, Tarnished."))
+        XCTAssertNil(library.searchScope)
+        XCTAssertNil(library.takeDistinctiveHit())
+
+        // Paketi olan oyun: yalnız o paket, Türkçe de o paketin kendisinden.
+        library.limit(toGame: "ELDEN RING")
+        XCTAssertEqual(library.match("Let's go.")?.text, "Gidelim.")
+        XCTAssertEqual(library.match("Rise, Tarnished.")?.text, "Kalk, Lekeli.")
+        XCTAssertNil(library.match("Easy, girl."))
+        XCTAssertEqual(library.searchScope, "elden-ring")
+        XCTAssertEqual(library.takeDistinctiveHit()?.id, "elden-ring")
+
+        // Seçim kalkınca yine bütün paketler.
+        library.limit(toGame: nil)
+        XCTAssertEqual(library.match("Easy, girl.")?.text, "Sakin ol kızım.")
+    }
+
+    /// GameChoice elle seçimi paketlere bildirir; PS5 oyun bildirince sınır kalkar.
+    @MainActor
+    func testGameChoiceLimitsPacksToTheChosenGame() throws {
+        let library = try eldenAndRdr()
+        let choice = GameChoice(defaults: try XCTUnwrap(UserDefaults(suiteName: "game-choice-\(UUID().uuidString)")))
+        choice.packs = library
+        choice.start(console: nil) { false }
+        choice.choose("Marvel's Wolverine")
+        XCTAssertNil(library.match("Let's go."))
+        for _ in 0..<6 { choice.noteLine(fromPack: true, packs: library) }
+        XCTAssertEqual(choice.game?.name, "Marvel's Wolverine")
+        choice.consoleReported(RunningGame(titleId: "PPSA01234", name: "Red Dead Redemption 2"))
+        XCTAssertEqual(library.match("Let's go.")?.text, "Hadi gidelim.")
+        choice.stop()
+    }
+
     func testMissingDirectoriesGiveAnEmptyLibrary() {
         let library = GamePackLibrary(bundled: nil, user: URL(fileURLWithPath: "/nonexistent/packs"))
         XCTAssertEqual(library.packs, [])
@@ -101,19 +157,20 @@ final class GamePackTests: XCTestCase {
     /// Yalnız tek bir gömülü paketle kitaplık: paketler birleşince ortak satırlarda ("Get down!") sonraki paket kazanır.
     private func bundledOnly(_ file: String) throws -> GamePackLibrary {
         let directory = temporaryDirectory()
-        let source = try XCTUnwrap(GamePackLibrary.bundledDirectory).appendingPathComponent(file)
+        let source = try bundledTestPack(file)
         try FileManager.default.copyItem(at: source, to: directory.appendingPathComponent(file))
         return GamePackLibrary(bundled: directory, user: nil)
     }
 
     /// Uygulamayla gelen paketler (Mafia, GTA V, RDR2) birlikte yüklenir ve hızlı aranır.
     func testBundledPacksLoad() throws {
+        _ = try bundledTestPack("gta-v.json.gz")
         let all = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: nil)
         let start = Date()
         let ids = all.packs.map(\.id)
         let elapsed = Date().timeIntervalSince(start)
         print("paket yükleme: \(Int(elapsed * 1000)) ms, \(all.packs.reduce(0) { $0 + $1.entries }) satır")
-        XCTAssertEqual(ids, ["assassins-creed-shadows", "call-of-duty-modern-warfare-2019", "death-stranding-2", "death-stranding-directors-cut", "elden-ring", "gta-v", "mafia-the-old-country", "marvels-spider-man-2", "red-dead-redemption-2"])
+        XCTAssertEqual(ids, ["assassins-creed-shadows", "call-of-duty-modern-warfare-2019", "death-stranding-2", "elden-ring", "gta-v", "mafia-the-old-country", "marvels-spider-man-2", "red-dead-redemption-2"])
         XCTAssertTrue(all.packs.allSatisfy(\.builtIn))
         // Biçim 2 (parçalar ve imzalar) yüklemeyi Release'te ~%30 uzatıyor; Debug derlemede ve yüklü makinede daha yavaş.
         XCTAssertLessThan(elapsed, 30)
@@ -148,15 +205,11 @@ final class GamePackTests: XCTestCase {
             // "The Tarnished will soon return.", "Let it be Margit the Fell!", "Roundtable Hold"
             ("elden-ring.json.gz", "elden-ring", "Elden Ring + Shadow of the Erdtree", 37000,
              ["fd7b2bef9d7e5fe1", "d9e5d9f200bbd946", "d5017888c04251a9"]),
-            // "I can’t help you with that. I make deliveries. That’s all.", "Yeah, I’ve heard of ya.",
-            // "Trying to stay dry, same as you. Timefall’s let up. My name is Fragile."
-            ("death-stranding-directors-cut.json.gz", "death-stranding-directors-cut", "Death Stranding Director's Cut", 1200,
-             ["0bd205d28ea72e1e", "a278ec4528cdbe41", "b081efaf29693c2b"]),
             // "More like sell yourself. It's the worst.", "You got any advice?", "Focus! Hunters! Lots of them!"
             ("marvels-spider-man-2.json.gz", "marvels-spider-man-2", "Marvel's Spider-Man 2", 2000,
              ["40236a7f701ea389", "ee2428652bc9ceb2", "e829f8ce088898b8"]),
         ]
-        let directory = try XCTUnwrap(GamePackLibrary.bundledDirectory)
+        let directory = try bundledTestPack("gta-v.json.gz").deletingLastPathComponent()
         for pack in expected {
             let data = try Data(contentsOf: directory.appendingPathComponent(pack.file))
             let decoded = try GamePack.decode(data, name: GamePackLibrary.baseName(directory.appendingPathComponent(pack.file)))
@@ -171,16 +224,16 @@ final class GamePackTests: XCTestCase {
         }
     }
 
-    /// Assassin's Creed Shadows, Death Stranding 2, Modern Warfare (2019), Elden Ring, Death Stranding Director's Cut ve
-    /// Marvel's Spider-Man 2 paketleri de uygulamayla gelir.
-    func testMoreBundledPacksLoad() {
+    /// Assassin's Creed Shadows, Death Stranding 2, Modern Warfare (2019), Elden Ring ve Marvel's
+    /// Spider-Man 2 paketleri de uygulamayla gelir.
+    func testMoreBundledPacksLoad() throws {
+        _ = try bundledTestPack("assassins-creed-shadows.json.gz")
         let library = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: nil)
         let expected: [(id: String, title: String, minimum: Int)] = [
             ("assassins-creed-shadows", "Assassin's Creed Shadows", 39000),
             ("death-stranding-2", "Death Stranding 2: On the Beach", 23000),
             ("call-of-duty-modern-warfare-2019", "Call of Duty: Modern Warfare (2019)", 50000),
             ("elden-ring", "Elden Ring + Shadow of the Erdtree", 37000),
-            ("death-stranding-directors-cut", "Death Stranding Director's Cut", 1200),
             ("marvels-spider-man-2", "Marvel's Spider-Man 2", 2000),
         ]
         for game in expected {
@@ -199,8 +252,6 @@ final class GamePackTests: XCTestCase {
         XCTAssertEqual(library.match("Requesting air drop on my position!")?.text, "Konumuma hava ikmali talep ediyorum!")
         XCTAssertEqual(library.match("The Tarnished will soon return.")?.text, "Lekeli yakında geri dönecek.")
         XCTAssertEqual(library.match("Margit, the Fell Omen")?.text, "Margit, Uğursuz Alâmet")
-        XCTAssertEqual(library.match("FRAGILE: Trying to stay dry, same as you. Timefall’s let up. My name is Fragile.")?.text,
-                       "FRAGILE: Senin gibi kuru kalmaya çalışıyorum. Zaman yağmuru dindi. Adım Fragile.")
         XCTAssertEqual(library.match("Spider-Man: Focus! Hunters! Lots of them!")?.text, "Spider-Man: Odaklan! Avcılar! Çok fazlalar!")
     }
 }
@@ -237,6 +288,24 @@ final class PackLookupTests: XCTestCase {
         XCTAssertEqual(match("- Get down!\n- Who is that?")?.text, "- Yere yat!\n- O da kim?")
         // Bir satır bile eksikse paket kullanılmaz.
         XCTAssertNil(match("Get down!\nWho are you?"))
+    }
+
+    /// Altyazının bloğuna düşen köşe yazısı (GTA V'te bölge adı, kamera ipucu) atlanır; tek başına eşleşme sayılmaz.
+    func testOverlayLineNextToTheSubtitleIsSkipped() {
+        XCTAssertEqual(match("San Andreas\nWho is that?")?.text, "O da kim?")
+        XCTAssertEqual(match("Get down!\nFirst Person • zoom")?.text, "Yere yat!")
+        XCTAssertEqual(match("Get down!\nMirror Park\nWho is that?")?.text, "Yere yat!\nO da kim?")
+        XCTAssertNil(match("San Andreas\nMirror Park"))
+        XCTAssertNil(match("Get down!\nwho are you"))
+        XCTAssertTrue(PackLookup.isOverlay("LOSNN"))
+        XCTAssertFalse(PackLookup.isOverlay("Listen to me,"))
+        XCTAssertFalse(PackLookup.isOverlay("Hey, Franklin!"))
+    }
+
+    /// Uzun satırdaki "•" OCR lekesidir: satır köşe yazısı sayılıp atlanmaz, yalnız ikinci satırın Türkçesi gelmez (#245).
+    func testLongLineWithStrayBulletIsNotAnOverlay() {
+        XCTAssertFalse(PackLookup.isOverlay("I have a business meeting there with a colleague• Not that it's anything to do"))
+        XCTAssertNil(match("I have a business meeting there with a colleague• Not that it's anything to do\nWho is that?"))
     }
 
     func testEachSentenceIsLookedUpWhenTheLineIsMissing() {
@@ -294,9 +363,15 @@ struct FuzzyVectors: Decodable {
     struct Signature: Decodable { let input: String; let folded: String; let damaged: Bool; let length: Int?; let bits: Int?; let bloom: String? }
     struct Pair: Decodable { let query: String; let entry: String; let bits: Int; let similarity: Double }
     struct Loose: Decodable { let input: String; let label: String?; let body: String? }
+    struct Edit: Decodable { let input: String; let count: Int; let contains: [String]; let first: [String]; let last: [String] }
+    struct Evidence: Decodable { let both: Int; let inQuery: Int; let inEntry: Int; let bits: Int; let query: Double; let entry: Double }
+    struct Thresholds: Decodable { let minimumEvidence: Double; let cleanMissing: Int; let editLength: [Int] }
     let signatures: [Signature]
     let similarities: [Pair]
     let looseLabels: [Loose]
+    let edits: [Edit]
+    let evidence: [Evidence]
+    let thresholds: Thresholds
 
     static func load() throws -> FuzzyVectors {
         try JSONDecoder().decode(FuzzyVectors.self, from: Data(contentsOf: fixture("fuzzy-vectors.json")))
@@ -304,6 +379,51 @@ struct FuzzyVectors: Decodable {
 }
 
 final class PackFuzzyTests: XCTestCase {
+    /// İkinci tur düzeltmeler (yutulan harf, benzeyen harf, iki karışıklık) Android ve Windows'la aynı küme; arama
+    /// anahtarları metinlerinkiyle aynı.
+    func testEditVectors() throws {
+        let vectors = try FuzzyVectors.load()
+        XCTAssertEqual(vectors.thresholds.editLength, [PackFuzzy.editLength.minimum, PackFuzzy.editLength.maximum,
+                                                       PackFuzzy.editLength.pairs])
+        XCTAssertEqual(vectors.thresholds.minimumEvidence, PackFuzzy.minimumEvidence)
+        XCTAssertEqual(vectors.thresholds.cleanMissing, PackFuzzy.cleanMissing)
+        XCTAssertGreaterThanOrEqual(vectors.edits.count, 5)
+        for vector in vectors.edits {
+            let edits = PackFuzzy.edits(vector.input)
+            XCTAssertEqual(edits.count, vector.count, vector.input)
+            XCTAssertEqual(Array(edits.prefix(5)), vector.first, vector.input)
+            XCTAssertEqual(Array(edits.suffix(5)), vector.last, vector.input)
+            for expected in vector.contains { XCTAssertTrue(edits.contains(expected), expected) }
+            XCTAssertEqual(PackFuzzy.editKeys(vector.input), Set(edits.compactMap(PackKey.canonNumber)), vector.input)
+            XCTAssertTrue(Set(edits).isDisjoint(with: PackFuzzy.variants(vector.input)), vector.input)
+        }
+        for vector in vectors.evidence {
+            let z = PackFuzzy.evidence(both: vector.both, inQuery: vector.inQuery, inEntry: vector.inEntry, bits: vector.bits)
+            XCTAssertEqual(z.query, vector.query, accuracy: 1e-9)
+            XCTAssertEqual(z.entry, vector.entry, accuracy: 1e-9)
+        }
+    }
+
+    /// Ortak deneme paketi (Fixtures/pack-fuzzy.json.gz, paket betiğiyle yapıldı): tek harf hatası, yutulan harf, iki
+    /// karışıklık, konuşmacı adı ve OCR izli uzun satır bulunur; pakette olmayan benzer satırlar ("Who sent him?",
+    /// "We need to talk about your sister.") başka satıra eşlenmez. Android ve Windows aynı vakalarla aynı sonucu verir.
+    func testSharedFuzzyPackCases() throws {
+        struct Cases: Decodable {
+            struct Case: Decodable { let screen: String; let turkish: String? }
+            let warmUp: String
+            let cases: [Case]
+        }
+        let fixtures = try JSONDecoder().decode(Cases.self, from: Data(contentsOf: fixture("pack-fuzzy-cases.json")))
+        let directory = temporaryDirectory()
+        try FileManager.default.copyItem(at: fixture("pack-fuzzy.json.gz"), to: directory.appendingPathComponent("pack-fuzzy.json.gz"))
+        let library = GamePackLibrary(bundled: directory, user: nil)
+        XCTAssertNotNil(library.match(fixtures.warmUp))
+        XCTAssertEqual(library.searchScope, "fuzzy-test")
+        for item in fixtures.cases {
+            XCTAssertEqual(library.match(item.screen)?.text, item.turkish, item.screen)
+        }
+    }
+
     /// İmza Windows ve paket betiğiyle bit bit aynı.
     func testSignatureVectors() throws {
         let vectors = try FuzzyVectors.load()
@@ -328,7 +448,7 @@ final class PackFuzzyTests: XCTestCase {
     /// Yalnız Mafia paketiyle kitaplık (birleşik kitaplıkta ortak satırlarda başka oyunun çevirisi kazanabilir).
     private func library(_ file: String) throws -> GamePackLibrary {
         let directory = temporaryDirectory()
-        let source = try XCTUnwrap(GamePackLibrary.bundledDirectory).appendingPathComponent(file)
+        let source = try bundledTestPack(file)
         try FileManager.default.copyItem(at: source, to: directory.appendingPathComponent(file))
         return GamePackLibrary(bundled: directory, user: nil)
     }
@@ -365,6 +485,16 @@ final class PackFuzzyTests: XCTestCase {
                        "GAETANO: " + (library.match("All this will be behind us soon. Until then don’t let any of these bastards get to you, alright?")?.text ?? "-"))
     }
 
+    /// Oynanan oyunun adı yapay zekâya gider: tam eşleşme olana dek yok, sonra eşleşen paketin başlığı.
+    func testScopeTitleIsThePlayedGame() throws {
+        let library = try library("mafia-the-old-country.json.gz")
+        XCTAssertNil(library.scopeTitle)
+        XCTAssertNotNil(library.match("You fucked up now, boy!"))
+        let title = try XCTUnwrap(library.scopeTitle)
+        XCTAssertFalse(title.isEmpty)
+        XCTAssertEqual(title, library.packs.first?.title)
+    }
+
     /// Biçim 2: oyunun ayrı gösterdiği [delay] parçaları, cümleler ve Türkçesi İngilizcesiyle aynı satırlar.
     func testVersionTwoSegmentsAreFound() throws {
         let library = try library("mafia-the-old-country.json.gz")
@@ -372,10 +502,56 @@ final class PackFuzzyTests: XCTestCase {
         XCTAssertEqual(library.match("ENZO: Che buono.")?.text, "ENZO: Che buono.")
         XCTAssertNotNil(library.match("then clear the way for someone who does."))
         XCTAssertNotNil(library.match("I see. Well, please pass on my apologies for missing our appointment last week."))
-        let data = try Data(contentsOf: XCTUnwrap(GamePackLibrary.bundledDirectory).appendingPathComponent("mafia-the-old-country.json.gz"))
+        let data = try Data(contentsOf: bundledTestPack("mafia-the-old-country.json.gz"))
         let pack = try GamePack.decode(data, name: "mafia-the-old-country")
         XCTAssertGreaterThan(pack.segments.count, 10000)
         XCTAssertGreaterThan(pack.fuzzy?.count ?? 0, 20000)
+    }
+
+    /// GTA V oyuncularının gerçek ıskalamaları: kısa satırda tek harf hatası, yutulmuş kesme işareti, köşe yazısı,
+    /// iki satırlık altyazının yalnız bir satırı ve başına çöp eklenmiş okuma da paketten bulunur.
+    func testGtaOcrReadsAreFound() throws {
+        let library = try library("gta-v.json.gz")
+        XCTAssertNotNil(library.match("Are you listening to me?"))
+        func same(_ screen: String, as line: String, file: StaticString = #filePath, lineNumber: UInt = #line) {
+            let expected = library.match(line)?.text
+            XCTAssertNotNil(expected, line, file: file, line: lineNumber)
+            XCTAssertEqual(library.match(screen)?.text, expected, screen, file: file, line: lineNumber)
+        }
+        same("Somebody help rne!", as: "Somebody help me!")
+        same("Yeah, well, well see.", as: "Yeah, well, we'll see.")
+        same("You cant put a price on freedom.", as: "You can't put a price on freedom.")
+        same("LOSNN\nI told him to leave it, Trevor.", as: "I told him to leave it, Trevor.")
+        same("I can't do crap with this deathship right", as: "I can't do crap with this deathship right on top of me! Bring it down, T!")
+        same("San Andreas LOSNN but it does mean he's got money to pay people who help him.",
+             as: "but it does mean he's got money to pay people who help him.")
+        XCTAssertNil(library.match("The quick brown fox jumps over the lazy dog near the river bank."))
+        XCTAssertNil(library.match("Sauvage gentleman of the western plains"))
+    }
+
+    /// İki altyazı yan yana tek satır okununca yalnız birinin Türkçesi gösterilmez (ikinci cümle düşerdi); köşe yazısı
+    /// ve çöp eklenmiş okuma yine bulunur.
+    func testTwoSubtitlesReadAsOneLineAreNotHalfTranslated() throws {
+        let library = try library("gta-v.json.gz")
+        XCTAssertNotNil(library.match("Are you listening to me?"))
+        let pairs = [
+            ("Hey, look. Good shit on those contracts you been workin' on.", "But listen, I got some other work."),
+            ("I'm calling it. Don't burn your eyes out.", "Bye, Dad."),
+        ]
+        for (first, second) in pairs {
+            let alone = try XCTUnwrap(library.match(first)?.text, first)
+            let found = library.match("\(first) \(second)")?.text
+            XCTAssertNotEqual(found, alone, "\(first) \(second)")
+            if let found, let other = library.match(second)?.text {
+                XCTAssertTrue(found.contains(alone) && found.contains(other), found)
+            }
+        }
+        XCTAssertEqual(PackFuzzy.clauses("Mirror Park Errr. Your broke. Call me back, okay? Bye, Dad."),
+                       ["Mirror Park Errr.", "Your broke.", "Call me back,", "okay? Bye, Dad."])
+        XCTAssertEqual(PackFuzzy.clauses("to escape... if we're able. You said seriously. nis seriously."),
+                       ["to escape...", "if we're able.", "You said seriously. nis seriously."])
+        XCTAssertNotNil(library.match("Your vehicle? Sorry, we can't get that sorted at this time. San Andreas"))
+        XCTAssertNotNil(library.match("Vinewood Hills Just not my junk, okay? I'm already scarred down there."))
     }
 
     /// En büyük pakette (GTA V) bulanık arama da hızlı.
@@ -388,6 +564,19 @@ final class PackFuzzyTests: XCTestCase {
         for _ in 0..<25 { for line in lines { _ = library.match(line) } }
         let elapsed = Date().timeIntervalSince(start) / 100
         print("GTA V bulanık arama: satır başına \(String(format: "%.2f", elapsed * 1000)) ms")
-        XCTAssertLessThan(elapsed, 0.05)
+        // Bulunamayan satırda tek yönlü kapsama için daha geniş boy aralığı da taranır. Sürüm derlemesinde ~10 ms; sınır
+        // hata ayıklama derlemesinde arka plan önceliğiyle (heavy-job) bütün testler birlikteyken ölçülen ~80 ms'ye göre.
+        XCTAssertLessThan(elapsed, 0.12)
     }
 }
+
+/// Gerçek gömülü paketin yolu. Paketler depoda değil (özel R2, scripts/fetch-packs.py); inmemişse (dış katkıcı, yerel
+/// geliştirici) gerçek paket testleri atlanır. CI paket sırlarıyla indirir ve bu testleri koşar.
+func bundledTestPack(_ file: String) throws -> URL {
+    guard let directory = GamePackLibrary.bundledDirectory,
+          FileManager.default.fileExists(atPath: directory.appendingPathComponent(file).path) else {
+        throw XCTSkip("gerçek paket yok (\(file)); scripts/fetch-packs.py ile indirilir")
+    }
+    return directory.appendingPathComponent(file)
+}
+

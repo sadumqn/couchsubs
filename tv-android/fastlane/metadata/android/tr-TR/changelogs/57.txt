@@ -1,0 +1,1 @@
+0.9.54: LG TV'lerde konsolun girişi daha akıllı seçiliyor: PS5/Xbox önce, soundbar ve AV alıcı adıyla görünen giriş sonda; otomatik seçilen girişte görüntü gelmezse sıradaki giriş deneniyor. 1-4 sayı tuşlarıyla seçilen giriş hatırlanıyor, bilgi panelinde adıyla görünüyor. 8K Samsung TV'lerde görüntü köşede küçük kalırsa Sarı tuş iki yeni 8K yöntemini de deniyor.

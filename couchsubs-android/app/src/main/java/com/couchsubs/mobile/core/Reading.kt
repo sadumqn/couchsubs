@@ -1,0 +1,438 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+package com.couchsubs.mobile.core
+
+import kotlin.math.abs
+
+/** Yazının yeri, içinde bulunduğu alanın kenarlarına oranla (0–1, üstten ve soldan). */
+data class TextBox(val left: Double, val top: Double, val right: Double, val bottom: Double) {
+    fun union(other: TextBox) =
+        TextBox(minOf(left, other.left), minOf(top, other.top), maxOf(right, other.right), maxOf(bottom, other.bottom))
+
+    /** Bu kutu [area] içindeki oranlarsa, aynı yerin [area]'yı içeren çerçevedeki oranları. */
+    fun placedIn(area: TextBox): TextBox {
+        val width = area.right - area.left
+        val height = area.bottom - area.top
+        return TextBox(area.left + left * width, area.top + top * height, area.left + right * width, area.top + bottom * height)
+    }
+
+    /**
+     * Ekranın ortasındaki altyazının kutusu ortaya göre simetrik genişletilir: yazı tanıma satırın bir ucunu
+     * okuyamazsa çeviri yine ortalanır ve İngilizcenin tamamını örter. Köşedeki yazıya dokunulmaz.
+     */
+    fun centeredOnScreen(): TextBox {
+        val middle = (left + right) / 2
+        if (middle <= 0.3 || middle >= 0.7) return this
+        return copy(left = maxOf(0.0, minOf(left, 1 - right)), right = minOf(1.0, maxOf(right, 1 - left)))
+    }
+}
+
+/** Karede okunan alan (oranlar); masaüstüyle aynı varsayılan: alt orta bölge. */
+data class CropRegion(val top: Double = 0.62, val bottom: Double = 0.97, val left: Double = 0.14, val right: Double = 0.86) {
+    val box get() = TextBox(left, top, right, bottom)
+}
+
+/**
+ * Yazı tanımanın bulduğu bir satır; kutu okunan alana göredir, bilinmiyorsa null. [words]: okuyucu sözcüklerin yerini de
+ * veriyorsa (ML Kit) sözcükler, satırla aynı oranlarda; kumanda simgesini bulmak için ([ButtonIcons]). [icons]: metindeki
+ * her [ButtonIcons.MARKER] için, sırasıyla, simgenin yeri ve okunan hali.
+ */
+data class TextLine(
+    val text: String, val box: TextBox? = null, val words: List<TextWord>? = null, val icons: List<IconSlot>? = null,
+    /** Okuyucunun güveni (0–1); bilinmiyorsa null. Otomatik ekran yazısında düşük güvenli satır çevrilmez. */
+    val confidence: Float? = null,
+    /** Oyun telefonunda satırın düzleştirilmiş ekrandaki yeri ([GamePhoneReader]); [box] karedeki gerçek yeridir. */
+    val phoneBox: TextBox? = null,
+)
+
+/** Yazı tanımanın bulduğu bir sözcük ve yeri (okunan alanın kenarlarına oranla). */
+data class TextWord(val text: String, val box: TextBox)
+
+/**
+ * Yazının içindeki kumanda simgesi ("Hold △ to sprint"). Yazı tanıma simgeyi harf sanır ("A", "Ä") ya da hiç okumaz;
+ * [text] okunan hali (boş olabilir), [box] karedeki yeri, [image] kareden kesilen simgenin PNG'si (data: adresi;
+ * kesilemediyse null). Windows: Reading.cs IconSlot.
+ */
+data class IconSlot(val box: TextBox, val text: String, val image: String? = null)
+
+/** Bir karenin okunan satırları, yukarıdan aşağı (Windows: Reading.cs, Mac: Reading.swift). */
+class Reading(lines: List<TextLine>) {
+    val lines: List<TextLine> = lines.filter { it.text.isNotBlank() }
+
+    companion object {
+        val Empty = Reading(emptyList())
+
+        /** [isMenu]: menü satırlarının sol ya da sağ kenarı bu kadar içinde hizalı (okunan alana oranla). */
+        const val MENU_EDGE = 0.012
+
+        /**
+         * Ortalı blok bu kadar süredir hiç değişmediyse ve yanında ondan en az [StickyRows.YOUNGER_BY_MS] daha yeni (kırıntı
+         * olmayan) ortalı blok varsa altyazı sayılmaz. Kullanıcı bildirimi (GitHub #933, GTA 6): karakter TV izlerken haber
+         * programının alt bandı konuşma altyazısının altında duruyor, en alttaki ortalı blok olarak her karede bant
+         * seçiliyor, konuşma hiç çevrilmiyordu. Bant çoğu zaman "EXCLUSIVE: …", "BREAKING NEWS: …" diye başlıyor, konuşan
+         * adı sanılıp her zaman altyazı seçiliyordu. Tek ortalı blok (değişmeyen uzun cümle) seçilmeye devam eder. Konuşan
+         * adlı sabit blok yalnız yanındaki yeni blok en az üç sözcüklü bir cümleyse atlanır: kısa görev/HUD yazısı uzun
+         * konuşmayı geçmez (Mac: Reading.staleMs, Windows: Reading.StaleMs).
+         */
+        const val STALE_MS = 5000L
+
+        /** [joiningRows]: aynı satırdaki iki parça arasındaki en büyük boşluk (alan genişliğine oranla). */
+        const val ROW_GAP = 0.05
+
+        /**
+         * Aynı bloğun satırları arasındaki en büyük boşluk (satır yüksekliğine oranla). GTA 6 gibi geniş satır aralıklı
+         * altyazılarda 0,6 eşiği iki satırlı altyazıyı iki bloğa bölüyor, yalnız biri çevriliyordu (GitHub #822); 0,8 geri
+         * geldi. Alttaki satır üsttekinin devamıysa [CONTINUATION_GAP] geçerlidir (Mac/Windows: aynı eşikler).
+         */
+        const val LINE_GAP = 0.8
+        const val CONTINUATION_GAP = 1.3
+
+        /**
+         * [CONTINUATION_GAP] yalnız üstteki satır en az bu kadar sözcükken geçerlidir: altyazının sarılmış ilk satırı uzundur.
+         * Tek sözcüklük üst satır (GTA 6 telefon bildiriminde gönderenin adı "Cal", altında "Checked th…") geniş boşlukla
+         * alttakine katılınca altyazı seçiliyordu (gerçek kare gta6-n4-bildirim; Mac/Windows: aynı eşik).
+         */
+        const val CONTINUATION_MIN_WORDS = 3
+
+        fun fromText(text: String) = Reading(text.replace("\r\n", "\n").split('\n').map { TextLine(it.trim()) })
+
+        /** Aynı satırdaki iki sözcük arasındaki boşluk ayrı yazılara mı işaret ediyor (menü ile gösterge gibi). */
+        fun isSeparateText(gap: Double, lineHeight: Double, imageWidth: Double) =
+            gap > lineHeight * 4 && gap > imageWidth * 0.12
+
+        private fun wordCount(text: String) = text.split(Regex("\\s+")).count { it.isNotEmpty() }
+
+        /**
+         * [next] satırı [upper]'ın devamı mı: üstteki cümle bitmemiş (nokta, ünlem, soru işaretiyle bitmiyor) ve alttaki
+         * küçük harfle başlıyor ya da üstteki virgül/tireyle bitiyor ya da alttaki en çok üç sözcük. Konuşan adlı alt satır
+         * ("Lucia: …") yeni konuşmadır, devam sayılmaz (Windows: Reading.Continues, Mac: Reading.continues).
+         */
+        fun continues(upper: String, next: String): Boolean {
+            val top = upper.trim()
+            val below = next.trim()
+            if (top.isEmpty() || below.isEmpty() || SubtitleStabilizer.endsSentence(top)) return false
+            if (SpeakerPrefix.split(below) != null) return false
+            val first = below.firstOrNull { it.isLetter() }
+            return (first != null && first.isLowerCase()) || top.endsWith(",") || top.endsWith("-") || top.endsWith("—") ||
+                wordCount(below) <= 3
+        }
+    }
+
+    val text: String get() = lines.joinToString("\n") { it.text }
+
+    /** Bütün satırları içine alan kutu; hiçbir satırın yeri bilinmiyorsa null. */
+    val box: TextBox?
+        get() {
+            var total: TextBox? = null
+            for (line in lines) line.box?.let { total = total?.union(it) ?: it }
+            return total
+        }
+
+    /** Oyunun düğme ipuçları ("R2 Swing", "△ Pick up") çıkarılmış hali; bunlar altyazı değildir. */
+    /**
+     * Düğme ipuçları ("R2 Swing", "Press @ to open the map") çıkarılmış hali. Simgesi bulunmuş satır (`withButtonIcons`;
+     * "Ekranı çevir" ve ek alanlar) kalır: simgesiyle çevrilir, düğme görünür. Simgesi bulunamayan ipucu atılır; çevrilmediği
+     * için üstü örtülmez (Windows: WithoutButtonPrompts).
+     */
+    fun withoutButtonPrompts() = Reading(lines.filter { !it.icons.isNullOrEmpty() || !ButtonPrompts.isPrompt(it.text) })
+
+    /** Yazı tanımanın uydurduğu sözcük çöpleri ("ou$3e") ayıklanmış hali. */
+    fun withoutOcrNoise(keepIdentifiers: Boolean = false) = Reading(lines.map { it.copy(text = OcrNoise.clean(it.text, keepIdentifiers)) })
+
+    /** Yazının içindeki kumanda simgeleri [ButtonIcons.MARKER] ile işaretlenmiş hali (bkz. [ButtonIcons.mark]). */
+    fun withButtonIcons() = Reading(ButtonIcons.joinHints(this).lines.map { ButtonIcons.mark(it) })
+
+    /**
+     * [withButtonIcons], ayrıca fiilsiz yerlerdeki simgeler (tuş çubuğu, satır başı) [frame]'den (okunan görüntü)
+     * doğrulanarak işaretlenir ([ButtonIcons.markFree]). [monochrome]: yalnız renksiz simgeler (otomatik ekran yazısı;
+     * [color] gerekir). Mac ve Windows WithButtonIcons(frame) ile aynı.
+     */
+    fun withButtonIcons(frame: GrayFrame, color: ((Int, Int) -> Int)? = null, monochrome: Boolean = false) =
+        Reading(withButtonIcons().lines.map { ButtonIcons.markFree(it, frame, color, monochrome) })
+
+    /**
+     * Aynı satırda yan yana okunan parçalar soldan sağa tek satır olur. Renkli konuşan adını ("Arthur:", RDR2) yazı
+     * tanıma cümleden ayrı okuyabiliyor; parçalar yalnız üst kenarlarına göre dizilince ad cümlenin sonuna düşüyor ya da
+     * ayrı blok sayılıp atılıyordu. Yatayda aralarında en çok [ROW_GAP] (alan genişliğine oranla) olan parçalar
+     * birleşir; uzaktaki köşe yazısı ayrı kalır (Mac: Reading.joiningRows, Windows: Reading.JoiningRows).
+     */
+    fun joiningRows(): Reading {
+        if (lines.size < 2 || lines.any { it.box == null }) return this
+        val rows = mutableListOf<TextLine>()
+        for (line in lines.sortedBy { it.box!!.left }) {
+            val box = line.box!!
+            val index = rows.indexOfFirst { sameRow(box, it.box!!) }
+            if (index >= 0) {
+                val row = rows[index]
+                rows[index] = TextLine(row.text + " " + line.text, row.box!!.union(box))
+            } else {
+                rows.add(line)
+            }
+        }
+        return Reading(rows.sortedBy { it.box!!.top })
+    }
+
+    private fun sameRow(next: TextBox, row: TextBox): Boolean {
+        val overlap = minOf(next.bottom, row.bottom) - maxOf(next.top, row.top)
+        val smaller = minOf(next.bottom - next.top, row.bottom - row.top)
+        if (smaller <= 0 || overlap < smaller * 0.6) return false
+        return next.left - row.right <= ROW_GAP
+    }
+
+    /**
+     * Alandaki altyazı bloğu: satırlar yerlerine göre bloklara ayrılır; ortalanmış ve menü olmayan en alttaki blok
+     * altyazıdır. Ortalanmış blok yoksa en az üç sözcüklü, menü olmayan en alttaki blok alınır. Satırların yeri
+     * bilinmiyorsa okuma olduğu gibi kalır. [area]: okunan alanın karedeki yeri. Tek satırlık etkileşim/HUD etiketi
+     * ("TAKE AMMO PACK (0/3)", [ButtonPrompts.isActionLabel]) ve sahne yazısı (tabela, tişört; [SceneText]) altyazı
+     * bloğu sayılmaz. [band]: bu oturumda altyazının okunduğu yükseklikler; [dropped]: sahne yazısı sayılıp atılan her
+     * blok ve nedeni (altyazı günlüğü için). "Tam ekran" alanda ekranın kenarındaki bildirim kartı ([ScreenNotices.isNotice])
+     * altyazı bloğu sayılmaz, [notices] ile bildirilir (satır kutuları alana oranlı); kendi yerinde çevrilir. Önceden
+     * ortalanmış blok yokken altyazı seçilip ekranın ortasında çiziliyordu. [age]: satırın ne kadar süredir değişmeden
+     * okunduğu ([StickyRows.unchangedMs]); verilirse [STALE_MS]'dir değişmeyen ortalı blok, yanında yeni beliren ortalı
+     * blok varken seçilmez, atlanan blok [stale] ile bildirilir.
+     */
+    fun subtitleBlock(
+        area: TextBox, band: SubtitleBand? = null, notices: ((Reading) -> Unit)? = null,
+        age: ((String) -> Long?)? = null, stale: ((Reading) -> Unit)? = null,
+        dropped: ((Reading, String) -> Unit)? = null,
+    ): Reading {
+        if (lines.isEmpty() || lines.any { it.box == null }) return if (isActionLabel) Empty else this
+        val blocks = mutableListOf<MutableList<TextLine>>()
+        for (line in lines.sortedBy { it.box!!.top }) {
+            val placed = line.box!!.placedIn(area)
+            val index = blocks.indexOfLast { belongs(placed, line.text, it, area) }
+            if (index >= 0) blocks[index].add(line) else blocks.add(mutableListOf(line))
+        }
+        // Tabela, tişört, plaka gibi sahne yazısı ([SceneText]) altyazı alanına düşse de altyazı değildir.
+        val candidates = blocks.flatMap { withoutSignLines(it) }.map { Reading(it) }.filter { block ->
+            if (block.isMenu || block.isActionLabel) return@filter false
+            val reason = SceneText.reason(block, area, band) ?: return@filter true
+            dropped?.invoke(block, reason)
+            false
+        }.filter { block ->
+            if (!ScreenNotices.isWholeScreen(area) || !ScreenNotices.isNotice(block.box!!.placedIn(area))) return@filter true
+            notices?.invoke(block)
+            false
+        }
+        val middle = candidates.filter { reading ->
+            val placed = reading.box!!.placedIn(area)
+            abs((placed.left + placed.right) / 2 - 0.5) <= 0.12
+        }
+        // Görev satırı altyazıyla aynı anda belirince ayrı blok olur (aralık ya da yazı boyu farkı): konuşan adı taşıyan
+        // blok altyazıdır ("Lucia: …" görevin üstünde de dursa).
+        val centered = withoutStale(middle, age, stale)
+        centered.firstOrNull { SpeakerPrefix.split(it.lines[0].text) != null }?.let { return it }
+        if (centered.isNotEmpty()) {
+            val lowest = centered.indices.maxBy { centered[it].box!!.bottom }
+            return objectiveBelow(lowest, centered, area) ?: centered[lowest]
+        }
+        return candidates.filter { wordCount(it.text) >= 3 }.maxByOrNull { it.box!!.bottom } ?: Empty
+    }
+
+    /**
+     * En alttaki blok, hemen üstündeki konuşmanın altına onunla aynı anda gelen görev satırı mı: tek satır ve üstündeki
+     * ortalanmış bloktan (arada en çok üç satır boyu) belirgin kısa ([StickyRows.JOINED_SHARE]). Öyleyse altyazı üstteki
+     * bloktur. Kullanıcı bildirimi (X, beta.69, GTA 6): "John'u takip et" konuşmayla birlikte belirince en alttaki blok
+     * olarak altyazı seçiliyor, konuşma hiç çevrilmiyordu. Görev ekranda kalınca sonraki konuşmalarda [StickyRows] onu
+     * ayırır (Windows ve Mac ile aynı).
+     */
+    private fun objectiveBelow(index: Int, centered: List<Reading>, area: TextBox): Reading? {
+        val lowest = centered[index]
+        if (lowest.lines.size != 1) return null
+        val box = lowest.box!!.placedIn(area)
+        val height = box.bottom - box.top
+        val above = centered.indices.filter { other ->
+            val placed = centered[other].box!!.placedIn(area)
+            other != index && placed.bottom <= box.top + height * 0.25 && box.top - placed.bottom <= height * 3
+        }.map { centered[it] }.maxByOrNull { it.box!!.bottom } ?: return null
+        return if (letters(lowest.text) <= StickyRows.JOINED_SHARE * letters(above.text)) above else null
+    }
+
+    private fun letters(text: String) = text.count { it.isLetter() }
+
+    /**
+     * Konuşmayla aynı bloğa düşen plaka/tabela satırları ayrı blok olur (sonra [SceneText] ya da [isActionLabel] ile
+     * atılır). Kullanıcı bildirimi (GitHub #1052, GTA 6, beta.84): plaka konuşmanın hemen üstünde durunca aynı bloğa
+     * katılıyor, "FLORIANA / Dunk: Yo. How you know that was me?" diye çevriliyor, plaka okundukça aynı replik yeniden
+     * işleniyordu. Ayrılan: konuşan adlı satırın üstündeki kısa büyük harfli satırlar ([SceneText.isSignLine]; konuşan
+     * adı yeni konuşmanın ilk satırıdır) ve küçük harfli konuşmanın altında, cümlenin devamı olmayan, rakam taşıyan kısa
+     * büyük harfli satır ("AKB 51"). Tümü büyük harfli altyazının devamı ("LUCIA: GET / DOWN!", "I'm with the / FBI.")
+     * ayrılmaz (Mac: Reading.withoutSignLines, Windows: Reading.WithoutSignLines).
+     */
+    private fun withoutSignLines(block: List<TextLine>): List<List<TextLine>> {
+        val speaker = (1 until block.size).firstOrNull { SpeakerPrefix.split(block[it].text) != null }
+        if (speaker != null && block.take(speaker).all { SceneText.isSignLine(it.text) }) {
+            return listOf(block.take(speaker)) + withoutSignLines(block.drop(speaker))
+        }
+        if (block.size < 2 || SpeakerPrefix.split(block[0].text) == null || block[0].text.none { it.isLowerCase() }) return listOf(block)
+        val cut = (1 until block.size).firstOrNull { i ->
+            SceneText.isSignLine(block[i].text) && block[i].text.any { it.isDigit() } && !continues(block[i - 1].text, block[i].text)
+        } ?: return listOf(block)
+        return listOf(block.take(cut), block.drop(cut))
+    }
+
+    /** [centered] blokların sabit olanları ([STALE_MS]) çıkarılmış hali; satır yaşı bilinmiyorsa olduğu gibi kalır. */
+    private fun withoutStale(centered: List<Reading>, age: ((String) -> Long?)?, skipped: ((Reading) -> Unit)?): List<Reading> {
+        if (age == null || centered.size < 2) return centered
+        val ages = centered.map { block -> block.lines.mapNotNull { age(it.text) }.minOrNull() ?: 0L }
+        val fresh = centered.indices.filter { ages[it] < STALE_MS && !OcrNoise.isCrumb(centered[it].text) }
+        val youngest = fresh.minOfOrNull { ages[it] } ?: return centered
+        val sentence = fresh.filter { wordCount(centered[it].text) >= 3 }.minOfOrNull { ages[it] }
+        val stale = centered.indices.filter { index ->
+            if (ages[index] < STALE_MS) return@filter false
+            val rival = if (SpeakerPrefix.split(centered[index].lines[0].text) == null) youngest else sentence
+            rival != null && ages[index] - rival >= StickyRows.YOUNGER_BY_MS
+        }.toSet()
+        if (stale.isEmpty()) return centered
+        stale.sorted().forEach { skipped?.invoke(centered[it]) }
+        return centered.indices.filter { it !in stale }.map { centered[it] }
+    }
+
+    /**
+     * Bloğun son satırının hemen altında ve yatayda onunla üst üste binen satır o bloğa aittir. Aradaki boşluk satır
+     * yüksekliğinin [LINE_GAP] katından (devam satırında [CONTINUATION_GAP]) büyükse ya da yazı boyları 1,25 kattan çok farklıysa ayrı bloktur (altyazıya bitişik görev
+     * satırı ayrılır; Windows ve Mac ile aynı). Yazı boyu yalnız iki satır da en az üç sözcükken karşılaştırılır ve alttaki
+     * satır üsttekinin devamıysa ([continues]) hiç karşılaştırılmaz: satır kutusu harflere göre ölçülür, "now." gibi kısa ve
+     * büyük harfsiz/kuyruksuz satırın kutusu daha alçak çıkıyor, cümlenin devamı ayrı blok sayılıp tek başına çevriliyordu
+     * (GitHub #715).
+     */
+    private fun belongs(box: TextBox, text: String, block: List<TextLine>, area: TextBox): Boolean {
+        val last = block.last().box!!.placedIn(area)
+        val own = box.bottom - box.top
+        val previous = last.bottom - last.top
+        val height = maxOf(own, previous)
+        val upper = block.last().text
+        val continuing = continues(upper, text)
+        val wide = continuing && wordCount(upper) >= CONTINUATION_MIN_WORDS
+        if (box.top - last.bottom > height * (if (wide) CONTINUATION_GAP else LINE_GAP) || box.top < last.top) return false
+        val comparable = wordCount(text) >= 3 && wordCount(upper) >= 3 && !continuing
+        if (comparable && maxOf(own, previous) > 1.25 * minOf(own, previous)) return false
+        val overlap = minOf(box.right, last.right) - maxOf(box.left, last.left)
+        val narrower = minOf(box.right - box.left, last.right - last.left)
+        return overlap > 0 && overlap >= narrower * 0.5
+    }
+
+    /** Alt alta kısa ve noktalamasız satırlar ("MAP", "HELP", "SOCIAL CLUB") menüdür, konuşma değil. */
+    /**
+     * Satırların yeri biliniyorsa sol ya da sağ kenarları [MENU_EDGE] içinde hizalı olmalı: ortalanmış kısa konuşma
+     * satırları ("No / Wait / Go on") menü sanılıp atılmasın. Konuşan adıyla başlayan satır menü değildir (Mac/iPhone,
+     * Windows ile aynı).
+     */
+    internal val isMenu: Boolean
+        get() {
+            if (lines.size < 3 || !lines.all {
+                    wordCount(it.text) <= 3 && !SubtitleStabilizer.endsSentence(it.text) && SpeakerPrefix.split(it.text) == null
+                }) return false
+            val boxes = lines.mapNotNull { it.box }
+            if (boxes.size != lines.size) return true
+            fun aligned(edges: List<Double>) = edges.max() - edges.min() <= MENU_EDGE
+            return aligned(boxes.map { it.left }) || aligned(boxes.map { it.right })
+        }
+
+    /** Tek başına okunan etkileşim/HUD etiketi (GTA 6: "SIT", "• ADD TO TRUNK"). */
+    internal val isActionLabel: Boolean
+        get() = lines.size == 1 && ButtonPrompts.isActionLabel(lines[0].text)
+}
+
+/** Oyunların kumanda ipuçlarını tanır: "R2 Swing", "L1 + R1 Spartan Rage", "△ Pick up", "Press ✕ to jump". */
+object ButtonPrompts {
+    private val buttons = setOf(
+        "r1", "r2", "r3", "l1", "l2", "l3", "options", "touchpad",
+        "✕", "×", "⨯", "✖", "○", "◯", "●", "□", "▢", "◻", "■", "△", "▲", "⨂",
+    )
+    /** Simge yazı tanımada harfe dönüşebilir; yalnız ipucu kalıbında düğme sayılır. */
+    private val lookalikes = setOf("X", "O")
+    private val verbs = setOf("press", "hold", "tap", "push", "use", "mash", "release")
+    private val separators = Regex("[ \\t+/]+")
+    private const val BRACKETS = "()[]{}<>「」"
+
+    private fun isButton(token: String) = token.lowercase() in buttons
+
+    fun isPrompt(line: String): Boolean {
+        val tokens = line.split(separators).map { it.trim { c -> c in BRACKETS } }.filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return false
+        val first = tokens[0]
+        val words = tokens.count { !isButton(it) && it.any { c -> c.isLetter() } }
+        if (isButton(first)) return words <= 5
+        if (isButton(tokens.last()) && words <= 4 && !SubtitleStabilizer.endsSentence(line)) return true
+        if (first in lookalikes && tokens.size in 2..4 && tokens[1][0].isUpperCase() && !SubtitleStabilizer.endsSentence(line))
+            return true
+        if (first.lowercase() in verbs && tokens.size in 2..10 && (isButton(tokens[1]) || tokens[1] in lookalikes)) return true
+        return isIconPrompt(tokens, line)
+    }
+
+    private val connectors = setOf("and", "or")
+    /** Büyük harfle yazılmış kısa İngilizce sözcükler tuş kalıntısı sayılmaz ("HOLD ON TO IT"). */
+    private val shortWords = setOf("on", "up", "it", "in", "at", "out", "off", "me", "us", "him", "her", "my", "an", "the", "you", "its")
+    /** "to"dan sonra eylem yerine bunlar gelirse konuşmadır ("Hold to your course"). */
+    private val objects = setOf(
+        "the", "a", "an", "my", "your", "his", "her", "our", "their", "me", "you", "him", "them", "us", "it", "this", "that",
+    )
+
+    /**
+     * Tuş simgesinin yazı tanımadaki kalıntısı: harfsiz ("@", "•", "9"), tek karakter ("D", "i"; "a" hariç), tuş adı,
+     * "and"/"or" ya da büyük harf içeren en çok üç karakter ("LI", "RE", "Rd", "RB").
+     */
+    private fun isIconRemnant(token: String): Boolean {
+        if (token.none { it.isLetter() } || isButton(token) || token in lookalikes || token.lowercase() in connectors) return true
+        if (token.length == 1) return token != "a"
+        return token.length <= 3 && token.any { it.isUpperCase() } && token.lowercase() !in shortWords
+    }
+
+    /**
+     * GTA 6: "Press/Hold/Use ... to ..." ipucunda tuş simgesi resimdir; yazı tanıma onu ya hiç okumaz ("Press  to open
+     * the map") ya da harf/simge kalıntısı olarak okur ("Press @ to", "Hold I LI to", "Press [RB] to take cover").
+     * Çevrilince tuş kaybolur ve konuşma yerine ipucu görünür. Fiil ile "to" arasında en çok üç kalıntı olabilir; ünlem,
+     * soru, tırnak ya da konuşmacı adı (":") taşıyan satır ve "to"dan sonra eylem yerine nesne gelen satır ("Hold to
+     * your course") konuşma sayılır (Mac: ButtonPrompts.isIconPrompt, Windows: ButtonPrompts.IsIconPrompt, havuz:
+     * server/pool/src/prompts.js).
+     */
+    private fun isIconPrompt(tokens: List<String>, line: String): Boolean {
+        if (line.any { it in "!?\"“”:" }) return false
+        val all = tokens.dropWhile { token -> token.none { it.isLetter() } }
+        if (all.size < 3 || all[0].lowercase() !in verbs) return false
+        val to = (1 until all.size).firstOrNull { all[it].lowercase() == "to" } ?: return false
+        if (to > 4 || !all.subList(1, to).all(::isIconRemnant)) return false
+        val next = all.drop(to + 1).firstOrNull { token -> token.any { it.isLetter() } } ?: return false
+        return all.size - to - 1 <= 10 && next.lowercase() !in objects
+    }
+
+    /**
+     * `isIconPrompt` kalıbındaki satırın yazı tanıma sözcüklerinde fiilin ve "to"nun sırası; aralarında en az bir tuş
+     * kalıntısı yoksa ya da kalıp tutmazsa null. Aradaki kalıntılar ("I LI", "(9 0", "2 and R2") simgenin okunuşudur:
+     * `ButtonIcons.mark` onları kareden kesilecek simge yapar (Windows: ButtonPrompts.IconRemnantSpan).
+     */
+    internal fun iconRemnantSpan(words: List<String>, line: String): Pair<Int, Int>? {
+        val tokens = line.split(separators).map { it.trim { c -> c in BRACKETS } }.filter { it.isNotEmpty() }
+        if (!isIconPrompt(tokens, line)) return null
+        val verb = words.indexOfFirst { word -> word.trim { c -> c in BRACKETS }.any { it.isLetter() } }
+        if (verb < 0 || words[verb].trim { c -> c in BRACKETS }.lowercase() !in verbs) return null
+        var end = verb + 2
+        while (end < words.size && end <= verb + 4) {
+            if (words[end].trim { c -> c in BRACKETS }.lowercase() == "to") {
+                val between = words.subList(verb + 1, end)
+                    .flatMap { it.split(separators) }
+                    .map { it.trim { c -> c in BRACKETS } }
+                    .filter { it.isNotEmpty() }
+                return if (between.all(::isIconRemnant)) Pair(verb, end) else null
+            }
+            end++
+        }
+        return null
+    }
+
+    /** "and"/"or": iki tuş kalıntısının arasındaki bağlaç, simge değildir ("Release 2 and R2 to breathe out"). */
+    internal fun isConnector(token: String) = token.lowercase() in connectors
+
+    /**
+     * Etkileşim/HUD etiketi: en çok üç sözcük, hiç küçük harf yok (en az bir büyük harf var), cümle sonu noktalaması
+     * yok. GTA 6'nın etkileşim yazıları ("TAKE AMMO PACK (0/3)", "• ADD TO TRUNK", "TURN ON") ve ekipman yazıları
+     * ("BENCH PRESS") altyazı gibi çevriliyordu (#404). Konuşma küçük harf içerir ya da noktalamayla biter ("Yes.",
+     * "OKAY.", "WHAT?"); büyük/küçük harfi olmayan yazılara dokunulmaz. Yalnız tek başına okunan satıra uygulanır
+     * (Mac: ButtonPrompts.isActionLabel, Windows: ButtonPrompts.IsActionLabel).
+     */
+    fun isActionLabel(line: String): Boolean {
+        val words = line.split(Regex("\\s+")).count { word -> word.any { it.isLetter() } }
+        return words in 1..3 && line.any { it.isUpperCase() } && line.none { it.isLowerCase() } &&
+            !SubtitleStabilizer.endsSentence(line)
+    }
+}

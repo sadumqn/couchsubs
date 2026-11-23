@@ -25,10 +25,48 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
     public const string EngineId = "deepl";
     /// <summary>Bağlama giden önceki satır sayısı.</summary>
     internal const int ContextLines = 3;
-    /// <summary>Hata sonrası bu süre DeepL denenmez; her satırda bağlantı zaman aşımını beklemeyelim.</summary>
-    private static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(1);
+    /// <summary>Hata sonrası bu süre DeepL denenmez; her satırda bağlantı zaman aşımını beklemeyelim. 1 dk oyunda çok uzundu.</summary>
+    private static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(15);
 
-    private static readonly Lazy<HttpClient> SharedClient = new(() => new HttpClient { Timeout = TimeSpan.FromSeconds(4) });
+    /// <summary>
+    /// Ortak bağlantı uzun süre açık kalır: boşta kalan bağlantı varsayılan olarak bir dakikada kapanıyor, sessizlikten
+    /// sonraki ilk satır yeni TLS el sıkışmasını bekliyordu (~0,3 sn fazladan).
+    /// </summary>
+    private static readonly Lazy<HttpClient> SharedClient = new(() => new HttpClient(new SocketsHttpHandler
+    {
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(15),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(30),
+        KeepAlivePingDelay = TimeSpan.FromSeconds(30),
+        KeepAlivePingTimeout = TimeSpan.FromSeconds(10),
+        KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+    }) { Timeout = TimeSpan.FromSeconds(4) });
+
+    /// <summary>Bağlantıyı sıcak tutan istekler arası süre; sunucu tarafı boşta bağlantıyı genelde 60 sn'de kapatır.</summary>
+    internal static readonly TimeSpan KeepWarmEvery = TimeSpan.FromSeconds(40);
+    /// <summary>Son çeviriden bu kadar sonra bağlantı sıcak tutulmaz (oyun bitti, uygulama boşta).</summary>
+    internal static readonly TimeSpan KeepWarmFor = TimeSpan.FromMinutes(10);
+    private static Timer? _warmTimer;
+    private static string _warmKey = "";
+    private static long _lastUsedTicks;
+
+    /// <summary>
+    /// Ortak bağlantıyı sıcak tutar: oturum başında ve son çeviriden sonraki <see cref="KeepWarmFor"/> boyunca her
+    /// <see cref="KeepWarmEvery"/>'de bir kullanım sorgusu (<c>/v2/usage</c>; karakter kotasından yemez) gönderir.
+    /// Böylece uzun sessizlikten sonraki ilk replik de açık bağlantıdan gider.
+    /// </summary>
+    private static void KeepWarm(string key)
+    {
+        Volatile.Write(ref _warmKey, key);
+        Interlocked.Exchange(ref _lastUsedTicks, DateTimeOffset.UtcNow.UtcTicks);
+        if (_warmTimer is not null) return;
+        var timer = new Timer(_ =>
+        {
+            var idle = DateTimeOffset.UtcNow.UtcTicks - Interlocked.Read(ref _lastUsedTicks);
+            if (idle > KeepWarmFor.Ticks || Volatile.Read(ref _warmKey) is not { Length: > 0 } warm) return;
+            _ = CheckAsync(warm);
+        }, null, TimeSpan.Zero, KeepWarmEvery);
+        if (Interlocked.CompareExchange(ref _warmTimer, timer, null) is not null) timer.Dispose();
+    }
 
     private readonly string _key;
     private readonly ITextTranslator? _fallback;
@@ -40,17 +78,21 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
     /// <summary>Çevrilmeyecek adlar ve terimler (ücretsiz çeviriyle aynı sözlük); DeepL'e etiketle korunarak gider.</summary>
     private readonly GlossaryStore _glossary;
     private DateTimeOffset _pausedUntil = DateTimeOffset.MinValue;
+    /// <summary>Bekleme DeepL'in 429 yanıtından mı; öyleyse yerel yedek olmasa da istek gönderilmez.</summary>
+    private bool _pauseRateLimited;
 
     /// <param name="cache">Kalıcı önbellek; verilmezse yalnız bellekte tutulur.</param>
     /// <param name="glossary">Verilmezse kullanıcının sözlük klasörü (ücretsiz çeviriyle aynı).</param>
     public DeepLTranslator(string key, ITextTranslator? fallback, HttpClient? http = null, TranslationCache? cache = null,
         GlossaryStore? glossary = null)
     {
-        _key = key.Trim();
+        _key = DeepLKey.Clean(key);
         _fallback = fallback;
         _http = http ?? SharedClient.Value;
         _cache = cache ?? new TranslationCache();
         _glossary = glossary ?? new GlossaryStore(GlossaryStore.UserDirectory);
+        // Gerçek bağlantıyla (testlerin sahte istemcisi değil) çalışırken oturum başında ısınır, oyun boyunca sıcak kalır.
+        if (http is null && _key.Length > 0) KeepWarm(_key);
     }
 
     /// <summary>Son DeepL hatası; çeviri düzgün gidiyorsa null.</summary>
@@ -67,7 +109,15 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
 
     /// <summary>Ücretsiz anahtarlar ":fx" ile biter ve ayrı adrese gider.</summary>
     internal static Uri BaseUri(string key) =>
-        new(key.Trim().EndsWith(":fx", StringComparison.Ordinal) ? "https://api-free.deepl.com/v2/" : "https://api.deepl.com/v2/");
+        new(DeepLKey.Clean(key).EndsWith(":fx", StringComparison.Ordinal) ? "https://api-free.deepl.com/v2/" : "https://api.deepl.com/v2/");
+
+    /// <summary>Konuşan adını öğrenir ("OLD MAN" → "old", "man"); yerel yedek de öğrenir, orada cümle içinde korunur (#287).</summary>
+    public void NoteSpeaker(string name)
+    {
+        foreach (var word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2))
+            _names[word.ToLowerInvariant()] = 0;
+        _fallback?.NoteSpeaker(name);
+    }
 
     public async Task<string> TranslateAsync(string text, CancellationToken cancellationToken = default)
     {
@@ -75,14 +125,18 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
         // Bağlam, bu satırdan önce gösterilenlerdir; satırın kendisi bağlama girmez.
         var context = Context();
         Shown(text);
+        if (_http == SharedClient.Value && _key.Length > 0) Interlocked.Exchange(ref _lastUsedTicks, DateTimeOffset.UtcNow.UtcTicks);
         var glossary = _glossary.Current;
         if (_cache.TryGet(DeepLMarkup.CacheKey(text, glossary), out var cached)) return cached;
-        if (DateTimeOffset.UtcNow < _pausedUntil) return await FallbackAsync(text, cancellationToken).ConfigureAwait(false);
+        // Hata sonrası beklemede yerel çeviri yoksa (inmemiş, açılamadı) satır düşmesin: DeepL yine denenir. 429 beklemesi kalır.
+        if (DateTimeOffset.UtcNow < _pausedUntil)
+        {
+            if (_pauseRateLimited) return await FallbackAsync(text, cancellationToken).ConfigureAwait(false);
+            if (await TryFallbackAsync(text, cancellationToken).ConfigureAwait(false) is { } local) return local;
+        }
 
         var pieces = SubtitleSegmenter.Split(text);
-        foreach (var name in pieces.Select(SubtitleSegmenter.LabelName).OfType<string>())
-            foreach (var word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2))
-                _names[word.ToLowerInvariant()] = 0;
+        foreach (var name in pieces.Select(SubtitleSegmenter.LabelName).OfType<string>()) NoteSpeaker(name);
         var names = _names.Keys.ToHashSet(StringComparer.Ordinal);
         names.UnionWith(glossary.CapitalWords);
         // Önbellekte duran cümleler yeniden gönderilmez; kota yalnız yeni cümlelere gider.
@@ -97,7 +151,17 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
         string[] translated;
         try
         {
-            var reply = sources.Count == 0 ? [] : await RequestAsync(sources, context, tagged, cancellationToken).ConfigureAwait(false);
+            string[] reply;
+            try
+            {
+                reply = sources.Count == 0 ? [] : await RequestAsync(sources, context, tagged, cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Açık tutulan bağlantıyı sunucu sessizce kapatmış olabilir: yeni bağlantıyla hemen bir kez daha denenir,
+                // yedek çeviriye (ve DeepL'in beklemesine) ancak ikinci hata düşürür.
+                reply = await RequestAsync(sources, context, tagged, cancellationToken).ConfigureAwait(false);
+            }
             translated = tagged ? [.. reply.Select(DeepLMarkup.Unwrap)] : reply;
             Report(null);
         }
@@ -106,6 +170,7 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
         {
             Report(error is DeepLException deepL ? deepL.State : OnlineKeyState.Unreachable);
             _pausedUntil = DateTimeOffset.UtcNow + RetryAfter;
+            _pauseRateLimited = error is DeepLException { RateLimited: true };
             return await FallbackAsync(text, cancellationToken).ConfigureAwait(false);
         }
         for (var i = 0; i < missing.Count; i++)
@@ -145,6 +210,14 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
         : SpeechScript.FromCache(text, _cache) is { Count: > 0 } cached ? cached
         : _fallback?.SpokenLines(text) ?? [];
 
+    /// <summary>Cihaz üstü çeviri; yoksa ya da hata verirse null.</summary>
+    private async Task<string?> TryFallbackAsync(string text, CancellationToken cancellationToken)
+    {
+        if (_fallback is null) return null;
+        try { return await _fallback.TranslateAsync(text, cancellationToken).ConfigureAwait(false); }
+        catch (Exception error) when (error is not OperationCanceledException) { return null; }
+    }
+
     private async Task<string> FallbackAsync(string text, CancellationToken cancellationToken) =>
         _fallback is null ? throw new TranslatorException(TranslatorStatus.NeedsDownload)
             : await _fallback.TranslateAsync(text, cancellationToken).ConfigureAwait(false);
@@ -166,26 +239,68 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
         return [.. list.Select(t => t.Text)];
     }
 
-    /// <summary>Ayarlardaki "Dene" düğmesi: anahtar geçerli mi, bu ay ne kadar kullanıldı.</summary>
+    /// <summary>
+    /// Ayarlardaki "Dene" düğmesi: anahtar geçerli mi, bu ay ne kadar kullanıldı (Mac/iPhone: DeepLTranslator.check, Android:
+    /// KeyCheck.deepLUsage; aynı kurallar). Her hata kendi nedeniyle döner: 401/403 geçersiz, 456 sınır doldu, 429 çok sık
+    /// istek (Busy: anahtar reddedilmedi, kaydedilir), diğer HTTP kodları sunucu hatası, istek hiç ulaşmadıysa ağ hatası.
+    /// 200 yanıtında kullanım alanları eksik ya da beklenmedik biçimdeyse anahtar yine geçerlidir (sınır 0 görünür).
+    /// </summary>
     public static async Task<OnlineKeyCheck> CheckAsync(string key, HttpClient? http = null, CancellationToken cancellationToken = default)
     {
-        key = key.Trim();
+        key = DeepLKey.Clean(key);
         if (key.Length == 0) return new(OnlineKeyState.Invalid);
+        if (!DeepLKey.IsWellFormed(key)) return new(OnlineKeyState.Invalid, Reason: OnlineKeyReason.MalformedKey);
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUri(key), "usage"));
             request.Headers.Authorization = new AuthenticationHeaderValue("DeepL-Auth-Key", key);
             using var response = await (http ?? SharedClient.Value).SendAsync(request, cancellationToken).ConfigureAwait(false);
-            ThrowIfFailed(response);
-            var usage = await response.Content.ReadFromJsonAsync(DeepLJson.Default.UsageResponse, cancellationToken).ConfigureAwait(false);
-            if (usage is null) return new(OnlineKeyState.Unreachable);
-            return new(usage.CharacterLimit > 0 && usage.CharacterCount >= usage.CharacterLimit ? OnlineKeyState.QuotaExceeded : OnlineKeyState.Valid,
-                usage.CharacterCount, usage.CharacterLimit);
+            var status = (int)response.StatusCode;
+            switch (status)
+            {
+                case >= 200 and < 300: break;
+                case 401 or 403: return new(OnlineKeyState.Invalid, Reason: OnlineKeyReason.HttpStatus, Code: status);
+                case 456: return new(OnlineKeyState.QuotaExceeded, Reason: OnlineKeyReason.HttpStatus, Code: status);
+                case 429: return new(OnlineKeyState.Busy, Reason: OnlineKeyReason.RateLimited, Code: status);
+                default: return new(OnlineKeyState.Unreachable, Reason: OnlineKeyReason.HttpStatus, Code: status);
+            }
+            // JSON olmayan 200 yanıtı (otel/kafe ağının giriş sayfası gibi) DeepL'den gelmemiştir: ağ hatası.
+            if (ParseUsage(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)) is not { } usage)
+                return new(OnlineKeyState.Unreachable, Reason: OnlineKeyReason.Network);
+            var (count, limit) = usage;
+            return new(limit > 0 && count >= limit ? OnlineKeyState.QuotaExceeded : OnlineKeyState.Valid, count, limit);
         }
-        catch (DeepLException error) { return new(error.State); }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            return new(OnlineKeyState.Unreachable);
+            return new(OnlineKeyState.Unreachable, Reason: OnlineKeyReason.Network);
+        }
+    }
+
+    /// <summary>
+    /// <c>/v2/usage</c> yanıtı (Mac ve Android'deki çözümlemeyle aynı): alan eksik ya da sayı değilse 0; ondalıklı değer tam
+    /// sayıya, long'a sığmayan değer long.MaxValue'ya indirilir. Gövde JSON nesnesi değilse null.
+    /// </summary>
+    internal static (long Count, long Limit)? ParseUsage(string body)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+            return (Number(document.RootElement, "character_count"), Number(document.RootElement, "character_limit"));
+        }
+        catch (System.Text.Json.JsonException) { return null; }
+
+        static long Number(System.Text.Json.JsonElement root, string name)
+        {
+            if (!root.TryGetProperty(name, out var value)) return 0;
+            string text;
+            if (value.ValueKind == System.Text.Json.JsonValueKind.Number) text = value.GetRawText();
+            else if (value.ValueKind == System.Text.Json.JsonValueKind.String) text = value.GetString() ?? "";
+            else return 0;
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            if (long.TryParse(text, System.Globalization.NumberStyles.Integer, invariant, out var exact)) return Math.Max(0, exact);
+            if (!double.TryParse(text, System.Globalization.NumberStyles.Float, invariant, out var number) || double.IsNaN(number) || number <= 0) return 0;
+            return number >= 9.2e18 ? long.MaxValue : (long)number;
         }
     }
 
@@ -197,13 +312,15 @@ public sealed class DeepLTranslator : ITextTranslator, IOnlineTranslator
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => OnlineKeyState.Invalid,
             (HttpStatusCode)456 => OnlineKeyState.QuotaExceeded,
             _ => OnlineKeyState.Unreachable,
-        });
+        }) { RateLimited = response.StatusCode == HttpStatusCode.TooManyRequests };
     }
 }
 
 internal sealed class DeepLException(OnlineKeyState state) : Exception($"DeepL: {state}")
 {
     public OnlineKeyState State { get; } = state;
+    /// <summary>DeepL 429 döndü (çok sık istek): bekleme süresince istek gönderilmez.</summary>
+    public bool RateLimited { get; init; }
 }
 
 internal sealed record TranslateRequest(
@@ -220,11 +337,6 @@ internal sealed record TranslateResponse([property: JsonPropertyName("translatio
 
 internal sealed record TranslatedText([property: JsonPropertyName("text")] string Text);
 
-internal sealed record UsageResponse(
-    [property: JsonPropertyName("character_count")] long CharacterCount,
-    [property: JsonPropertyName("character_limit")] long CharacterLimit);
-
 [JsonSerializable(typeof(TranslateRequest))]
 [JsonSerializable(typeof(TranslateResponse))]
-[JsonSerializable(typeof(UsageResponse))]
 internal sealed partial class DeepLJson : JsonSerializerContext;

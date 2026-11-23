@@ -60,6 +60,10 @@ imzalı, Sparkle pakete girmiş mi.
 
 - **Sparkle yok.** Paket hedefe bağlanmaz; `CouchSubsApp.swift`'te güncelleyici ve "Check for updates…" menüsü
   `#if !APP_STORE` içinde. Info.plist'te `SU*` anahtarları yok (`mac/AppStore/Info.plist`).
+- **Kullanım verisi yok.** GitHub/Sparkle Mac sürümü ve Windows, Google Analytics'e (Measurement Protocol) kullanım
+  olayları gönderir (`UsageStats`); App Store sürümünde `UsageMeasurement.config()` `APP_STORE` bayrağıyla hep nil döner,
+  Info.plist'te `CSGA*` anahtarları yok, Ayarlar'daki "Kullanım verisi" anahtarı ve ilk açılış notu görünmez. App Store
+  gizlilik beyanı ("veri toplanmıyor") güncellenmeden bu açılmamalı.
 - **Yetkiler** (`mac/AppStore/CouchSubs.entitlements`): `app-sandbox`, `network.client` (PS5, PSN girişi, TV, çeviri
   hizmetleri, paketler, dublaj modeli indirme), `network.server` (8787'deki altyazı sunucusu: TV uygulaması ve OBS;
   Remote Play'in UDP portları; Samsung girişinin `localhost` dönüşü). Dosya seçme ya da başka yetki gerekmedi.
@@ -109,6 +113,35 @@ Ayrıntılar `docs/ios-plan.md`'de. App Store için yapılanlar:
   üretemez ("Entitlement com.apple.developer.networking.multicast requires approval from Apple"); o zaman yetki onaya
   kadar `couchsubs-ios/project.yml`'den çıkarılır (PS5/TV adresi elle yazılır).
 - `Config/Secrets.xcconfig` ve `GoogleService-Info.plist` yoksa Firebase, Meta ve paket sunucusu kapalı derlenir.
+
+### Arka plan modu: `audio` ("Audio, AirPlay, and Picture in Picture")
+
+1.0.4'ten sonraki sürümde `UIBackgroundModes = [audio]` var. Kullanımı (yönerge 2.5.4: arka plan hizmetleri yalnız
+amacına uygun):
+
+- **Resim içinde resim**: Profil › "Arka planda sürdür (Resim içinde resim)" (varsayılan açık). Çeviri sürerken
+  uygulamadan çıkınca çalışma ekranındaki canlı önizleme (PS5/Xbox görüntüsü + canlı altyazı,
+  `AVSampleBufferDisplayLayer`) sistemin PiP penceresine geçer (`canStartPictureInPictureAutomaticallyFromInline`);
+  önizlemenin altında "Küçük pencereyi aç" düğmesi de var. Apple, PiP için bu arka plan modunu ve `.playback` ses
+  oturumunu şart koşuyor ("Configuring your app for media playback"). Oturum `.mixWithOthers` ile açılır: telefonda
+  çalan müzik/podcast kesilmez (Xbox sesi telefonda çalıyorsa oturumu WebRTC yönetir).
+- **Xbox oyun sesi**: "Xbox sesini bu cihazda çal" açıkken oyun sesi telefonda gerçekten çalınır; arka planda ve kilitli
+  ekranda sürer.
+- Sessiz ses çalınmaz, sesle uygulama ayakta tutulmaz. PiP penceresi kapanınca iOS uygulamayı her zamanki gibi
+  duraklatır (kullanıcıya "Altyazılar duraklatıldı" bildirimi gider).
+
+App Review notu (App Store Connect › Sürüm › App Review Information › Notes):
+
+> Background mode "audio" (Audio, AirPlay, and Picture in Picture) is used for two user-facing playback features:
+> (1) Picture in Picture: while a translation session is running, the main screen shows a live video preview of the
+> user's own PS5/Xbox game stream (Remote Play) with the translated subtitle drawn on it. When the user leaves the app,
+> this video continues in the system Picture in Picture window (AVPictureInPictureController with an
+> AVSampleBufferDisplayLayer content source; there is also an "Open small window" button). The setting is in Profile
+> › "Keep translating in the background (Picture in Picture)". (2) Xbox game audio: with "Play Xbox sound on this
+> device" on, the game's sound is streamed from the console and played on the iPhone. The app never plays silent audio
+> to stay alive; when the user closes the Picture in Picture window, iOS suspends the app as usual and the user is
+> told that subtitles paused. To see it: tap "Try demo mode" on the main screen (no console needed), then swipe to the
+> Home Screen.
 
 ## Durum (2026-11-12)
 

@@ -44,6 +44,45 @@ public class PackPipelineTests
         Assert.Equal(1, pipeline.PackHits);
     }
 
+    /// <summary>İki konuşma alt alta: paketteki satır paketten gösterilir, motora yalnız eksik satır gider; TV'de ikisi birlikte.</summary>
+    [Fact]
+    public async Task PartialPackMatchSendsOnlyTheMissingLine()
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        const string reading = "Get down!\nWho are you?";
+        var pipeline = new SubtitlePipeline(new FakeReader(reading, reading, reading), translator, sender)
+        {
+            PackLookup = Lookup,
+            PartialPackLookup = text => text == reading
+                ? new PackPartial([new PackLine("Get down!", "Yere yat!", [new SpokenLine("Get down!", "Yere yat!")]), new PackLine("Who are you?", null, [])])
+                : null,
+        };
+        var missed = new List<string>();
+        var spoken = new List<IReadOnlyList<SpokenLine>>();
+        pipeline.PackMissed += missed.Add;
+        pipeline.SpeechReady += spoken.Add;
+        await Run(pipeline, 3);
+        Assert.Equal(["Who are you?"], translator.Requested);
+        Assert.Equal(["Yere yat!\nTR: Who are you?"], sender.Sent);
+        Assert.Equal(["Who are you?"], missed);
+        Assert.Equal("Yere yat!", Assert.Single(Assert.Single(spoken)).Turkish);
+        Assert.Equal("motor", pipeline.LastOrigin);
+    }
+
+    /// <summary>Kısmi eşleşme verilmezse eski davranış: okumanın tamamı motora gider.</summary>
+    [Fact]
+    public async Task WithoutPartialLookupTheWholeReadingGoesToTheEngine()
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        const string reading = "Get down!\nWho are you?";
+        var pipeline = new SubtitlePipeline(new FakeReader(reading, reading, reading), translator, sender) { PackLookup = Lookup };
+        await Run(pipeline, 3);
+        Assert.Equal([reading], translator.Requested);
+        Assert.Equal(["TR: " + reading], sender.Sent);
+    }
+
     /// <summary>Saati her karede <paramref name="stepMs"/> ilerleterek çalıştırır (bekleme süreleri için).</summary>
     private static async Task RunTimed(SubtitlePipeline pipeline, int frames, Action advance)
     {
@@ -177,6 +216,59 @@ public class PackPipelineTests
         Assert.Equal(["Yeah? Damn."], translator.Requested);
     }
 
+    /// <summary>
+    /// OCR'ın sözcüğü böldüğü bozuk okuma ("That smo e..." / "That smoke...") sözcük sayısı değişse de yeniden okumadır,
+    /// yeniden çevrilmez (#296).
+    /// </summary>
+    [Theory]
+    [InlineData("That smoke...", "That smo e...")]
+    [InlineData("You have to ask?", "Y u ave to ask?")]
+    [InlineData("Good thing we moved the car.", "Good thing we m ved the car.")]
+    public async Task SplitWordMisreadOfATranslatedLineIsNotTranslatedAgain(string clean, string misread)
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        long clock = 0;
+        // Bozuk okuma bekleme süresinden (PackWait) uzun ekranda kalır; yeniden okuma sayılmasaydı bekleme bitince çevrilirdi.
+        var frames = Enumerable.Repeat(clean, 4).Concat(Enumerable.Repeat(misread, 14)).ToArray();
+        var pipeline = new SubtitlePipeline(new FakeReader(frames), translator, sender, clock: () => clock)
+        {
+            HoldWithoutPacks = true,
+            ReadingScore = text => text == misread ? 4 : 8,
+            LooksMisread = text => text == misread,
+        };
+        await RunTimed(pipeline, frames.Length, () => clock += 100);
+        Assert.Equal([clean], translator.Requested);
+    }
+
+    /// <summary>Harf benzerliği bozuk okumayla başlayan başka bir satırı yutmaz; o satır yine çevrilir.</summary>
+    [Fact]
+    public async Task DifferentMisreadLineIsStillTranslated()
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        long clock = 0;
+        const string next = "That's my b at, kid.";
+        var frames = Enumerable.Repeat("That smoke...", 4).Concat(Enumerable.Repeat(next, 4)).ToArray();
+        var pipeline = new SubtitlePipeline(new FakeReader(frames), translator, sender, clock: () => clock)
+        {
+            HoldWithoutPacks = true,
+            PackWait = 0,
+            ReadingScore = text => text.Length,
+            LooksMisread = text => text == next,
+        };
+        await RunTimed(pipeline, 8, () => clock += 100);
+        Assert.Equal(["That smoke...", next], translator.Requested);
+    }
+
+    [Theory]
+    [InlineData("that smo e", "that smoke", true)]
+    [InlineData("y u ave to ask", "you have to ask", true)]
+    [InlineData("get 0n", "get on", false)] // kısa: harf benzerliği aranmaz
+    [InlineData("that s my b at kid", "that smoke", false)]
+    public void SameLettersIgnoresWordBreaks(string a, string b, bool same) =>
+        Assert.Equal(same, TextMatch.SameLetters(a, b));
+
     /// <summary>Gelişmiş ayarlarda bekleme süreleri 0 olsa da bozuk tekrar okuma yeniden çevrilmez (denetim gecikme eklemez).</summary>
     [Fact]
     public async Task RereadCheckWorksWithZeroWaits()
@@ -209,6 +301,63 @@ public class PackPipelineTests
             { HoldWithoutPacks = true, ReadingScore = text => text.Length, LooksMisread = _ => false };
         await RunTimed(pipeline, 8, () => clock += 100);
         Assert.Equal(["But you can always buy another boat."], translator.Requested);
+    }
+
+    /// <summary>
+    /// İlk kare olumsuzluğu ya da sayıyı kaçırıp çevrildiyse, puanı daha yüksek olmasa da düzelen okuma yeniden
+    /// okuma sayılmaz, çevrilir; TV'de anlamı ters çeviri kalmaz.
+    /// </summary>
+    [Theory]
+    [InlineData("Meet me at the docks at 5.", "Meet me at the docks at 6.")]
+    [InlineData("I can do that for you right now.", "I can't do that for you right now.")]
+    [InlineData("I said that I would help you with this.", "I said that I would never help you with this.")]
+    public async Task CorrectionThatChangesMeaningIsTranslated(string misread, string correct)
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        long clock = 0;
+        var frames = new[] { misread }.Concat(Enumerable.Repeat(correct, 6)).ToArray();
+        var pipeline = new SubtitlePipeline(new FakeReader(frames), translator, sender, clock: () => clock)
+            { HoldWithoutPacks = true, ReadingScore = _ => 10, LooksMisread = _ => false };
+        await RunTimed(pipeline, 7, () => clock += 100);
+        Assert.Equal([misread, correct], translator.Requested);
+    }
+
+    /// <summary>Olumsuzluğu kaçıran yeniden okuma ise gösterilen doğru satırı bozmaz (yalnız eklenen işaret sayılır).</summary>
+    [Fact]
+    public async Task RereadThatDropsANegationIsNotTranslated()
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        long clock = 0;
+        var frames = Enumerable.Repeat("I can't do that for you right now.", 3).Concat(Enumerable.Repeat("I can do that for you right now.", 3)).ToArray();
+        var pipeline = new SubtitlePipeline(new FakeReader(frames), translator, sender, clock: () => clock)
+            { HoldWithoutPacks = true, ReadingScore = _ => 10, LooksMisread = _ => false };
+        await RunTimed(pipeline, 6, () => clock += 100);
+        Assert.Equal(["I can't do that for you right now."], translator.Requested);
+    }
+
+    /// <summary>Bekleme sırasında gelen anlam düzeltmesi, okuma puanı eşit olsa da kaybolmaz.</summary>
+    [Theory]
+    [InlineData("I can do that for you right now", "I can't do that for you right now", 2)]
+    [InlineData("Meet me at the docks at 5", "Meet me at the docks at 6", 2)]
+    [InlineData("I can do that for you right now", "I can't do that for you right now", 4)]
+    [InlineData("Meet me at the docks at 5", "Meet me at the docks at 6", 4)]
+    public async Task HeldMeaningCorrectionReplacesEarlierReading(string misread, string correct, int initialFrames)
+    {
+        var sender = new FakeSender();
+        var translator = new FakeTranslator();
+        long clock = 0;
+        var frames = Enumerable.Repeat(misread, initialFrames).Concat(Enumerable.Repeat(correct, 8)).ToArray();
+        var pipeline = new SubtitlePipeline(new FakeReader(frames), translator, sender, clock: () => clock)
+            { HoldWithoutPacks = true, ReadingScore = _ => 10, LooksMisread = _ => false };
+        await RunTimed(pipeline, 4, () => clock += 100);
+        Assert.Empty(translator.Requested);
+        // İlk aday 100 ms'de beklemeye girdi: düzeltme, 400 ms olan son tarihi ileri atmamalı.
+        await RunTimed(pipeline, 1, () => clock += 100);
+        Assert.Equal([correct], translator.Requested);
+        await RunTimed(pipeline, frames.Length - 5, () => clock += 100);
+        Assert.Equal([correct], translator.Requested);
     }
 
     /// <summary>Temiz ve tam cümle (büyük harfle başlıyor, noktalamayla bitiyor) beklemeden çevrilir; gecikme olmaz.</summary>

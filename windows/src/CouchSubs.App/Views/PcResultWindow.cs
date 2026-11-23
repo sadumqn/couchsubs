@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 using System.Windows;
+using CouchSubs.App.Theme;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using CouchSubs.App.Services;
 
 namespace CouchSubs.App.Views;
 
@@ -41,12 +43,14 @@ public sealed class PcResultWindow : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         MaxWidth = work.Width * 0.7;
         Cursor = Cursors.Hand;
+        // Başka bir üstte duran pencere öne gelirse kutu yeniden en üste konur (kapanınca kanca kalkar).
+        _ = new TopmostKeeper(this);
 
         Content = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(0xEE, 0, 0, 0)),
             CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(20, 14, 20, 14),
+            Padding = Sp.T("m", "s", "m", "s"),
             Child = new TextBlock
             {
                 Text = text,

@@ -1,0 +1,1 @@
+0.9.80: LG'de bilgisayarın ya da telefonun bildirdiği TV girişi zaten açıksa görüntü yeniden kurulmuyor; ekran kararıp "HDR" yazısıyla geri gelmiyor.

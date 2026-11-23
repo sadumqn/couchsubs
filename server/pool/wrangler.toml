@@ -9,3 +9,22 @@ database_name = "couchsubs-pool"
 database_id = "c134a041-8f51-4a29-8195-9c6929e7e529"
 
 # ADMIN_TOKEN is a secret: set it with `wrangler secret put ADMIN_TOKEN`, never commit it.
+# APP_KEYS (secret, isteğe bağlı): üçüncü taraf uygulamaların X-CouchSubs-App-Key anahtarları,
+#   {"<anahtar>": {"name": "gametranslator", "daily": 20000}}; `wrangler secret put APP_KEYS` ile verilir.
+
+# Havuzdan kendiliğinden paket (src/autopack.js): yazılan kova paket sunucusunun (server/packs) okuduğu kovadır.
+[[r2_buckets]]
+binding = "PACKS"
+bucket_name = "couchsubs-packs"
+
+# Çeviri: ANTHROPIC_API_KEY secret'ı varsa Claude (claude-opus-5-5, Message Batches; `wrangler secret put ANTHROPIC_API_KEY`, depoya
+# konmaz), yoksa Workers AI (hesabın kendi bağı; Free planda günde 10.000 nöron ücretsiz). Sınırlar src/autopack.js'te.
+[ai]
+binding = "AI"
+
+# Her gece 03:02–05:57 (UTC) arası beş dakikada bir (36 tetikleme): ilk plan, sonrakiler çeviri parçaları ve paket.
+[triggers]
+crons = ["2-57/5 3,4,5 * * *"]
+
+[observability]
+enabled = true

@@ -56,3 +56,27 @@ public static class AreaPresets
         return region with { Top = top, Bottom = top + height };
     }
 }
+
+/// <summary>
+/// Sürekli okunan ek bölgenin hazır seçimleri: oyunların çoğu bu yazıları ekranın köşelerinde gösterir (Mac:
+/// ExtraArea.swift'teki ExtraAreaPreset ile aynı bölgeler).
+/// </summary>
+public enum ExtraAreaPreset
+{
+    /// <summary>Sağ üstteki görev yazısı.</summary>
+    Quest,
+    /// <summary>Sol alttaki bildirim.</summary>
+    Notification,
+    /// <summary>Sağ alttaki telefon mesajı ya da e-posta.</summary>
+    Phone,
+}
+
+public static class ExtraAreaPresets
+{
+    public static CropRegion Region(this ExtraAreaPreset preset) => preset switch
+    {
+        ExtraAreaPreset.Quest => new CropRegion(0.03, 0.30, 0.66, 0.98),
+        ExtraAreaPreset.Notification => new CropRegion(0.58, 0.88, 0.02, 0.30),
+        _ => new CropRegion(0.50, 0.95, 0.72, 0.98),
+    };
+}

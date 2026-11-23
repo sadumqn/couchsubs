@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+name: second-screen-tests
+on:
+  pull_request:
+    paths: ['core/Sources/CouchSubsCore/Resources/second-screen.html', 'scripts/second-screen.test.js', '.github/workflows/second-screen-tests.yml']
+  push:
+    branches: [main]
+    paths: ['core/Sources/CouchSubsCore/Resources/second-screen.html', 'scripts/second-screen.test.js', '.github/workflows/second-screen-tests.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  page:
+    name: İkinci ekran sayfası / Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tarayıcıyı doğrula
+        run: echo "COUCHSUBS_TEST_BROWSER=$(command -v google-chrome)" >> "$GITHUB_ENV"
+      - name: Sayfa SSE akışından altyazı çizer
+        run: node --test scripts/second-screen.test.js

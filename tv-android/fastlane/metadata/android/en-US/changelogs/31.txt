@@ -1,0 +1,1 @@
+0.9.28: With two CouchSubs on the same network, the TV app connects to its own computer or phone.

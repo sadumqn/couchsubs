@@ -1,0 +1,1 @@
+0.9.57: Android TV'de değişiklik yok. 2015 Samsung TV'ler (Tizen 2.3) için düzeltme: uygulama açıldıktan birkaç saniye sonra kaybolmuyor, çeviri oyun görüntüsünün altında görünüyor.

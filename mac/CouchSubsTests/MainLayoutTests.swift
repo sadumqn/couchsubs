@@ -7,8 +7,7 @@ import SwiftUI
 import XCTest
 @testable import CouchSubs
 
-/// Ana ekranın sol sütunu hiçbir durumda kendi genişliğinden taşmaz (taşınca karolar sağ sütuna dayanıyor,
-/// kenarları kesiliyordu).
+/// Yeni arayüz en küçük pencerede (1200 × 760) taşmaz; ayar sütunlarındaki denetimler sütunun içinde kalır.
 @MainActor
 final class MainLayoutTests: XCTestCase {
     private func model(output: SubtitleOutput, running: Bool, clickThrough: Bool) -> AppModel {
@@ -30,51 +29,47 @@ final class MainLayoutTests: XCTestCase {
         SubtitleOutput.allCases.flatMap { output in [false, true].flatMap { running in [false, true].map { (output, running, $0) } } }
     }
 
-    /// Sütunun en dar hâlinde de içerik sığar: yazılar satıra iner, hiçbir öğe sütundan geniş en az genişlik istemez.
-    func testControlsFitTheNarrowestColumn() {
+    /// Ayarlar'daki iki sütundan biri en küçük pencerede: (1200 − 2·24 − 240 − 24 − 24) / 2.
+    private static let settingsColumn: CGFloat = (DS.size("windowWidth") - 2 * DS.space("l") - DS.size("settingsNav") - 2 * DS.space("l")) / 2
+
+    /// Kabuk (üst çubuk, ana ekran, reklam bandı) en küçük pencereye sığar; hiçbir öğe daha geniş/uzun en az ölçü istemez.
+    func testShellFitsTheSmallestWindow() {
         for (output, running, click) in states {
             let model = model(output: output, running: running, clickThrough: click)
-            for width in [MainView.controlsColumnMin, Theme.size("mainColumn")] {
-                let host = NSHostingController(rootView: MainControls().environmentObject(model).appSurface())
-                let size = host.sizeThatFits(in: CGSize(width: width, height: 10_000))
-                XCTAssertLessThanOrEqual(size.width, width, "\(output) çalışıyor=\(running) tıklama=\(click) sütun=\(width)")
+            for tab in [ShellTab.home, .history, .settings] {
+                model.showSettings = tab == .settings
+                model.showHistory = tab == .history
+                // En küçük pencerenin önerisiyle ölçülür (ideal ölçü değil): içerik bu boyda kalmalı, pencereyi büyütmemeli.
+                let host = NSHostingController(rootView: AppShell().environmentObject(model).appSurface())
+                let size = host.sizeThatFits(in: CGSize(width: DS.size("windowWidth"), height: DS.size("windowHeight")))
+                XCTAssertLessThanOrEqual(size.width, DS.size("windowWidth"), "\(tab) \(output) çalışıyor=\(running)")
+                XCTAssertLessThanOrEqual(size.height, DS.size("windowHeight"), "\(tab) \(output) çalışıyor=\(running)")
             }
         }
     }
 
-    /// Kaydırma alanı içeriğe genişlik önermese de (ideal ölçü) sütun kendi genişliğinde kalır. İçeriğin ideal
-    /// genişliği sütundan geniştir; sütun genişliği sabitlenmeseydi taşardı.
-    func testColumnKeepsItsWidthWhenMeasuredAtIdealSize() {
-        let width = Theme.size("mainColumn")
-        for (output, running, click) in states {
-            let model = model(output: output, running: running, clickThrough: click)
-            let ideal = NSHostingView(rootView: MainControls().environmentObject(model).appSurface()).fittingSize.width
-            XCTAssertGreaterThan(ideal, width, "\(output): içeriğin ideal genişliği sütundan dar; test anlamını yitirdi")
-            let column = NSHostingView(rootView: ControlsColumn(width: width).environmentObject(model).appSurface())
-            XCTAssertEqual(column.fittingSize.width, width, "\(output) çalışıyor=\(running) tıklama=\(click)")
-            let documents = laidOutScrollContent(column, width: width)
-            XCTAssertFalse(documents.isEmpty)
-            for document in documents {
-                XCTAssertLessThanOrEqual(document, width, "\(output) çalışıyor=\(running) tıklama=\(click)")
+    /// "Altyazıyı göster" kartının denetimleri ayar sütununun içinde kalır (segmentli seçici AppKit'te en uzun etiket
+    /// kadar eşit bölmeler çizer; SwiftUI ölçüsü bunu göstermez, pencerede yerleşen AppKit görünümlerine bakılır).
+    func testOutputCardControlsStayInsideTheColumn() {
+        let width = Self.settingsColumn
+        for output in SubtitleOutput.allCases {
+            let model = model(output: output, running: false, clickThrough: false)
+            let host = NSHostingView(rootView: SubtitleOutputCard().environmentObject(model).appSurface().newLook().frame(width: width))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 400), styleMask: [.borderless],
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            let controls = views(in: host).dropFirst()
+            XCTAssertFalse(controls.isEmpty)
+            for control in controls {
+                let frame = control.convert(control.bounds, to: host)
+                XCTAssertGreaterThanOrEqual(frame.minX, 0, "\(output) sütun=\(width) \(type(of: control))")
+                XCTAssertLessThanOrEqual(frame.maxX, width, "\(output) sütun=\(width) \(type(of: control))")
             }
-            print("MainLayoutTests: \(output) kaydırma içeriği \(documents) / sütun \(width), ideal \(ideal)")
+            window.close()
         }
     }
 
-    /// Görünümü pencerede yerleştirir; kaydırma alanlarının içerik (belge) genişliklerini verir.
-    private func laidOutScrollContent(_ view: NSView, width: CGFloat) -> [CGFloat] {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 600), styleMask: [.borderless],
-                              backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.contentView = view
-        view.layoutSubtreeIfNeeded()
-        _ = view.fittingSize
-        view.layoutSubtreeIfNeeded()
-        defer { window.close() }
-        return scrollViews(in: view).compactMap { $0.documentView?.frame.width }
-    }
-
-    private func scrollViews(in view: NSView) -> [NSScrollView] {
-        ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
-    }
+    private func views(in view: NSView) -> [NSView] { [view] + view.subviews.flatMap { views(in: $0) } }
 }

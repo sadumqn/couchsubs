@@ -37,6 +37,9 @@ final class H264FrameDecoder {
     private var pps: Data?
     private var format: CMVideoFormatDescription?
     private var session: VTDecompressionSession?
+    /// Çözme hatası bu çözücüde günlüğe yazıldı mı (her oturumda bir kez). Hata eskiden sessizce yutuluyordu: görüntü
+    /// gelmeyince yalnız "görüntü gelmiyor" görünüyordu; iPhone arka plandayken donanım çözücüsü reddedebilir.
+    private var loggedFailure = false
 
     deinit {
         if let session { VTDecompressionSessionInvalidate(session) }
@@ -74,6 +77,7 @@ final class H264FrameDecoder {
             makeSession()
             (status, output) = decodeFrame(avcc)
         }
+        if status != noErr { noteFailure("kare çözülemedi (OSStatus \(status))") }
         guard status == noErr, makeImage, let pixelBuffer = output else { return nil }
         var image: CGImage?
         VTCreateCGImageFromCVPixelBuffer(pixelBuffer, options: nil, imageOut: &image)
@@ -113,11 +117,18 @@ final class H264FrameDecoder {
 
         let attributes: [CFString: Any] = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA]
         var newSession: VTDecompressionSession?
-        guard VTDecompressionSessionCreate(allocator: nil, formatDescription: description, decoderSpecification: nil,
-                                           imageBufferAttributes: attributes as CFDictionary, outputCallback: nil,
-                                           decompressionSessionOut: &newSession) == noErr else { return }
+        let created = VTDecompressionSessionCreate(allocator: nil, formatDescription: description, decoderSpecification: nil,
+                                                   imageBufferAttributes: attributes as CFDictionary, outputCallback: nil,
+                                                   decompressionSessionOut: &newSession)
+        guard created == noErr else { return noteFailure("çözücü açılamadı (OSStatus \(created))") }
         format = description
         session = newSession
+    }
+
+    private func noteFailure(_ text: String) {
+        guard !loggedFailure else { return }
+        loggedFailure = true
+        RemotePlayLog.write("Görüntü çözücü: \(text)")
     }
 
     private func makeSampleBuffer(_ data: Data, format: CMVideoFormatDescription) -> CMSampleBuffer? {

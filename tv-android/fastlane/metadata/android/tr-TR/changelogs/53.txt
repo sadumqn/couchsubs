@@ -1,0 +1,1 @@
+0.9.50: "Ekranı çevir" çevirileri otomatik ekran yazısı gibi özgün yazının renginde ve stilinde, kendi yerinde çizilir; GTA 6 telefonunun mesajları telefonun yanında mesaj kartında gösterilir.

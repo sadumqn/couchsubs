@@ -5,12 +5,34 @@ import Translation
 
 public protocol TextTranslator {
     func translate(_ text: String) async throws -> String
+    /// Altyazı gelmeden yerel modeli hazırlar; çevrimiçi çeviri isteği ya da bağlam durumu oluşturmamalı.
+    func warmUp() async
     /// Son çevrilen altyazının seslendirilecek cümleleri (konuşmacısıyla); dublaj için.
     func spokenLines(for text: String) -> [SpokenLine]
+    /// Birbirinden bağımsız metinleri ("ekranı çevir"deki menü satırları, görev yazıları) aynı sırada çevirir.
+    func translateAll(_ texts: [String]) async throws -> [String]
+    /// `translateAll` hepsini tek istekte çevirir (yapay zekâ); öyleyse ekran çevirisi parça parça istek göndermez.
+    var translatesTogether: Bool { get }
+    /// Hat satır başındaki konuşan adını ("PRICE: …") ayırıp çevirmene yalnız cümleyi verir; ad buradan öğrenilir ve
+    /// sonraki cümlelerin içinde geçince çeviriden korunur (#287).
+    func noteSpeaker(_ name: String)
 }
 
 extension TextTranslator {
+    public func warmUp() async {}
+
     public func spokenLines(for text: String) -> [SpokenLine] { [] }
+
+    /// Varsayılan: metinler sırayla tek tek çevrilir.
+    public func translateAll(_ texts: [String]) async throws -> [String] {
+        var result: [String] = []
+        for text in texts { result.append(try await translate(text)) }
+        return result
+    }
+
+    public var translatesTogether: Bool { false }
+
+    public func noteSpeaker(_ name: String) {}
 }
 
 public enum TranslatorError: Error, Equatable {
@@ -40,7 +62,7 @@ public final class Translator: TextTranslator {
     private var session: Any?
     private let cache: TranslationCache
     private let freeLine: FreeLineTranslator?
-    private var speech: [String: [SpokenLine]] = [:]
+    private let speech = SpeechMemory()
     private let names = SpeakerNames()
 
     /// `cache`: kalıcı önbellek; verilmezse yalnız bellekte tutulur.
@@ -68,6 +90,11 @@ public final class Translator: TextTranslator {
         }
     }
 
+    public func noteSpeaker(_ name: String) {
+        names.learn(name: name)
+        freeLine?.noteSpeaker(name)
+    }
+
     public func translate(_ text: String) async throws -> String {
         if let freeLine { return try await freeLine.translate(text) { try await self.run($0) } }
         if let cached = cache.value(for: text) { return cached }
@@ -80,10 +107,14 @@ public final class Translator: TextTranslator {
             translations.append(translated)
             result += translated ?? piece.text
         }
-        if speech.count >= 512 { speech.removeAll() }
-        speech[text] = SpeechScript.lines(pieces: pieces, translations: translations)
+        speech.store(SpeechScript.lines(pieces: pieces, translations: translations), for: text)
         cache.store(result, for: text)
         return result
+    }
+
+    /// Apple'ın yerel modelini doğrudan çalıştırır; FreeLine bağlamını ve çeviri önbelleğini etkilemez.
+    public func warmUp() async {
+        _ = try? await run("Hello")
     }
 
     public func spokenLines(for text: String) -> [SpokenLine] {
@@ -99,7 +130,18 @@ public final class Translator: TextTranslator {
     }
 
     /// Hazır metni Apple'ın çevirisine verir; oturum ilk çağrıda açılır.
+    ///
+    /// Çağrılar tek sıradan geçer (`TranslationGate`). Eskiden ısınma ("Hello") ile ilk altyazı aynı anda gelince ikisi
+    /// de `LanguageAvailability` beklerken oturumu boş görüp ayrı `TranslationSession` açıyordu; biri öbürünün üstüne
+    /// yazılıp çevirisi sürerken bırakılıyordu, aynı oturuma eşzamanlı istek de gidebiliyordu. iPhone'da Translation
+    /// çerçevesinin içinde Swift tuzağıyla kapanma görülüyordu (Crashlytics, 1.0.1–1.0.3).
     private func run(_ input: String) async throws -> String {
+        try await gate.run { try await self.runNow(input) }
+    }
+
+    private let gate = TranslationGate()
+
+    private func runNow(_ input: String) async throws -> String {
         guard #available(macOS 26, iOS 26, *) else { throw TranslatorError.unsupported }
         if session == nil {
             switch await LanguageAvailability().status(from: source, to: target) {
@@ -110,5 +152,68 @@ public final class Translator: TextTranslator {
         }
         guard let session = session as? TranslationSession else { throw TranslatorError.unsupported }
         return try await session.translate(input).targetText
+    }
+}
+
+/// Eşzamansız çağrıları sırayla, birer birer çalıştırır. Sırada bekleyen görev iptal edilirse beklemeyi bırakır
+/// (`CancellationError`); altyazı hattı süren çeviriyi bıraktığında arkadaki istekler takılı kalmaz.
+final class TranslationGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var busy = false
+    private var nextID: UInt64 = 0
+    private var waiters: [(id: UInt64, continuation: CheckedContinuation<Void, Error>)] = []
+
+    func run<T>(_ body: () async throws -> T) async throws -> T {
+        try await enter()
+        defer { leave() }
+        return try await body()
+    }
+
+    private func enter() async throws {
+        let id = makeID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                lock.lock()
+                if Task.isCancelled {
+                    lock.unlock()
+                    continuation.resume(throwing: CancellationError())
+                } else if !busy {
+                    busy = true
+                    lock.unlock()
+                    continuation.resume()
+                } else {
+                    waiters.append((id, continuation))
+                    lock.unlock()
+                }
+            }
+        } onCancel: {
+            cancel(id)
+        }
+    }
+
+    private func makeID() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        nextID += 1
+        return nextID
+    }
+
+    private func cancel(_ id: UInt64) {
+        lock.lock()
+        let waiter = waiters.firstIndex { $0.id == id }.map { waiters.remove(at: $0) }
+        lock.unlock()
+        waiter?.continuation.resume(throwing: CancellationError())
+    }
+
+    private func leave() {
+        lock.lock()
+        guard !waiters.isEmpty else {
+            busy = false
+            lock.unlock()
+            return
+        }
+        let next = waiters.removeFirst()
+        lock.unlock()
+        next.continuation.resume()
     }
 }

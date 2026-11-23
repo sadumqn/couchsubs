@@ -1,0 +1,1 @@
+0.9.79: Speaker name coloring now colors only the name; the line itself stays in the text color chosen on your computer or phone (white or yellow). Before, the whole line took the speaker's color.

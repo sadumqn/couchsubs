@@ -1,0 +1,1 @@
+0.9.47: On 4K/8K Samsung TVs the PS5 picture no longer stays in the top-left quarter and fills the screen. If it still does not fill the screen, the Yellow key tries the next method; the choice is saved. On LG, sound is explicitly requested while the PS5 picture is shown in the app (a disabled audio track is enabled); the info panel shows the TV's sound output and volume.

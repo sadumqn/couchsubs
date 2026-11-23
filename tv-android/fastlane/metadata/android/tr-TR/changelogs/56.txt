@@ -1,0 +1,1 @@
+0.9.53: LG TV'lerde çeviri başlayınca PS5 görüntüsü gelmeyip ekranın siyah kalmasına karşı önlem. 0.9.47-0.9.48'de eklenen ses adımları artık görüntü gelmeden hiç yapılmıyor; görüntü gelip birkaç saniye sürdükten sonra deneniyor, görüntüyü bozarsa kapatılıp görüntü eski yolla yeniden açılıyor. Ses odağı ve TV sesini açma varsayılan kapalı.

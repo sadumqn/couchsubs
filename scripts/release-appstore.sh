@@ -26,6 +26,12 @@ mkdir -p "$OUT"
 
 OPTIONS=scripts/appstore/ExportOptions.plist
 EXPORT="$OUT/export-$PLATFORM"
+# İç TestFlight'a özel yapılar incelemeye gönderilemez; COUCHSUBS_FOR_REVIEW=1 bu kısıtı kaldırır.
+if [[ -n "${COUCHSUBS_FOR_REVIEW:-}" ]]; then
+  OPTIONS="$OUT/ExportOptions-review.plist"
+  cp scripts/appstore/ExportOptions.plist "$OPTIONS"
+  plutil -replace testFlightInternalTestingOnly -bool NO "$OPTIONS"
+fi
 if [[ "$3" == --no-upload ]]; then
   OPTIONS="$OUT/ExportOptions-export.plist"
   cp scripts/appstore/ExportOptions.plist "$OPTIONS"
@@ -33,6 +39,13 @@ if [[ "$3" == --no-upload ]]; then
 fi
 
 VERSION_ARGS=(MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD")
+# Paket isteklerinin imzası (server/packs, PackSigning): ~/.config/couchsubs/packs.env (PACKS_APP_SECRET; depoda değil).
+[[ -z "${PACKS_APP_SECRET:-}" && -f ~/.config/couchsubs/packs.env ]] && source ~/.config/couchsubs/packs.env
+if [[ -n "${PACKS_APP_SECRET:-}" ]]; then
+  VERSION_ARGS+=(PACKS_APP_SECRET="$PACKS_APP_SECRET")
+else
+  echo "Uyarı: PACKS_APP_SECRET yok (~/.config/couchsubs/packs.env); bu yapıda paket indirme kapalı."
+fi
 # App Store Connect API anahtarı (~/.config/couchsubs/asc.env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH) varsa Xcode
 # hesabının oturumu gerekmez; yoksa Xcode › Settings › Accounts'taki hesap kullanılır.
 AUTH_ARGS=()
@@ -47,10 +60,16 @@ elif [[ "$3" == --unsigned ]]; then
   SIGN_ARGS=(CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
 fi
 
+# Uygulamayla gelen oyun paketleri depoda değil: özel R2'den (~/.config/couchsubs/packs.env). İmzasız sınamada isteğe bağlı.
+if [[ "$3" == --unsigned ]]; then python3 scripts/fetch-packs.py; else python3 scripts/fetch-packs.py --require; fi
+
 if [[ "$PLATFORM" == ios ]]; then
   # Remote Play kütüphanesinin iPhone dilimi gerekir (scripts/build-chiaki-ios.sh).
   [[ -d third-party/build/CChiaki.xcframework/ios-arm64 ]] || { echo "CChiaki.xcframework'te iOS dilimi yok: scripts/build-chiaki-ios.sh"; exit 1; }
   (cd couchsubs-ios && xcodegen generate --quiet)
+  # Telefondan kurulan TV paketleri kaynaktaki TV uygulamasıyla aynı sürümde olmalı (scripts/ios-tv-packages.sh derleme
+  # adımı uyuşmazlıkta durur). 1.0.6 (39) LG paketini beta.79'dan (TV 0.9.63) almıştı; main'deki TV 0.9.71'di.
+  export COUCHSUBS_REQUIRE_TV_PACKAGES=1
   # Apple multicast iznini onaylamadan önce TestFlight yapısı: COUCHSUBS_NO_MULTICAST=1 izni yetki dosyasından çıkarır;
   # PS5/TV ağda kendiliğinden bulunmaz, adres elle girilir.
   if [[ -n "${COUCHSUBS_NO_MULTICAST:-}" ]]; then
@@ -59,7 +78,10 @@ if [[ "$PLATFORM" == ios ]]; then
   fi
   xcodebuild -project couchsubs-ios/CouchSubs.xcodeproj -scheme CouchSubs -configuration Release \
     -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" "${SIGN_ARGS[@]}" "${VERSION_ARGS[@]}" archive \
-    > "$OUT/archive-ios.log" 2>&1 || { grep -E "error:" "$OUT/archive-ios.log" | head -20; echo "Arşiv başarısız: $OUT/archive-ios.log"; exit 1; }
+    > "$OUT/archive-ios.log" 2>&1 || { grep -E "error:|TV paketi uyuşmuyor" "$OUT/archive-ios.log" | head -20; echo "Arşiv başarısız: $OUT/archive-ios.log"; exit 1; }
+  # Arşivdeki uygulamanın TV paketleri de denetlenir (derleme adımı atlanmış ya da önbellekten gelmiş olmasın).
+  python3 scripts/check-tv-packages.py "$ARCHIVE/Products/Applications/CouchSubs.app/tv" \
+    || { echo "Arşivdeki TV paketleri kaynaktaki TV uygulamasıyla aynı değil; yüklenmedi."; exit 1; }
 else
   # Mac App Store sürümü evrensel: Remote Play kütüphanesi, TV kurulum yardımcısı ve ses motoru iki mimariyi içermeli.
   # Xcode 27'nin lipo'su -verify_arch'ta tek mimari kabul ediyor; mimariler ayrı ayrı denetlenir.
@@ -69,6 +91,9 @@ else
   universal dist/tv-helper/couchsubs-tv-helper || { echo "dist/tv-helper evrensel değil: scripts/build-tv-helper.sh (Microsoft .NET SDK ile)"; exit 1; }
   universal dist/tts/pocket-tts || ./scripts/fetch-pocket-tts.sh mac
   ls dist/tv-app/*.ipk dist/tv-app/*.wgt dist/tv-app/*.apk >/dev/null || { echo "dist/tv-app eksik (package-tv.sh, package-tizen.sh, bundle-android-apk.sh)"; exit 1; }
+  # dist/tv-app eski bir derlemeden kalmış olabilir: sürümleri kaynaktaki TV uygulamasıyla aynı olmalı.
+  python3 scripts/check-tv-packages.py dist/tv-app \
+    || { echo "dist/tv-app eski: package-tv.sh, package-tizen.sh ve bundle-android-apk.sh ile yeniden üretin"; exit 1; }
   (cd mac && xcodegen generate --quiet)
   xcodebuild -project mac/CouchSubs.xcodeproj -scheme CouchSubsAppStore -configuration Release \
     -destination 'generic/platform=macOS' -archivePath "$ARCHIVE" "${SIGN_ARGS[@]}" "${VERSION_ARGS[@]}" \

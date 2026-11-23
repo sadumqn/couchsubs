@@ -61,6 +61,49 @@ public class LinePoolTests
         Assert.Empty(server.Received);
     }
 
+    /// <summary>PS5'te çalışan oyun bilinince satırla gider; bilinmiyorsa alanlar hiç yazılmaz.</summary>
+    [Fact]
+    public async Task RunningGameTravelsWithTheLine()
+    {
+        var pool = MakePool();
+        pool.Offer("Who is that over there?");
+        pool.SetGame(RunningGame.Create("ppsa12345", "  Grand Theft Auto VI\n"));
+        pool.Offer("Get in the car, Lucia.");
+        pool.SetGame(null);
+        pool.Offer("Keep your head down, Jason.");
+        await pool.FlushAsync();
+        var lines = server.Batches[0];
+        Assert.Equal(["firstSeen", "key", "text"], lines[0].EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal("PPSA12345", lines[1].GetProperty("titleId").GetString());
+        Assert.Equal("Grand Theft Auto VI", lines[1].GetProperty("game").GetString());
+        Assert.False(lines[2].TryGetProperty("titleId", out _));
+    }
+
+    [Fact]
+    public void QueuedGameSurvivesRestart()
+    {
+        server.Fallback = null;
+        var pool = MakePool();
+        pool.SetGame(RunningGame.Create("PPSA12345", "Grand Theft Auto VI"));
+        pool.Offer("Get in the car, Lucia.");
+        pool.Save();
+        var reopened = MakePool();
+        Assert.Equal("PPSA12345", reopened.Queued[0].TitleId);
+        Assert.Equal("Grand Theft Auto VI", reopened.Queued[0].Game);
+    }
+
+    [Fact]
+    public void RunningGameValidatesTheTitleId()
+    {
+        Assert.Equal("CUSA00419_00", RunningGame.Create("CUSA00419_00", null)?.TitleId);
+        Assert.Null(RunningGame.Create("PPSA1234", "x"));
+        Assert.Null(RunningGame.Create("PPSA01234_0", "x"));
+        Assert.Null(RunningGame.Create("", "x"));
+        Assert.Null(RunningGame.Create(null, "x"));
+        Assert.Null(RunningGame.Create("PPSA01234", " \0 ")?.Name);
+        Assert.Equal(120, RunningGame.Create("PPSA01234", new string('x', 300))?.Name?.Length);
+    }
+
     [Fact]
     public void LinesAreDeduplicatedByKey()
     {
@@ -182,6 +225,70 @@ public class LinePoolTests
         await pool.FlushAsync();
         Assert.Equal(2, server.Received.Count);
         Assert.Empty(pool.Queued);
+    }
+
+    private static Func<HttpResponseMessage> SaturatedReply(params string[] keys) => () => new HttpResponseMessage(HttpStatusCode.OK)
+    {
+        Content = new StringContent(JsonSerializer.Serialize(new { accepted = 1, recorded = 0, saturated = keys })),
+    };
+
+    [Fact]
+    public async Task SaturatedKeysAreRememberedAndNotSentAgain()
+    {
+        var key = PackKey.Key("Don Torrisi wants you.")!;
+        server.Replies.Enqueue(SaturatedReply(key.ToUpperInvariant()));
+        var pool = MakePool();
+        pool.Offer("Don Torrisi wants you.");
+        pool.Offer("Who is that over there?");
+        await pool.FlushAsync();
+        // Doymuş satır bir daha kuyruğa girmez; öteki de gönderildi sayılır.
+        pool.Offer("Don Torrisi wants you.");
+        pool.Offer("Who is that over there?");
+        Assert.Empty(pool.Queued);
+        // Yeniden başlatınca da hatırlanır.
+        var reopened = MakePool();
+        reopened.Offer("Don Torrisi wants you.");
+        Assert.Empty(reopened.Queued);
+    }
+
+    [Fact]
+    public async Task SaturatedKeysDropTheSameLinesStillWaitingInTheQueue()
+    {
+        // 201 satır: ilk parça (200) gider; sunucu ikinci parçadaki satırı doymuş bildirirse o satır atılır.
+        var lines = Enumerable.Range(0, 201).Select(i => $"Get in the car number {i}, Lucia.").ToList();
+        server.Replies.Enqueue(SaturatedReply(PackKey.Key(lines[200])!));
+        var pool = MakePool();
+        foreach (var line in lines) pool.Offer(line);
+        await pool.FlushAsync();
+        Assert.Single(server.Received);
+        Assert.Empty(pool.Queued);
+    }
+
+    [Fact]
+    public async Task MalformedSaturatedListIsIgnored()
+    {
+        server.Replies.Enqueue(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"saturated\":[\"zz\",\"123\",5]}") });
+        var pool = MakePool();
+        pool.Offer("Don Torrisi wants you.");
+        await pool.FlushAsync();
+        server.Replies.Enqueue(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"saturated\":3}") });
+        pool.Offer("Who is that over there?");
+        await pool.FlushAsync();
+        Assert.Empty(pool.Queued);
+        Assert.Empty(LinePool.SaturatedKeys("not json"));
+        Assert.Equal(["abcdef0123456789"], LinePool.SaturatedKeys("{\"saturated\":[\"zz\",\"ABCDEF0123456789\"]}"));
+    }
+
+    [Fact]
+    public async Task RejectedBatchIsRememberedSoItIsNotSentAgain()
+    {
+        server.Replies.Enqueue(() => new HttpResponseMessage(HttpStatusCode.BadRequest));
+        var pool = MakePool();
+        pool.Offer("Don Torrisi wants you.");
+        await pool.FlushAsync();
+        pool.Offer("Don Torrisi wants you.");
+        Assert.Empty(pool.Queued);
+        Assert.Single(server.Received);
     }
 
     [Fact]

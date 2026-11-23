@@ -79,14 +79,14 @@ final class PackPipelineTests: XCTestCase {
     func testPackMissUsesTheEngineAndIsReported() async {
         let sender = RecordingSender()
         let translator = CountingTranslator()
-        let pipeline = SubtitlePipeline(reader: QueueReader(["Hold the gate", "Hold the gate"]), translator: translator, server: sender)
+        let pipeline = SubtitlePipeline(reader: QueueReader(["Hold the gate.", "Hold the gate."]), translator: translator, server: sender)
         pipeline.packLookup = Self.lookup
         var missed: [String] = []
         pipeline.onPackMiss = { missed.append($0) }
         await run(pipeline, 2)
-        XCTAssertEqual(sender.sent, ["TR: Hold the gate"])
-        XCTAssertEqual(translator.requested, ["Hold the gate"])
-        XCTAssertEqual(missed, ["Hold the gate"])
+        XCTAssertEqual(sender.sent, ["TR: Hold the gate."])
+        XCTAssertEqual(translator.requested, ["Hold the gate."])
+        XCTAssertEqual(missed, ["Hold the gate."])
         XCTAssertEqual(pipeline.lastOrigin, "motor")
     }
 
@@ -106,7 +106,7 @@ final class PackPipelineTests: XCTestCase {
         let sender = RecordingSender()
         let translator = CountingTranslator()
         translator.holds = true
-        let pipeline = SubtitlePipeline(reader: QueueReader(["Hold the gate", "Hold the gate", "Get down!", "Get down!"]),
+        let pipeline = SubtitlePipeline(reader: QueueReader(["Hold the gate.", "Hold the gate.", "Get down!", "Get down!"]),
                                         translator: translator, server: sender)
         pipeline.packLookup = Self.lookup
         for _ in 0..<4 { await pipeline.process(frame, region: CropRegion()) }

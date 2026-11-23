@@ -35,6 +35,21 @@ public static class TextMatch
         return 1 - (double)previous[b.Length] / Math.Max(a.Length, b.Length) >= threshold;
     }
 
+    /// <summary>Boşluksuz harf dizisinin en az bu kadar uzun olması gerekir; kısa satırda bir harf bile anlamı değiştirir.</summary>
+    internal const int SameLettersMinimum = 6;
+
+    /// <summary>
+    /// Sadeleştirilmiş iki okuma boşluklar atılınca neredeyse aynı mı. Bozuk okumada OCR bir sözcüğü bölebilir ya da iki
+    /// sözcüğü birleştirebilir ("That smo e..." / "That smoke...", #296); sözcük sayısı değişince sözcük sözcük
+    /// karşılaştırma aynı satırı tanımaz. Çağıran, okumalardan birinin bozuk olduğunu ayrıca denetler.
+    /// </summary>
+    public static bool SameLetters(string a, string b)
+    {
+        var x = a.Replace(" ", "");
+        var y = b.Replace(" ", "");
+        return Math.Min(x.Length, y.Length) >= SameLettersMinimum && IsSimilar(x, y, 0.8);
+    }
+
     /// <summary>Satırları ayrı ayrı sadeleştirip alt alta birleştirir; <see cref="IsSameSubtitle"/> kaçırılan satırı bundan anlar.</summary>
     public static string NormalizeRows(string s) =>
         string.Join('\n', s.Replace("\r\n", "\n").Split('\n').Select(Normalize).Where(row => row.Length > 0));
@@ -51,6 +66,8 @@ public static class TextMatch
     {
         var rows = sent.Split('\n');
         var flat = string.Join(' ', rows);
+        // Gönderilende olmayan olumsuzluk ya da sayı taşıyan okuma, karakterce ne kadar benzese de başka bir cümledir.
+        if (AddsMeaning(reread, flat)) return false;
         var x = CleanWords(reread);
         var y = CleanWords(flat);
         // Uzayan metin (daktilo efekti ya da aynı sözlerle başlayan yeni satır) karakterce benzese de yenidir.
@@ -110,10 +127,87 @@ public static class TextMatch
         var b = Normalize(sent);
         var x = CleanWords(a);
         var y = CleanWords(b);
-        if (x.Count < 5 || y.Count == 0 || IsGrowth(reread, sent) || IsGrowth(sent, reread)) return false;
+        if (x.Count < 5 || y.Count == 0 || IsGrowth(reread, sent) || IsGrowth(sent, reread) || AddsMeaning(reread, sent)) return false;
         var reads = Similarity(x, y) >= 0.65 || IsSimilar(a, b, 0.75);
         return reads && OcrNoise.Score(reread) < OcrNoise.Score(sent) + 4;
     }
+
+    /// <summary>Olumsuzluk sözcükleri; kesme işaretini kaçıran okumalar ("dont", "cant") da sayılır.</summary>
+    private static readonly HashSet<string> Negations = new(StringComparer.Ordinal)
+    {
+        "not", "no", "never", "nothing", "nobody", "none", "nowhere", "neither", "nor", "cannot",
+        "dont", "doesnt", "didnt", "cant", "wont", "isnt", "arent", "wasnt", "werent", "aint",
+        "couldnt", "shouldnt", "wouldnt", "havent", "hasnt", "hadnt", "mustnt", "neednt",
+    };
+
+    /// <summary>
+    /// <paramref name="reread"/>, <paramref name="sent"/>'te olmayan bir anlam işareti taşıyor mu: daha çok olumsuzluk
+    /// ya da gönderilende bulunmayan bir sayı. Bu farklar karakterce küçüktür ("I can do that for you right now." / "I can't do that for you right now.":
+    /// 0.94, "at 5" / "at 6": 0.92) ama cümleyi tersine çevirir; altyazının ilk karesi olumsuzluğu kaçırıp hızlı yoldan
+    /// gittiyse doğru okuma yeniden okuma sayılıp atılıyor, TV'de ters çeviri kalıyordu. Yalnız EKLENEN işaret sayılır:
+    /// işareti düşüren okuma ("can't" → "can") çoğu zaman OCR kaybıdır ve gösterileni bozmamalıdır. Rakam karışmış
+    /// sözcük ("n0t") OCR karışıklıklarına göre harfe çevrilip sayılır; kesmenin tek başına kalan "t"si ("can t")
+    /// bilinen bir olumsuz kısaltmayı tamamladığında olumsuzluktur. Ham ya da sadeleştirilmiş metin verilebilir.
+    /// </summary>
+    public static bool AddsMeaning(string reread, string sent)
+    {
+        var words = Normalize(reread).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var sentWords = Normalize(sent).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var (negations, numbers) = MeaningMarks(words);
+        var (sentNegations, sentNumbers) = MeaningMarks(sentWords);
+        if (negations > sentNegations) return true;
+        if (numbers.Count == 0) return false;
+        // Eşit uzunlukta sözcük konumunu, eksik/ek sözcükte eşleşen baş/son bölümü kullan.
+        // Baştaki "I", başka konumdaki gerçek "5 → 1" değişimini gizlememeli.
+        if (words.Length == sentWords.Length)
+        {
+            for (var i = 0; i < words.Length; i++)
+                if (words[i] != sentWords[i] && SameGlyphWord(words[i], sentWords[i])) numbers.Remove(words[i]);
+        }
+        else
+        {
+            var prefix = 0;
+            while (prefix < Math.Min(words.Length, sentWords.Length) && SameGlyphWord(words[prefix], sentWords[prefix]))
+            {
+                if (words[prefix] != sentWords[prefix]) numbers.Remove(words[prefix]);
+                prefix++;
+            }
+            for (int i = words.Length - 1, j = sentWords.Length - 1;
+                 i >= prefix && j >= prefix && SameGlyphWord(words[i], sentWords[j]); i--, j--)
+                if (words[i] != sentWords[j]) numbers.Remove(words[i]);
+        }
+        foreach (var number in numbers)
+            if (!sentNumbers.Remove(number)) return true;
+        return false;
+    }
+
+    private static bool SameGlyphWord(string word, string sent) =>
+        word == sent || (word.All(char.IsAsciiDigit) && FoldDigits(word) == sent);
+
+    private static (int Negations, List<string> Numbers) MeaningMarks(string[] words)
+    {
+        var negations = 0;
+        var numbers = new List<string>();
+        for (var i = 0; i < words.Length; i++)
+        {
+            var word = words[i];
+            if (word.All(char.IsAsciiDigit))
+            {
+                numbers.Add(word);
+                continue;
+            }
+            if (word.Any(char.IsAsciiDigit)) word = FoldDigits(word);
+            if (Negations.Contains(word) || (word == "t" && i > 0 && Negations.Contains(FoldDigits(words[i - 1]) + "t"))) negations++;
+        }
+        return (negations, numbers);
+    }
+
+    /// <summary>OCR'ın harfle karıştırdığı rakamlar harfe çevrilir ("n0t" → "not").</summary>
+    private static string FoldDigits(string word) => string.Create(word.Length, word, (span, source) =>
+    {
+        for (var i = 0; i < source.Length; i++)
+            span[i] = source[i] switch { '0' => 'o', '1' => 'i', '3' => 'e', '4' => 'a', '5' => 's', '7' => 't', '8' => 'b', var c => c };
+    });
 
     /// <summary>Levenshtein oranı (sözcük dizileri için).</summary>
     private static double Similarity(List<string> x, List<string> y)

@@ -1,0 +1,1 @@
+0.9.75: GTA 6 telefonunun mesajları telefonun yanındaki sohbet panelinde: yuvarlak köşeli, yarı saydam kartta üstte konuşulan kişinin adı, karşı tarafın mesajları solda, sizinkiler sağda; yazı altyazı boyutuyla büyür.

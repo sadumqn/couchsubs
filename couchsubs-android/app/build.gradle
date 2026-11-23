@@ -1,0 +1,410 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+// Firebase (Analytics, Crashlytics) yapılandırması app/google-services.json'dan gelir. Dosya depoda
+// yoktur (.gitignore); yoksa eklentiler uygulanmaz, uygulama Firebase'siz derlenir ve çalışır (bkz. Backend.kt).
+def hasGoogleServices = file('google-services.json').exists()
+if (hasGoogleServices) {
+    apply plugin: 'com.google.gms.google-services'
+    apply plugin: 'com.google.firebase.crashlytics'
+}
+
+// Anahtarlar ve kimlikler couchsubs-android/secrets.properties'ten (depoda yok; örnek: secrets.example.properties).
+def secrets = new Properties()
+def secretsFile = rootProject.file('secrets.properties')
+if (secretsFile.exists()) secretsFile.withInputStream { secrets.load(it) }
+def secret = { String name, String fallback = '' -> (secrets.getProperty(name) ?: System.getenv(name.toUpperCase().replace('.', '_')) ?: fallback).trim() }
+// Paket sırları yerelde ~/.config/couchsubs/packs.env'de (KEY=değer; depoda yok, bkz. server/packs/README.md).
+def packsEnv = new Properties()
+def packsEnvFile = file("${System.getProperty('user.home')}/.config/couchsubs/packs.env")
+if (packsEnvFile.exists()) packsEnvFile.withInputStream { packsEnv.load(it) }
+def packsAppSecret = secret('packs.app.secret', (packsEnv.getProperty('PACKS_APP_SECRET') ?: '').replaceAll(/^["']|["']$/, ''))
+
+def releaseSigning = null
+def signingFile = file(System.getenv('COUCHSUBS_ANDROID_SIGNING') ?: "${System.getProperty('user.home')}/.config/couchsubs/android-signing.properties")
+if (signingFile.exists()) {
+    def props = new Properties()
+    signingFile.withInputStream { props.load(it) }
+    releaseSigning = [storeFile: props.getProperty('storeFile'), storePassword: props.getProperty('storePassword'),
+                      keyAlias: props.getProperty('keyAlias', 'couchsubs'), keyPassword: props.getProperty('keyPassword')]
+} else if (System.getenv('ANDROID_KEYSTORE_FILE')) {
+    releaseSigning = [storeFile: System.getenv('ANDROID_KEYSTORE_FILE'), storePassword: System.getenv('ANDROID_KEYSTORE_PASSWORD'),
+                      keyAlias: System.getenv('ANDROID_KEY_ALIAS') ?: 'couchsubs', keyPassword: System.getenv('ANDROID_KEYSTORE_PASSWORD')]
+}
+
+// Depo kökü: oyun paketleri, model listesi ve chiaki-ng buradan okunur (masaüstüyle ortak).
+def repoRoot = rootProject.projectDir.parentFile
+// Samsung TV uygulamasının sürümü (tv-tizen/config.xml); telefondan kurulumda TV'deki sürümle karşılaştırılır.
+def tizenVersion = (file("$repoRoot/tv-tizen/config.xml").text =~ / version="([0-9.]+)" viewmodes/)[0][1]
+def abis = (findProperty('couchsubs.abis') ?: 'arm64-v8a,armeabi-v7a').toString().split(',')*.trim()
+// Yerel kütüphane olmadan (yalnız Kotlin ve arayüz) derlemek için: -Pcouchsubs.skipNative=true
+def skipNative = (findProperty('couchsubs.skipNative') ?: 'false').toString().toBoolean()
+// nanopb'nin kod üreteci protobuf paketli bir Python ister (Mac betiğindeki venv gibi).
+def python = (findProperty('couchsubs.python') ?: System.getenv('COUCHSUBS_PYTHON') ?: 'python3').toString()
+
+android {
+    namespace 'com.couchsubs.mobile'
+    compileSdk 36
+    ndkVersion '27.0.12077973'
+
+    defaultConfig {
+        applicationId 'com.couchsubs.mobile'
+        minSdk 26
+        targetSdk 36
+        // Masaüstü sürüm çizgisiyle aynı ad; kod beta numarasıdır ve her yayında artar. CI etiketten verebilir:
+        // -Pcouchsubs.versionName=0.1.0-beta.37 -Pcouchsubs.versionCode=37
+        versionCode((findProperty('couchsubs.versionCode') ?: '37').toString().toInteger())
+        versionName((findProperty('couchsubs.versionName') ?: '0.1.0-beta.37').toString())
+        ndk { abiFilters(*abis) }
+        buildConfigField 'String', 'PACKS_URL', "\"${secret('packs.url', 'https://couchsubs-packs.enmera.workers.dev')}\""
+        // Yedek adres: workers.dev'e ulaşamayan ağlar için (DNS/reklam engelleyici/operatör, #583). Aynı Worker.
+        buildConfigField 'String', 'PACKS_FALLBACK_URL', "\"${secret('packs.fallbackUrl', 'https://couchsubs-packs.enmeraapps.com')}\""
+        // Paket isteklerinin imza sırrı (server/packs, PackSigning): secrets.properties `packs.app.secret` ya da ortamdaki
+        // PACKS_APP_SECRET (CI sırrı). Depoda değil; boşsa paket indirme kapalı.
+        buildConfigField 'String', 'PACKS_APP_SECRET', "\"${packsAppSecret}\""
+        buildConfigField 'String', 'FACEBOOK_APP_ID', "\"${secret('facebook.appId')}\""
+        buildConfigField 'boolean', 'HAS_FIREBASE', "${hasGoogleServices}"
+        buildConfigField 'String', 'TV_SAMSUNG_VERSION', "\"${tizenVersion}\""
+        manifestPlaceholders = [
+            facebookAppId      : secret('facebook.appId'),
+            facebookClientToken: secret('facebook.clientToken'),
+        ]
+        if (!skipNative) {
+            externalNativeBuild {
+                cmake {
+                    // Yalnız kendi kütüphanemiz derlenir; chiaki-ng'nin eski Android uygulaması (chiaki-jni) derlenmez.
+                    targets 'couchsubs-jni'
+                    // 16 KB sayfa boyutu (Play şartı): NDK 27 varsayılanı 4 KB; LOAD segmentleri 16 KB hizalanır.
+                    arguments "-DPYTHON_EXECUTABLE=${python}", "-DPython3_EXECUTABLE=${python}", '-DANDROID_STL=c++_static',
+                        '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                }
+            }
+        }
+    }
+
+    if (!skipNative) {
+        externalNativeBuild {
+            cmake {
+                path 'src/main/cpp/CMakeLists.txt'
+                version '3.22.1'
+            }
+        }
+    }
+
+    // Sürüm imzası (telefon uygulamasına özel anahtar, TV uygulamasınınkinden ayrı): önce depo dışındaki
+    // ~/.config/couchsubs/android-signing.properties (ya da COUCHSUBS_ANDROID_SIGNING ile verilen dosya: storeFile,
+    // storePassword, keyAlias, keyPassword), yoksa CI sırları (ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD).
+    // İkisi de yoksa geliştirme anahtarıyla imzalanır; CI yine derler.
+    signingConfigs {
+        release {
+            if (releaseSigning) {
+                storeFile file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig releaseSigning ? signingConfigs.release : signingConfigs.debug
+            // Yerel çökme izleri (libcouchsubs-jni, içine bağlı libchiaki ve OpenSSL) Crashlytics'te sembollü görünsün:
+            // sembol dosyası sürüm derlemesinde yüklenir (bkz. aşağıdaki uploadCrashlyticsSymbolFileRelease). Eklenti
+            // yalnız google-services.json varken uygulandığı için blok da o zaman eklenir; CI onsuz derler.
+            if (hasGoogleServices) {
+                firebaseCrashlytics {
+                    nativeSymbolUploadEnabled true
+                }
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+    sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('generated/couchsubs-assets')
+    // Paketler ücretsiz ve her derlemede uygulamayla gelir (dokuz paket ~27 MB); sunucudan yalnız yenileri ve güncellemeleri iner.
+    sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('generated/couchsubs-packs')
+    // Telefondan TV kurulumu ve güncellemesi: imzasız Samsung paketi (her derlemede kaynaktan, yani hep en yenisi);
+    // kurulurken TV'ye özel sertifikayla imzalanır.
+    sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('generated/couchsubs-tv')
+    // Android TV ve LG paketleri: son GitHub sürümünden (tvReleasePackages).
+    sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('generated/couchsubs-tv-release')
+    // Perde tasarım belirteçleri (design/yeni-arayuz/tasarim.json v2): Mac, iPhone ve Windows'un okuduğu dosyadan derlemede
+    // üretilir (DesignTokens.kt); renk ve ölçü elle yazılmaz.
+    sourceSets.main.java.srcDirs += layout.buildDirectory.dir('generated/couchsubs-design/kotlin')
+    testOptions {
+        unitTests.returnDefaultValues = true
+        // Ekran görüntüsü testleri (Robolectric + Roborazzi) Android kaynaklarını ister.
+        unitTests.includeAndroidResources = true
+    }
+    // BouncyCastle ve jsch jar'ları aynı OSGi dosyalarını taşır (uygulamada kullanılmaz).
+    packaging { resources { excludes += ['/META-INF/{AL2.0,LGPL2.1}', 'META-INF/versions/*/OSGI-INF/MANIFEST.MF'] } }
+}
+
+// Oyun paketleri ve yapay zekâ model listesi Mac ve Windows'la aynı dosyalardır.
+tasks.register('copyCouchSubsAssets', Copy) {
+    into layout.buildDirectory.dir('generated/couchsubs-assets')
+    from("$repoRoot/core/Sources/CouchSubsCore/Resources") { include 'ai-models.json', 'glossary-en-tr.json', 'obs-overlay.html', 'second-screen.html' }
+    // Açılır reklam promo.json indirilemezse uygulamayla gelen reklam (Mac, Windows ve iPhone ile aynı dosya ve görsel).
+    // Alt reklam şeridinin simgeleri de (Cebbin, Gramla, Bakkal; iPhone ile aynı dosyalar).
+    from("$repoRoot/design/yeni-arayuz") { include 'reklamlar.json', 'reklam/popup-*.jpg', 'reklam/*.png' }
+}
+
+// tasarim.json → DesignTokens.kt: renkler (açık/koyu ARGB), boşluk, köşe, ölçü ve hareket süreleri. Mac DSTokens ile
+// aynı adlar; anahtar eklenince Android'de de kendiliğinden görünür.
+def designTokensJson = file("$repoRoot/design/yeni-arayuz/tasarim.json")
+def designTokensOut = layout.buildDirectory.dir('generated/couchsubs-design/kotlin').get().asFile
+tasks.register('generateDesignTokens') {
+    inputs.file(designTokensJson)
+    outputs.dir(designTokensOut)
+    def source = designTokensJson
+    def outDir = designTokensOut
+    doLast {
+        def tokens = new groovy.json.JsonSlurper().parse(source)
+        def argb = { String hex ->
+            def h = hex.replace('#', '')
+            if (h.length() == 6) h = 'FF' + h
+            else if (h.length() == 8) h = h.substring(6) + h.substring(0, 6)
+            else throw new GradleException("tasarim.json: geçersiz renk $hex")
+            "0x${h.toUpperCase()}"
+        }
+        def number = { value -> value instanceof Integer || value instanceof Long ? "${value}f" : "${(value as BigDecimal).toPlainString()}f" }
+        def name = { String key -> key.replaceAll(/[^A-Za-z0-9]/, '') }
+        def out = new StringBuilder()
+        out << '// Üretilen dosya (app/build.gradle › generateDesignTokens); kaynak: design/yeni-arayuz/tasarim.json. Elle değiştirmeyin.\n'
+        out << 'package com.couchsubs.mobile.ui\n\n'
+        out << "/** Perde tasarım belirteçleri (tasarim.json v${tokens.version}). Renkler 0xAARRGGBB. */\n"
+        out << 'object DesignTokens {\n'
+        out << "    const val VERSION = ${tokens.version}\n"
+        out << "    const val DEFAULT_DARK = ${tokens.defaultTheme == 'dark'}\n"
+        out << "    const val MUTED_TRACKING = ${number(tokens.mutedTracking)}\n"
+        ['light', 'dark'].each { theme ->
+            out << "    object ${theme == 'light' ? 'Light' : 'Dark'} {\n"
+            tokens.color.each { key, pair -> out << "        const val ${name(key)} = ${argb(pair[theme])}L\n" }
+            out << '    }\n'
+        }
+        [space: tokens.space, radius: tokens.radius, size: tokens.size].each { group, values ->
+            out << "    object ${group.capitalize()} {\n"
+            values.each { key, value -> if (value instanceof Number) out << "        const val ${name(key)} = ${number(value)}\n" }
+            out << '    }\n'
+        }
+        out << '    object Motion {\n'
+        tokens.motion.each { key, value ->
+            if (value instanceof Number) out << "        const val ${name(key)} = ${value}\n"
+            else out << "        val ${name(key)} = floatArrayOf(${value.collect { number(it) }.join(', ')})\n"
+        }
+        out << '    }\n'
+        out << '}\n'
+        def file = new File(outDir, 'com/couchsubs/mobile/ui/DesignTokens.kt')
+        file.parentFile.mkdirs()
+        file.text = out.toString()
+    }
+}
+preBuild.dependsOn 'generateDesignTokens'
+tasks.register('copyCouchSubsPacks', Copy) {
+    into layout.buildDirectory.dir('generated/couchsubs-packs')
+    from("$repoRoot/core/Sources/CouchSubsCore/Resources") { include 'packs/*.json.gz' }
+}
+// Paketler depoda değil (özel R2): yayın derlemesinden önce `python3 scripts/fetch-packs.py` (erişim
+// ~/.config/couchsubs/packs.env ya da PACKS_R2_*). Paketsiz yayın paketi çıkmasın.
+gradle.taskGraph.whenReady { graph ->
+    def release = graph.allTasks.any { it.project == project && (it.name == 'bundleRelease' || it.name == 'assembleRelease') }
+    def packsHere = file("$repoRoot/core/Sources/CouchSubsCore/Resources/packs").listFiles()?.any { it.name.endsWith('.json.gz') }
+    if (release && !packsHere) throw new GradleException('Oyun paketleri yok: önce python3 scripts/fetch-packs.py --require')
+}
+// Samsung TV paketi (.wgt): scripts/package-tizen.sh'nin yaptığının aynısı (ortak dosyalar tv-webos'tan, Tizen'e
+// özgüler tv-tizen'den; index.html'e Samsung'un webapis.js'i eklenir, panel simgesi panel-icon.png olur).
+tasks.register('samsungTvPackage', Zip) {
+    archiveFileName = 'couchsubs-samsung.wgt'
+    destinationDirectory = layout.buildDirectory.dir('generated/couchsubs-tv/tv')
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    from("$repoRoot/tv-webos") { include 'app.js', 'i18n.js', 'config.js', 'style.css', 'largeIcon.png' }
+    from("$repoRoot/tv-webos") { include 'icon.png'; rename { 'panel-icon.png' } }
+    from("$repoRoot/tv-webos") {
+        include 'index.html'
+        filter { String line ->
+            if (line == '  <script src="platform.js"></script>') '  <script src="$WEBAPIS/webapis/webapis.js"></script>\n' + line
+            // Görünüm sabit width=1920 kalır (package-tizen.sh, 0.9.55).
+            else line.replace('src="icon.png"', 'src="panel-icon.png"')
+        }
+    }
+    from("$repoRoot/tv-tizen") { include 'platform.js', 'config.xml', 'icon.png' }
+}
+// Android TV paketi (.apk) kaynaktan derlenmez, son GitHub sürümünden indirilir: masaüstünün kurduğu ve TV'lerde duran
+// kopyayla aynı sürüm anahtarıyla imzalıdır, telefonun kurduğu sürüm onu güncelleyebilir (telefonda derlenen başka
+// anahtarlı APK güncelleyemezdi). Paket küçüktür (~100 KB); SHA256SUMS.txt ile denetlenir. İndirilemezse önceki indirilen
+// kalır; hiç yoksa uygulama "paket yok" der. CI -Pcouchsubs.requireTvPackages=true ile indirmeyi şart koşar.
+def tvReleaseDir = layout.buildDirectory.dir('generated/couchsubs-tv-release/tv').get().asFile
+def requireTvPackages = (findProperty('couchsubs.requireTvPackages') ?: 'false').toString().toBoolean()
+tasks.register('tvReleasePackages') {
+    def outDir = tvReleaseDir
+    def required = requireTvPackages
+    def sourceInfo = file("$repoRoot/tv-webos/appinfo.json")
+    def token = System.getenv('GITHUB_TOKEN')
+    // Sürümdeki ad → uygulamadaki ad.
+    // LG paketi (.ipk) de masaüstünün kurduğuyla aynıdır (ares-package çıktısı); adı sürümü taşır.
+    def wanted = [[pattern: ~/CouchSubs-androidtv\.apk/, file: 'couchsubs-androidtv.apk'],
+                  [pattern: ~/com\.couchsubs\.tv_[0-9.]+_all\.ipk/, file: 'couchsubs-lg.ipk']]
+    doLast {
+        def fetch = { String url, boolean api ->
+            def connection = new URL(url).openConnection()
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.setRequestProperty('User-Agent', 'couchsubs-android-build')
+            if (api) connection.setRequestProperty('Accept', 'application/vnd.github+json')
+            if (api && token) connection.setRequestProperty('Authorization', "Bearer ${token}")
+            connection.inputStream.withStream { it.bytes }
+        }
+        try {
+            def release = new groovy.json.JsonSlurper().parse(fetch('https://api.github.com/repos/yorulmazsinan/couchsubs/releases/latest', true))
+            def sums = release.assets.find { it.name == 'SHA256SUMS.txt' }
+            if (!sums) throw new GradleException("${release.tag_name}: SHA256SUMS.txt yok")
+            def lines = new String(fetch(sums.browser_download_url, false), 'UTF-8').readLines()
+            def properties = ["release=${release.tag_name}"]
+            // İki paket de indirilip denetlenmeden önbellek değiştirilmez: biri başarısızsa önceki eksiksiz sürüm kalır.
+            def verified = [:]
+            wanted.each { item ->
+                def asset = release.assets.find { it.name ==~ item.pattern }
+                if (!asset) throw new GradleException("${release.tag_name}: ${item.pattern} yok")
+                def bytes = fetch(asset.browser_download_url, false)
+                def digest = java.security.MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString()
+                if (!lines.any { it.trim() == "${digest}  ${asset.name}".toString() }) throw new GradleException("${asset.name}: SHA-256 tutmuyor")
+                verified[item.file] = bytes
+                properties << "${item.file}=${asset.name}".toString()
+            }
+            outDir.mkdirs()
+            verified.each { name, bytes -> new File(outDir, name).bytes = bytes }
+            new File(outDir, 'tv-packages.properties').text = properties.join('\n') + '\n'
+            logger.lifecycle("TV paketleri: ${release.tag_name} (${wanted*.file.join(', ')})")
+            // Telefon TV'deki eski uygulamayı bu paketlerle günceller: depodaki TV uygulaması sürümdekinden yeniyse
+            // (henüz sürüm çıkmadı) uyarılır; bir sonraki sürümden sonra derlenen telefon uygulaması yenisini taşır.
+            def lgMatch = (properties.find { it.startsWith('couchsubs-lg.ipk=') } ?: '') =~ /_([0-9.]+)_all\.ipk/
+            def released = lgMatch.find() ? lgMatch.group(1) : null
+            def source = new groovy.json.JsonSlurper().parse(sourceInfo).version?.toString()
+            def parts = { String v -> v.tokenize('.').collect { it.isInteger() ? it.toInteger() : 0 } }
+            def newer = { String a, String b ->
+                def x = parts(a), y = parts(b)
+                for (int i = 0; i < Math.max(x.size(), y.size()); i++) {
+                    def l = i < x.size() ? x[i] : 0, r = i < y.size() ? y[i] : 0
+                    if (l != r) return l > r
+                }
+                false
+            }
+            if (released && source && newer(source, released))
+                logger.warn("TV uygulaması depoda ${source}, son sürümde ${released}: telefon şimdilik ${released} kurar.")
+        } catch (Exception error) {
+            if (required) throw new GradleException("TV paketleri indirilemedi: ${error.message}", error)
+            if (new File(outDir, 'tv-packages.properties').exists()) logger.warn("TV paketleri yenilenemedi, önceki indirilen kullanılıyor: ${error.message}")
+            else logger.warn("TV paketleri indirilemedi, telefondan Android TV kurulumu bu derlemede çalışmaz: ${error.message}")
+        }
+    }
+}
+preBuild.dependsOn 'copyCouchSubsAssets', 'copyCouchSubsPacks', 'samsungTvPackage', 'tvReleasePackages'
+
+// Sürüm derlemesi (assembleRelease / bundleRelease) bitince yerel semboller Crashlytics'e yüklenir; böylece yerel
+// çökme izlerinde "Missing BuildId" yerine işlev adları görünür. Ağ yoksa -Pcouchsubs.skipSymbolUpload=true ile atlanır.
+def skipSymbolUpload = (findProperty('couchsubs.skipSymbolUpload') ?: 'false').toString().toBoolean()
+if (hasGoogleServices && !skipNative && !skipSymbolUpload) {
+    tasks.matching { it.name in ['assembleRelease', 'bundleRelease'] }.configureEach {
+        finalizedBy 'uploadCrashlyticsSymbolFileRelease'
+    }
+}
+
+// CI'da chiaki-ng yamaları masaüstü derlemeleri gibi uygulanır (scripts/patch-chiaki.sh): -Pcouchsubs.patchChiaki=true
+if ((findProperty('couchsubs.patchChiaki') ?: 'false').toString().toBoolean()) {
+    tasks.register('patchChiaki', Exec) {
+        workingDir repoRoot
+        commandLine 'sh', 'scripts/patch-chiaki.sh'
+    }
+    preBuild.dependsOn 'patchChiaki'
+}
+
+// Testler, gömülü paketleri depodaki yerinden okur. Paketler depoda değil (özel R2, scripts/fetch-packs.py); inmemişse
+// özellik verilmez ve gerçek paket testleri kendini atlar.
+def bundledPacksDir = file("$repoRoot/core/Sources/CouchSubsCore/Resources/packs")
+tasks.withType(Test).configureEach {
+    if (bundledPacksDir.listFiles()?.any { it.name.endsWith('.json.gz') }) systemProperty 'couchsubs.packs', bundledPacksDir.absolutePath
+    systemProperty 'couchsubs.glossary', "$repoRoot/core/Sources/CouchSubsCore/Resources/glossary-en-tr.json"
+    systemProperty 'couchsubs.tvPackages', tvReleaseDir.absolutePath
+    systemProperty 'couchsubs.requireTvPackages', requireTvPackages.toString()
+}
+
+dependencies {
+    // LG/Samsung oturum başlatma: yalnız yerel TV WebSocket denetimi (Apache-2.0).
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // "Başka bir cihazda göster" adresinin QR kodu; yalnız çekirdek kodlayıcı (Apache-2.0).
+    implementation 'com.google.zxing:core:3.5.3'
+    implementation platform('androidx.compose:compose-bom:2024.12.01')
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0'
+    // Cihaz üstü yazı tanıma (Latin modeli uygulamayla gelir) ve ücretsiz çeviri (EN→TR modeli ilk kullanımda iner).
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
+    // Ayarlar › Konsol ve Kaynak › Oyunun dili: Japonca oyunlar (Mac/iPhone'daki gibi).
+    implementation 'com.google.mlkit:text-recognition-japanese:16.0.1'
+    implementation 'com.google.mlkit:translate:17.0.3'
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
+    implementation 'androidx.compose.material:material-icons-core'
+    // Perde cam katmanları (sekme çubuğu, üst/alt kenar): Android 12+ arkadaki içeriği RenderEffect ile bulanıklaştırır,
+    // öncesinde yarı saydam zemin (Apache-2.0).
+    implementation 'dev.chrisbanes.haze:haze:1.1.1'
+
+    // Firebase: google-services.json yoksa da derlenir; çalışırken Backend.kt Firebase'in açılıp açılmadığına bakar.
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-crashlytics'
+    // Yerel çökmeler (libchiaki, MediaCodec) de raporlansın: düz Crashlytics yalnız Java çökmelerini görür.
+    implementation 'com.google.firebase:firebase-crashlytics-ndk'
+    // Meta App Events (iPhone'la aynı): yalnız olay adları, reklam kimliği yok. Uygulamada reklam yok.
+    implementation 'com.facebook.android:facebook-core:17.0.0'
+    // Telefondan Android TV kurulumu: kablosuz hata ayıklamanın TLS 1.3'ü, anahtar dışa aktarımı ve sertifika (MIT).
+    // Samsung testleri de sertifika isteğini ayrıştırmak ve sahte sertifika vermek için bunu kullanır.
+    implementation 'org.bouncycastle:bctls-jdk18on:1.79'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.79'
+    // Telefondan LG kurulumu: geliştirici modunun SSH'si (9922). mwiede/jsch, BSD.
+    implementation 'com.github.mwiede:jsch:0.2.25'
+    // Xbox ev yayını (Beta): Google libwebrtc'nin Android derlemesi (webrtc-sdk, BSD-3). Görüntü donanım çözücüsüyle
+    // alınır, kareler OCR'a Y düzlemi olarak gider (docs/superpowers/specs/2026-11-16-telefon-xbox-design.md).
+    implementation 'io.github.webrtc-sdk:android:144.7559.15'
+
+    testImplementation 'junit:junit:4.13.2'
+    // android.jar'daki org.json yalnız iskelettir; JVM testleri gerçeğini kullanır.
+    testImplementation 'org.json:json:20240303'
+    // Yalnız testlerde: paket imzasını bağımsız bir XML imza doğrulayıcısıyla denetlemek için (Apache-2.0).
+    testImplementation 'org.apache.santuario:xmlsec:3.0.4'
+    // Yalnız ekran görüntüsü testleri (-Pcouchsubs.screenshots=true): Robolectric'in yerel grafik kipi ve Roborazzi.
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi:1.39.0'
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi-compose:1.39.0'
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}
+
+// Ekran görüntüsü testleri (app/src/test/.../screenshots) yavaştır ve Robolectric'in Android kitaplığını indirir: CI'daki
+// JVM testlerinde çalışmaz, yalnız `-Pcouchsubs.screenshots=true` ile (çıktı: app/build/outputs/roborazzi;
+// iPhone görüntüleriyle yan yana göz kontrolü için).
+def screenshots = (findProperty('couchsubs.screenshots') ?: 'false').toString().toBoolean()
+tasks.withType(Test).configureEach {
+    if (!screenshots) exclude '**/screenshots/**'
+    else {
+        systemProperty 'roborazzi.test.record', 'true'
+        systemProperty 'robolectric.pixelCopyRenderMode', 'hardware'
+        maxHeapSize = '3g'
+    }
+}

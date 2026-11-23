@@ -34,6 +34,23 @@ final class AreaPresetTests: XCTestCase {
         XCTAssertEqual(decoded.region, AreaPreset.top.region)
     }
 
+    func testKeepCenteredIsOnByDefaultAndInOldSettings() throws {
+        XCTAssertTrue(UserSettings().keepAreaCentered)
+        let old = #"{"region":{"top":0,"bottom":1,"left":0,"right":1},"sourceLanguage":"en"}"#
+        XCTAssertTrue(try JSONDecoder().decode(UserSettings.self, from: Data(old.utf8)).keepAreaCentered)
+        var settings = UserSettings()
+        settings.keepAreaCentered = false
+        XCTAssertFalse(try JSONDecoder().decode(UserSettings.self, from: JSONEncoder().encode(settings)).keepAreaCentered)
+    }
+
+    func testGamePhoneIsOptInForNewAndExistingSettings() throws {
+        XCTAssertFalse(UserSettings().autoReadGamePhone)
+        XCTAssertFalse(try JSONDecoder().decode(UserSettings.self, from: Data("{}".utf8)).autoReadGamePhone)
+        var enabled = UserSettings()
+        enabled.autoReadGamePhone = true
+        XCTAssertTrue(try JSONDecoder().decode(UserSettings.self, from: JSONEncoder().encode(enabled)).autoReadGamePhone)
+    }
+
     func testCustomKeepsTheRegionAndManualEditsBecomeCustom() {
         var settings = UserSettings()
         settings.selectAreaPreset(.full)

@@ -2,6 +2,7 @@
 
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace CouchSubs.Core;
 
@@ -14,24 +15,39 @@ namespace CouchSubs.Core;
 /// bir sözcük olan adlar için ("Soul" kahramanın adıyken "soul" ruh demek; Phantom Blade Zero).
 /// Uygulamayla gelen genel sözlüğün üstüne kullanıcının klasöründeki <c>*.json</c> dosyaları eklenir (ad sırasıyla;
 /// aynı terimde sonraki dosya kazanır).
+/// <c>phrases</c> çeviriden önce oyun argosunu düz İngilizceye çevirir (anahtar düzenli ifade: "toss a smoke" → "throw a
+/// smoke grenade"); <c>lines</c> kısa ünlem satırlarının hazır Türkçesidir ("Reloading!" → "Şarjör değiştiriyorum!"),
+/// satır modele gitmez.
 /// </summary>
 public sealed class Glossary
 {
+    /// <summary>Düzenli ifade → düz İngilizce; anahtar sırasıyla (bayt) uygulanır.</summary>
+    private readonly Dictionary<string, string> _phrases;
+    private readonly List<(Regex Pattern, string Plain)> _phrasePatterns;
+    /// <summary><see cref="LineKey"/> → Türkçe.</summary>
+    private readonly Dictionary<string, string> _lines;
+    private static readonly char[] Endings = ['.', '!', '?', '…'];
     /// <summary>Küçük harfli İngilizce → (sözlükte yazıldığı gibi İngilizce, Türkçe, yalnız aynı büyük/küçük harfle mi).</summary>
     private readonly Dictionary<string, (string English, string Turkish, bool Exact)> _terms;
     /// <summary>Uzundan kısaya terimler; arama bu sırayla yapılır.</summary>
     private readonly List<(string English, string Turkish, bool Exact)> _ordered;
 
-    public static Glossary Empty { get; } = new([]);
+    public static Glossary Empty { get; } = new([], [], []);
 
     private static readonly Lazy<Glossary> BuiltInValue = new(LoadBuiltIn);
 
     /// <summary>Uygulamayla gelen genel oyun terimleri (core/Sources/CouchSubsCore/Resources/glossary-en-tr.json).</summary>
     public static Glossary BuiltIn => BuiltInValue.Value;
 
-    private Glossary(Dictionary<string, (string English, string Turkish, bool Exact)> terms)
+    private Glossary(Dictionary<string, (string English, string Turkish, bool Exact)> terms,
+        Dictionary<string, string> phrases, Dictionary<string, string> lines)
     {
         _terms = terms;
+        _phrases = phrases;
+        _lines = lines;
+        _phrasePatterns = [];
+        foreach (var key in phrases.Keys.Order(StringComparer.Ordinal))
+            if (TryRegex($@"\b(?:{key})\b", out var pattern)) _phrasePatterns.Add((pattern, phrases[key]));
         _ordered = [.. terms.Values.OrderByDescending(t => t.English.Length).ThenBy(t => t.English, StringComparer.Ordinal)];
         var words = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (english, _, exact) in _ordered)
@@ -43,7 +59,17 @@ public sealed class Glossary
                 if (word.Length >= 2) words.Add(word.ToLowerInvariant());
         }
         CapitalWords = words;
-        Fingerprint = MakeFingerprint(_ordered);
+        Fingerprint = MakeFingerprint(_ordered, phrases, lines);
+    }
+
+    private static bool TryRegex(string pattern, out Regex regex)
+    {
+        try
+        {
+            regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+            return true;
+        }
+        catch (ArgumentException) { regex = null!; return false; }
     }
 
     public int Count => _terms.Count;
@@ -75,7 +101,23 @@ public sealed class Glossary
         if (root.TryGetProperty("keepExact", out var keepExact) && keepExact.ValueKind == JsonValueKind.Array)
             foreach (var name in keepExact.EnumerateArray())
                 if (name.ValueKind == JsonValueKind.String) Add(terms, name.GetString()!, name.GetString()!, exact: true);
-        return new Glossary(terms);
+        var phrases = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (root.TryGetProperty("phrases", out var phraseMap) && phraseMap.ValueKind == JsonValueKind.Object)
+            foreach (var entry in phraseMap.EnumerateObject())
+                // Bozuk düzenli ifade alınmaz.
+                if (entry.Value.ValueKind == JsonValueKind.String && entry.Name.Length > 0 && entry.Value.GetString()!.Length > 0
+                    && TryRegex(entry.Name, out _))
+                    phrases[entry.Name] = entry.Value.GetString()!;
+        var lines = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (root.TryGetProperty("lines", out var lineMap) && lineMap.ValueKind == JsonValueKind.Object)
+            foreach (var entry in lineMap.EnumerateObject())
+            {
+                if (entry.Value.ValueKind != JsonValueKind.String) continue;
+                var key = LineKey(entry.Name);
+                var turkish = CollapseSpaces(entry.Value.GetString()!);
+                if (key.Length > 0 && turkish.Length > 0) lines[key] = turkish;
+            }
+        return new Glossary(terms, phrases, lines);
     }
 
     private static void Add(Dictionary<string, (string, string, bool)> terms, string english, string turkish, bool exact = false)
@@ -87,13 +129,34 @@ public sealed class Glossary
         terms[english.ToLowerInvariant()] = (english, turkish, exact);
     }
 
+    /// <summary>
+    /// Konuşan etiketlerinden öğrenilen adlar <c>keepExact</c> olarak eklenmiş sözlük (#287). Yalnız <paramref name="text"/>
+    /// içinde (büyük/küçük harfe bakmadan) geçen adlar eklenir: önbellek anahtarındaki iz, oturumda öğrenilen bütün adlara
+    /// değil, satırdakilere bağlı kalır. Sözlükte zaten olan terim değişmez. Eklenecek ad yoksa sözlüğün kendisi döner.
+    /// </summary>
+    public Glossary KeepingNames(IEnumerable<string> names, string text)
+    {
+        var present = SpeakerNameGuard.Occurring(names, text, exact: false)
+            .Where(name => !_terms.ContainsKey(name.ToLowerInvariant())).ToList();
+        if (present.Count == 0) return this;
+        var merged = new Dictionary<string, (string, string, bool)>(_terms, StringComparer.Ordinal);
+        foreach (var name in present) Add(merged, name, name, exact: true);
+        return new Glossary(merged, _phrases, _lines);
+    }
+
     /// <summary>Sözlükleri birleştirir; aynı terimde sonraki kazanır.</summary>
     public static Glossary Merge(IEnumerable<Glossary> glossaries)
     {
         var terms = new Dictionary<string, (string, string, bool)>(StringComparer.Ordinal);
+        var phrases = new Dictionary<string, string>(StringComparer.Ordinal);
+        var lines = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var glossary in glossaries)
+        {
             foreach (var (key, value) in glossary._terms) terms[key] = value;
-        return new Glossary(terms);
+            foreach (var (key, value) in glossary._phrases) phrases[key] = value;
+            foreach (var (key, value) in glossary._lines) lines[key] = value;
+        }
+        return new Glossary(terms, phrases, lines);
     }
 
     /// <summary>Genel sözlük ve klasördeki <c>*.json</c> dosyaları; okunamayan ya da bozuk dosya atlanır.</summary>
@@ -147,6 +210,39 @@ public sealed class Glossary
 
     public bool Matches(string text) => Find(text).Count > 0;
 
+    /// <summary>Satırın hazır Türkçesi (<c>lines</c>); Türkçede son noktalama yoksa kaynağınki eklenir. Yoksa null.</summary>
+    public string? Line(string sentence)
+    {
+        if (_lines.Count == 0 || !_lines.TryGetValue(LineKey(sentence), out var turkish)) return null;
+        if (Endings.Contains(turkish[^1])) return turkish;
+        var trimmed = sentence.Trim();
+        var start = trimmed.Length;
+        while (start > 0 && Endings.Contains(trimmed[start - 1])) start--;
+        return turkish + trimmed[start..];
+    }
+
+    /// <summary>Oyun argosu düz İngilizceye çevrilir (<c>phrases</c>); eşleşmenin baş harfi büyükse karşılığınınki de büyük olur.</summary>
+    public string Plain(string text)
+    {
+        foreach (var (pattern, plain) in _phrasePatterns)
+            text = pattern.Replace(text, match => char.IsUpper(match.Value[0]) ? char.ToUpperInvariant(plain[0]) + plain[1..] : plain);
+        return text;
+    }
+
+    /// <summary>Metin bir <c>lines</c> ya da <c>phrases</c> kuralına giriyor mu (önbellek anahtarına sözlüğün izi girsin diye).</summary>
+    public bool Rewrites(string text) =>
+        (_lines.Count > 0 && _lines.ContainsKey(LineKey(text))) || _phrasePatterns.Any(p => p.Pattern.IsMatch(text));
+
+    /// <summary><c>lines</c> anahtarı: küçük harf, düz kesme, tek boşluk; baştaki ve sondaki harf/rakam dışı karakterler atılır.</summary>
+    internal static string LineKey(string text)
+    {
+        var key = CollapseSpaces(text.ToLowerInvariant().Replace('’', '\'').Replace('‘', '\''));
+        int start = 0, end = key.Length;
+        while (start < end && !char.IsLetterOrDigit(key[start])) start++;
+        while (end > start && !char.IsLetterOrDigit(key[end - 1])) end--;
+        return key[start..end];
+    }
+
     /// <summary>Metinde bulunan terim: konumu, sözlükteki İngilizcesi ve Türkçesi.</summary>
     public readonly record struct TermMatch(int Start, int Length, string English, string Turkish);
 
@@ -159,13 +255,20 @@ public sealed class Glossary
         string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>FNV-1a (32 bit), terimler İngilizcesine göre sıralı; Mac'te de aynı hesap.</summary>
-    private static string MakeFingerprint(IEnumerable<(string English, string Turkish, bool Exact)> terms)
+    private static string MakeFingerprint(IEnumerable<(string English, string Turkish, bool Exact)> terms,
+        Dictionary<string, string> phrases, Dictionary<string, string> lines)
     {
         var hash = 2166136261u;
+        void Mix(string text)
+        {
+            foreach (var b in Encoding.UTF8.GetBytes(text)) hash = (hash ^ b) * 16777619u;
+        }
         // exact işareti yalnız varsa eklenir; eski sözlüklerin izi değişmez.
         foreach (var (english, turkish, exact) in terms.OrderBy(t => t.English.ToLowerInvariant(), StringComparer.Ordinal))
-            foreach (var b in Encoding.UTF8.GetBytes(english.ToLowerInvariant() + "\u0001" + turkish + (exact ? "\u0003" : "") + "\u0002"))
-                hash = (hash ^ b) * 16777619u;
+            Mix(english.ToLowerInvariant() + "\u0001" + turkish + (exact ? "\u0003" : "") + "\u0002");
+        // phrases ve lines de yalnız varsa girer.
+        foreach (var key in phrases.Keys.Order(StringComparer.Ordinal)) Mix(key + "\u0004" + phrases[key] + "\u0005");
+        foreach (var key in lines.Keys.Order(StringComparer.Ordinal)) Mix(key + "\u0006" + lines[key] + "\u0007");
         return "g" + hash.ToString("x8");
     }
 

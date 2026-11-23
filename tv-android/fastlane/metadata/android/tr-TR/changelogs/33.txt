@@ -1,0 +1,1 @@
+0.9.30: Samsung ultra geniş monitörlerde (Odyssey G8, 21:9 / 32:9) uygulama artık 16:9 kutuda değil, ekranın tamamında. TV kendi ağ adresini söyleyemese de TV uygulaması yaygın ev ağlarını tarayıp telefondaki ya da bilgisayardaki CouchSubs'ı buluyor.

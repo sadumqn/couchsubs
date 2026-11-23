@@ -64,7 +64,8 @@ internal sealed class WindowsVoiceModel : IDubbingModel
                 var (pitch, rate) = Tone(voice);
                 engine.Options.AudioPitch = pitch;
                 engine.Options.SpeakingRate = rate;
-                using var stream = await engine.SynthesizeTextToStreamAsync(text).AsTask(cancellationToken);
+                // Duygu etiketi ("[kızgın] ") Pocket TTS içindir; Windows sesi onu yüksek sesle okurdu.
+                using var stream = await engine.SynthesizeTextToStreamAsync(SpeechText.WithoutEmotion(text)).AsTask(cancellationToken);
                 using var memory = new MemoryStream();
                 await stream.AsStreamForRead().CopyToAsync(memory, cancellationToken);
                 return SpeechAudio.FromWav(memory.ToArray());

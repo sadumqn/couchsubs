@@ -22,6 +22,9 @@
     launchParams: function () { return connected ? '{"server":"http://192.168.1.20:8787","hdmi":1}' : ''; },
     showHdmi: function () { setTimeout(function () { window.__onHdmiStatus('playing'); }, 10); },
     consolePort: function () { return 1; },
+    pickPort: function () { return '1:console'; },
+    chooseInput: function () {},
+    forgetInput: function () {},
     localAddress: function () { return ''; },
     exit: function () {},
     setDisplayMode: function () {}

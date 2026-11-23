@@ -217,6 +217,21 @@ final class SubtitleStabilizerRetryTests: XCTestCase {
         XCTAssertEqual(s.feed("Run!"), .translate("Run!"))
     }
 
+    /// Noktayla biten satır ilk karede gider; o kare olumsuzluğu ya da sayıyı kaçırdıysa sonraki doğru okuma yeniden
+    /// çevrilmeli (Windows: SubtitleStabilizerTests.CorrectedReadThatChangesMeaningIsTranslated).
+    func testCorrectedReadThatChangesMeaningIsTranslated() {
+        let pairs = [
+            ("I can do that for you right now.", "I can't do that for you right now."),
+            ("I said that I would help you with this.", "I said that I would never help you with this."),
+            ("Meet me at the docks at 5.", "Meet me at the docks at 6."),
+        ]
+        for (misread, correct) in pairs {
+            var s = SubtitleStabilizer()
+            XCTAssertEqual(s.feed(misread), .translate(misread), misread)
+            XCTAssertEqual(s.feed(correct), .translate(correct), correct)
+        }
+    }
+
     /// Günlük için: kararlı olmadan kalkan çöp okuma ve yok sayılan kötü yeniden okuma not edilir; kararlar değişmez.
     func testNotesGarbledDropAndWorseReread() {
         let clock = TestClock()

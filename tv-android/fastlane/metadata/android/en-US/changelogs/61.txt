@@ -1,0 +1,1 @@
+0.9.58: With Cover selected, the Turkish box now fully hides the English subtitle in the game, in width and height; a line without a known position covers the last known one. Text stays at the size you chose: a long line that does not fit shrinks one step only, and the size no longer jumps between lines.

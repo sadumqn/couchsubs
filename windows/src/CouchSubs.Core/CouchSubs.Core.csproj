@@ -11,6 +11,7 @@
     <!-- Mac uygulamasıyla ortak tek kaynaklar: tasarım değerleri ve metinler. -->
     <EmbeddedResource Include="..\..\..\design\tokens.json" LogicalName="tokens.json" />
     <EmbeddedResource Include="..\..\..\core\Sources\CouchSubsCore\Resources\obs-overlay.html" LogicalName="obs-overlay.html" />
+    <EmbeddedResource Include="..\..\..\core\Sources\CouchSubsCore\Resources\second-screen.html" LogicalName="second-screen.html" />
     <EmbeddedResource Include="..\..\..\core\Sources\CouchSubsCore\Resources\glossary-en-tr.json" LogicalName="glossary-en-tr.json" />
     <EmbeddedResource Include="..\..\..\core\Sources\CouchSubsCore\Resources\ai-models.json" LogicalName="ai-models.json" />
     <!-- Oyun çeviri paketleri: Mac ile aynı klasör (ad: "packs/x.json.gz"). -->
@@ -20,6 +21,8 @@
 
   <ItemGroup>
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
+    <!-- "Başka bir cihazda göster" adresinin QR kodu (MIT). -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>
 
   <ItemGroup>

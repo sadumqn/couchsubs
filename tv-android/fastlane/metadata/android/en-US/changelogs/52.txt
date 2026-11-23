@@ -1,0 +1,1 @@
+0.9.49: When the app comes back to the foreground, the subtitle connection is restored right away and the last line is shown again if it has not expired. The TV app now tells the computer/phone which HDMI input it shows, so on LG the app is brought back immediately when the PS button switches the TV to the PS5 input.

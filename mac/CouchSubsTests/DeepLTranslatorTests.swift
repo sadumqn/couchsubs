@@ -8,6 +8,8 @@ import XCTest
 private final class FakeDeepL: URLProtocol {
     nonisolated(unsafe) static var bodies: [[String: Any]] = []
     nonisolated(unsafe) static var failing = false
+    /// Verilirse bu durum koduyla yanıt verir.
+    nonisolated(unsafe) static var status: Int?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -26,7 +28,7 @@ private final class FakeDeepL: URLProtocol {
         }
         let body = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         Self.bodies.append(body)
-        let status = Self.failing ? 502 : 200
+        let status = Self.status ?? (Self.failing ? 502 : 200)
         let texts = body["text"] as? [String] ?? []
         let reply = try! JSONSerialization.data(withJSONObject: ["translations": texts.map { ["text": "[tr] " + $0] }])
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
@@ -44,7 +46,16 @@ private final class FakeDeepL: URLProtocol {
     }
 }
 
+/// İndirilmemiş ya da açılamayan yerel çeviri.
+private final class NoLocal: TextTranslator {
+    struct Missing: Error {}
+    func translate(_ text: String) async throws -> String { throw Missing() }
+}
+
 private final class FakeLocal: TextTranslator {
+    private(set) var warmUpCalls = 0
+
+    func warmUp() async { warmUpCalls += 1 }
     func translate(_ text: String) async throws -> String { "yerel: " + text }
 }
 
@@ -55,6 +66,7 @@ final class DeepLTranslatorTests: XCTestCase {
     override func setUp() {
         FakeDeepL.bodies = []
         FakeDeepL.failing = false
+        FakeDeepL.status = nil
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("couchsubs-deepl-\(UUID().uuidString)")
     }
 
@@ -67,6 +79,21 @@ final class DeepLTranslatorTests: XCTestCase {
     }
 
     private func context(_ index: Int) -> String? { FakeDeepL.bodies[index]["context"] as? String }
+
+    func testWarmUpDoesNotSendPlaceholderOrSeedFirstRequestContext() async throws {
+        let fallback = FakeLocal()
+        let translator = DeepLTranslator(key: "abc:fx", fallback: fallback, session: FakeDeepL.session())
+
+        await translator.warmUp()
+        XCTAssertEqual(FakeDeepL.bodies.count, 0)
+        XCTAssertEqual(fallback.warmUpCalls, 1)
+
+        _ = try await translator.translate("First real subtitle.")
+
+        XCTAssertEqual(FakeDeepL.bodies.count, 1)
+        XCTAssertNil(context(0))
+        XCTAssertEqual(FakeDeepL.bodies[0]["text"] as? [String], ["First real subtitle."])
+    }
 
     func testContextIsTheLastThreeShownLines() async throws {
         let translator = make()
@@ -111,5 +138,26 @@ final class DeepLTranslatorTests: XCTestCase {
         FakeDeepL.failing = false
         let fresh = try await make(cache).translate("Run!")
         XCTAssertEqual(fresh, "[tr] Run!")
+    }
+
+    /// Yerel çeviri yokken tek bir hata DeepL'i bir dakika durduruyor, bu sürede gelen her satır düşüyordu. DeepL yine
+    /// denenmeli (Windows ve Android ile aynı).
+    func testErrorPauseWithoutLocalStillTriesDeepL() async throws {
+        let translator = DeepLTranslator(key: "abc:fx", fallback: NoLocal(), session: FakeDeepL.session())
+        FakeDeepL.status = 503
+        do { _ = try await translator.translate("Run!"); XCTFail("hata beklenirdi") } catch {}
+        FakeDeepL.status = nil
+        let second = try await translator.translate("Hide!")
+        XCTAssertEqual(second, "[tr] Hide!")
+        XCTAssertEqual(FakeDeepL.bodies.count, 2)
+    }
+
+    /// DeepL 429 (çok sık istek) sonrası bekleme yerel çeviri olmasa da korunur.
+    func testTooManyRequestsPauseHoldsWithoutLocal() async throws {
+        let translator = DeepLTranslator(key: "abc:fx", fallback: NoLocal(), session: FakeDeepL.session())
+        FakeDeepL.status = 429
+        do { _ = try await translator.translate("Run!"); XCTFail("hata beklenirdi") } catch {}
+        do { _ = try await translator.translate("Hide!"); XCTFail("hata beklenirdi") } catch {}
+        XCTAssertEqual(FakeDeepL.bodies.count, 1)
     }
 }

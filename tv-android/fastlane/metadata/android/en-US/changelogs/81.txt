@@ -1,0 +1,1 @@
+0.9.78: GTA 6 phone messages no longer jitter on the TV: the chat panel and the bubbles stay still while you read, update in place when a new message arrives and only glide once when the chat really scrolls.

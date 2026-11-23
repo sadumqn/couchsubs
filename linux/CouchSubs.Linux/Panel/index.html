@@ -35,9 +35,10 @@
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin: 16px 0; }
   .progress { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin: 0 0 24px; }
   .progress > div { height: 100%; background: var(--accent); transition: width .2s; }
-  button, .button { font: inherit; font-weight: 600; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--border);
+  button, .button { font: inherit; font-size: 15px; font-weight: 600; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
   button.primary, .button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .row.end button { min-height: 44px; }
   button.big { min-height: 52px; width: 100%; font-size: 17px; }
   button.danger { background: var(--danger); color: var(--on-danger); border-color: var(--danger); }
   button:disabled { opacity: .5; cursor: default; }
@@ -45,7 +46,7 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .row.end { justify-content: space-between; margin-top: 24px; }
   label { display: block; font-size: 14px; color: var(--text2); margin: 12px 0 4px; }
-  input[type=text], select { font: inherit; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+  input[type=text], select { font: inherit; width: 100%; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--background); color: var(--text); }
   input.code { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -58,12 +59,13 @@
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text2); flex: none; }
   .dot.Good { background: var(--success); } .dot.Warning { background: var(--warning); }
   .status b { min-width: 48px; }
+  .tv-code { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 4px; margin: 4px 0 12px; }
   .pair .src { color: var(--text2); font-size: 14px; } .pair .dst { font-size: 22px; font-weight: 600; }
   .preview { position: relative; background: #000; border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 9; }
   .preview img { width: 100%; height: 100%; display: block; object-fit: contain; }
   .preview .region { position: absolute; border: 2px solid var(--accent); background: rgba(245, 184, 61, .15); pointer-events: none; }
   pre { margin: 0; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; color: var(--text2); }
-  details summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  details summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; }
   .busy::after { content: ""; width: 14px; height: 14px; margin-left: 8px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .busy::after { animation: none; } .progress > div { transition: none; } }
@@ -168,9 +170,14 @@ function wizard(s) {
         '<div class="list" style="margin-top:12px">' + (lists.tvs || []).map(function (tv, i) {
           return '<button data-pick-tv="' + i + '"' + (busy.pair ? ' disabled' : '') + '><span>' + esc(tv.name) + '</span><span class="muted">' + esc(tv.brand) + ' · ' + esc(tv.host) + '</span></button>';
         }).join('') + (lists.tvs && !lists.tvs.length ? '<p class="warn">' + t('TV bulunamadı. Adresini elle yazabilirsiniz.', 'No TV found. You can type its address.') + '</p>' : '') + '</div>' +
-        input('tvHost', t('LG TV adresi (elle)', 'LG TV address (manual)'), 'placeholder="192.168.1.30" inputmode="decimal" autocomplete="off"') +
-        '<div class="row" style="margin-top:12px">' + btn('pair', t('Bu adresle bağlan', 'Connect to this address')) + '</div>' + err('pair') + '</div>' +
-        (s.tv ? tvApp(s) : '');
+        input('tvHost', t('LG ya da Samsung TV adresi (elle)', 'LG or Samsung TV address (manual)'), 'placeholder="192.168.1.30" inputmode="decimal" autocomplete="off"') +
+        '<div class="row" style="margin-top:12px">' + btn('pairManual', t('Bu adresle bağlan', 'Connect to this address')) + '</div>' + err('pairManual') + err('pair') + '</div>' +
+        // Android TV aranmaz ve SSAP konuşmaz: seçilince sunucu ağda ADB'si açık TV'yi arar ve uygulamayı kurar (#617).
+        '<div class="card"><h2>Android TV / Google TV</h2>' +
+        '<p class="muted">' + t('Vestel, Arçelik, Beko, Grundig, Philips ve Android TV\'li öteki TV\'ler. TV\'de Geliştirici seçenekleri\'nden USB hata ayıklamayı (varsa Ağ hata ayıklamayı da) açın; kurulumda TV\'deki izin sorusunu onaylayın.',
+                                'Vestel, Arçelik, Beko, Grundig, Philips and other TVs running Android TV. Turn on USB debugging (and Network debugging if present) in the TV\'s Developer options; accept the permission prompt on the TV during installation.') + '</p>' +
+        '<div class="row">' + btn('pairAndroid', t('Android TV\'yi seç', 'Choose Android TV')) + '</div>' + err('pairAndroid') + '</div>' +
+        (s.tv ? tvApp(s) : '') + pairingOpen();
       break;
     case 'Translation':
       body = '<h1>' + t('Çeviri modeli', 'Translation model') + '</h1>' +
@@ -197,6 +204,8 @@ function health(s) {
   var problems = [];
   if (!s.nativeAvailable) problems.push(t('PS5 bağlantı kütüphanesi (couchsubs_native.so) yüklenemedi.', 'The PS5 connection library (couchsubs_native.so) could not be loaded.'));
   if (s.ocrMissing) problems.push(t('Yazı tanıma (Tesseract) bulunamadı.', 'Text recognition (Tesseract) was not found.'));
+  if (s.tv && s.tv.brand === 'AndroidTv' && !s.bundledAndroidTvApp)
+    problems.push(t('Android TV paketi (APK) bu kurulumda yok; TV uygulaması buradan kurulamaz. İmajı yeniden derleyin (linux/build.sh, COUCHSUBS_TV_RELEASE).', 'The Android TV package (APK) is missing from this build; the TV app cannot be installed from here. Rebuild the image (linux/build.sh, COUCHSUBS_TV_RELEASE).'));
   if (!s.bundledTvApp) problems.push(t('LG TV paketi bu kurulumda yok; TV uygulaması buradan kurulamaz.', 'The LG TV package is missing from this build; the TV app cannot be installed from here.'));
   return problems.length ? '<div class="card"><h2 class="warn">' + t('Dikkat', 'Attention') + '</h2>' + problems.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div>' : '';
 }
@@ -215,6 +224,12 @@ function tvApp(s) {
       (a.reason ? '<p class="muted">' + esc(a.reason) + '</p>' : '') + btn('tvRefresh', t('Yeniden dene', 'Try again')); break;
     case 'SignIn': body = '<p>' + t('Samsung hesabınızla giriş yapın:', 'Sign in with your Samsung account:') + '</p><a class="button primary" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + t('Samsung girişini aç', 'Open Samsung sign-in') + '</a>'; break;
     case 'ApproveOnTv': body = '<p class="warn">' + t('TV ekranındaki "hata ayıklamaya izin ver" sorusunu onaylayın.', 'Approve the "allow debugging" prompt on the TV.') + '</p>'; break;
+    case 'PressInstallOnTv': body = '<p class="warn">' + t('TV\'de Google Play sayfası açıldı: TV kumandasıyla Yükle\'ye (ya da Güncelle\'ye) basın. Kurulunca uygulama kendiliğinden açılır.', 'The Google Play page opened on the TV: press Install (or Update) with the TV remote. The app opens by itself once it is installed.') + '</p>'; break;
+    // Aynı ağda birden çok Android TV: izin sorusu yanlış odadaki TV'de çıkmasın diye TV sorulur (#425).
+    case 'ChooseAndroidTv': body = '<p class="warn">' + t('Ağda hata ayıklaması açık birden çok Android TV bulundu. Sizinki hangisi?', 'More than one Android TV with debugging on was found on the network. Which one is yours?') + '</p>' +
+      '<p class="muted">' + t('TV\'nin adresi TV\'de Ayarlar › Ağ ve İnternet\'te yazar.', 'You can see the TV\'s address on the TV in Settings › Network & Internet.') + '</p>' +
+      '<div class="row">' + (a.hosts || []).map(function (h) { return '<button data-android-tv="' + esc(h) + '"' + (busy.androidTv ? ' disabled' : '') + '>' + esc(t(h + ' adresindeki TV\'ye kur', 'Install on the TV at ' + h)) + '</button>'; }).join('') +
+      btn('tvRefresh', t('Yeniden ara', 'Search again')) + '</div>' + err('androidTv'); break;
     default: body = '<p class="muted">' + t('TV uygulamasının durumu henüz bilinmiyor.', 'The TV app state is not known yet.') + '</p>' + btn('tvRefresh', t('Denetle', 'Check'));
   }
   return '<div class="card"><h2>' + t('TV uygulaması', 'TV app') + '</h2>' + body + err('tvInstall') + err('tvRefresh') + '</div>';
@@ -241,6 +256,24 @@ function model(s) {
 }
 function statusRow(name, st) {
   return '<div class="status"><span class="dot ' + esc(st.tone) + '"></span><b>' + esc(name) + '</b><span>' + esc(st.text) + '</span></div>';
+}
+
+// Güncel TV uygulaması anahtarı yalnız onayla alır. Panel yalnız TV'deki kodu gösterir; onay o kodla verilir.
+function pairingPrompt(s) {
+  if (!s.tvPairingCode) return '';
+  var code = 'data-code="' + esc(s.tvPairingCode) + '"';
+  return '<div class="card" role="alertdialog" aria-labelledby="pairTitle"><h2 id="pairTitle">' + t('Bu TV eşleştirilsin mi?', 'Pair this TV?') + '</h2>' +
+    '<p class="tv-code">' + esc(s.tvPairingCode) + '</p>' +
+    '<p class="muted">' + t('Yalnız TV\'de bu kod görünüyorsa onaylayın. İstek iki dakika sonra düşer.', 'Approve only if this code is shown on your TV. The request expires in two minutes.') + '</p>' +
+    '<div class="row">' + btn('pairAccept', t('Onayla', 'Approve'), 'primary', code) + btn('pairReject', t('Reddet', 'Reject'), '', code) + '</div>' +
+    err('pairAccept') + err('pairReject') + '</div>';
+}
+function pairingOpen() {
+  return '<div class="card"><h2>' + t('TV eşleştirme', 'TV pairing') + '</h2><p class="muted">' +
+    t('Android TV ve güncel TV uygulaması bağlanmak için onay ister. Çeviri sürerken istek kendiliğinden bu sayfaya gelir; çeviri kapalıyken eşleştirmeyi iki dakikalığına açın.',
+      'Android TV and the current TV app ask for approval to connect. While translating, the request shows up on this page on its own; otherwise open pairing for two minutes.') + '</p>' +
+    (extra.pairOpened ? '<p class="ok">' + t('Eşleştirme açık. TV uygulamasını şimdi açın.', 'Pairing is open. Open the TV app now.') + '</p>' : '') +
+    '<div class="row">' + btn('pairOpen', t('Eşleştirmeyi aç', 'Open pairing')) + '</div>' + err('pairOpen') + '</div>';
 }
 
 function home(s) {
@@ -280,6 +313,7 @@ function home(s) {
     'PS5: ' + esc(s.console ? s.console.name + ' (' + s.console.host + ')' : '-') + ' · ' +
     'TV: ' + esc(s.tv ? s.tv.name + ' (' + s.tv.host + ')' : '-') + '</p>' +
     (s.tv ? tvAppLine(s) : '') + '<div class="row">' + btn('tvRefresh', t('TV uygulamasını denetle', 'Check the TV app')) + btn('reset', t('Kurulumu sıfırla', 'Reset setup')) + '</div>' + err('tvRefresh') + err('reset') + '</div>' +
+    pairingOpen() +
     '<div class="card"><details id="logBox"' + (extra.logOpen ? ' open' : '') + '><summary>' + t('Günlük', 'Log') + '</summary><pre id="log"></pre></details></div>';
 }
 // Çevrimiçi çeviri: Claude (sk-ant-…) ya da DeepL anahtarı. Ulaşılamazsa satır yerel modelle çevrilir.
@@ -305,7 +339,7 @@ function onlineState(code) {
 }
 function tvAppLine(s) {
   var a = s.tvApp;
-  if (a.kind === 'NeedsPassphrase' || a.kind === 'DevModeOff' || a.kind === 'Failed' || a.kind === 'Working' || a.kind === 'SignIn' || a.kind === 'ApproveOnTv') return tvApp(s);
+  if (a.kind === 'NeedsPassphrase' || a.kind === 'DevModeOff' || a.kind === 'Failed' || a.kind === 'Working' || a.kind === 'SignIn' || a.kind === 'ApproveOnTv' || a.kind === 'PressInstallOnTv' || a.kind === 'ChooseAndroidTv') return tvApp(s);
   return a.kind === 'UpToDate' ? '<p class="muted">' + t('TV uygulaması: ', 'TV app: ') + esc(a.version || '') + (s.devModeHoursLeft != null ? ' · ' + t('geliştirici modu ', 'developer mode ') + s.devModeHoursLeft + t(' saat', ' h') : '') + '</p>' : '';
 }
 function range(side, label, value) {
@@ -315,7 +349,7 @@ function range(side, label, value) {
 // Durum değişmedikçe sayfa yeniden çizilmez; çizilirken yazılan metin ve odak korunur.
 function render(force) {
   if (!state) return;
-  var html = state.step === 'Done' ? home(state) : wizard(state);
+  var html = pairingPrompt(state) + (state.step === 'Done' ? home(state) : wizard(state));
   document.getElementById('meta').textContent = 'v' + state.version;
   if (!force && html === lastRendered) return;
   var active = document.activeElement, id = active && active.id, start = id && active.selectionStart;
@@ -353,6 +387,7 @@ document.addEventListener('click', function (e) {
   var el = e.target.closest('button');
   if (!el) return;
   if (el.dataset.pickConsole) { form.consoleHost = el.dataset.pickConsole; render(true); var pin = document.getElementById('pin'); if (pin) pin.focus(); return; }
+  if (el.dataset.androidTv) { run('androidTv', 'POST', '/api/tv-app/android-tv', { host: el.dataset.androidTv }); return; }
   if (el.dataset.pickTv) { var tv = lists.tvs[Number(el.dataset.pickTv)]; run('pair', 'POST', '/api/pair', { name: tv.name, host: tv.host, brand: tv.brand }); return; }
   switch (el.dataset.act) {
     case 'advance': run('advance', 'POST', '/api/advance'); break;
@@ -361,7 +396,11 @@ document.addEventListener('click', function (e) {
     case 'consoles': run('consoles', 'GET', '/api/consoles', null, function (list) { lists.consoles = list; if (list.length === 1) form.consoleHost = list[0].host; }); break;
     case 'register': run('register', 'POST', '/api/register', { host: form.consoleHost || '', pin: form.pin || '' }, function () { form.pin = ''; }); break;
     case 'tvs': run('tvs', 'GET', '/api/tvs', null, function (list) { lists.tvs = list; }); break;
-    case 'pair': run('pair', 'POST', '/api/pair', { name: 'LG TV', host: form.tvHost || '', brand: 'Lg' }); break;
+    // Elle yazılan adres: TV'ye LG mi Samsung mu olduğu sorulur, sonra bağlanılır (#617).
+    case 'pairManual': run('pairManual', 'GET', '/api/tv-at?host=' + encodeURIComponent(form.tvHost || ''), null, function (tv) {
+      run('pair', 'POST', '/api/pair', { name: tv.name, host: tv.host, brand: tv.brand });
+    }); break;
+    case 'pairAndroid': run('pairAndroid', 'POST', '/api/pair', { name: 'Android TV', host: '', brand: 'AndroidTv' }); break;
     case 'tvInstall': run('tvInstall', 'POST', '/api/tv-app/install', { passphrase: form.passphrase || '' }); break;
     case 'tvRefresh': run('tvRefresh', 'POST', '/api/tv-app/refresh'); break;
     case 'model': run('model', 'POST', '/api/model/download'); break;
@@ -381,6 +420,15 @@ document.addEventListener('click', function (e) {
       break;
     case 'onlineToggle': run('onlineToggle', 'POST', '/api/settings', { onlineTranslation: !state.settings.onlineTranslation }); break;
     case 'onlineRemove': delete extra.onlineCheck; run('onlineRemove', 'DELETE', '/api/deepl'); break;
+    case 'pairOpen':
+      clearTimeout(extra.pairTimer);
+      run('pairOpen', 'POST', '/api/tv-pairing/open', null, function () {
+        extra.pairOpened = true;
+        extra.pairTimer = setTimeout(function () { delete extra.pairOpened; render(true); }, 120000);
+      });
+      break;
+    case 'pairAccept': run('pairAccept', 'POST', '/api/tv-pairing', { code: el.dataset.code, accept: true }); break;
+    case 'pairReject': run('pairReject', 'POST', '/api/tv-pairing', { code: el.dataset.code, accept: false }); break;
     case 'reset': if (confirm(t('Kayıtlı hesap, PS5 ve TV bilgileri silinsin mi?', 'Delete the saved account, PS5 and TV?'))) run('reset', 'POST', '/api/reset'); break;
   }
 });

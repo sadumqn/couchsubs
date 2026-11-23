@@ -1,0 +1,1 @@
+0.9.51: Ekranını uygulamaya 1920x1080 bildiren Samsung ultra geniş monitörlerde (Odyssey) panelin gerçek ölçüsü okunuyor; PS5 görüntüsü için pencere yöntemleri sırayla deneniyor, görüntü dolmazsa kumandadaki Sarı tuş sıradakine geçiyor. Sarı tuş artık bu monitörlerde de tuş listesinde; bilgi panelinin Pencere satırında panelin çözünürlüğü ve en-boy oranı yazıyor.

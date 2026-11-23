@@ -1,0 +1,1 @@
+0.9.38: Translations of extra areas (phone messages, hints) now cover the English text and fit on screen; narrow labels at the right edge no longer run off the screen.

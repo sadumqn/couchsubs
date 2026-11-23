@@ -48,14 +48,16 @@ public partial class FirewallCard : UserControl
         Allow.Visibility = prompt is FirewallPrompt.Offer or FirewallPrompt.Failed or FirewallPrompt.Working ? Visibility.Visible : Visibility.Collapsed;
         Allow.IsEnabled = prompt != FirewallPrompt.Working;
         Headline.Text = prompt == FirewallPrompt.Allowed
-            ? text["Windows Firewall now allows CouchSubs."]
+            ? text["Local-network permission is ready for Private networks."]
             : text["Windows Firewall may be blocking the connection."];
         Hint.Text = prompt switch
         {
+            FirewallPrompt.PublicNetwork => text["Permission applies only to Private networks. If this is your trusted home network, set it to Private in Windows Settings."],
             FirewallPrompt.Working => text["Waiting for Windows…"],
-            FirewallPrompt.Failed => text["The firewall rule was not added. Try again and choose Yes when Windows asks."],
+            FirewallPrompt.Failed => text["Local-network permission could not be verified. Approve the Windows prompt, or review existing blocking rules in Windows Firewall."],
             FirewallPrompt.Allowed when running => text["Reconnecting…"],
             FirewallPrompt.Allowed => text["Open Pair Device again on the PS5 and enter the new code."],
+            _ when running && controller.IsXbox => text["CouchSubs needs Windows Firewall permission for incoming connections from the TV."],
             _ when running => text["CouchSubs needs incoming connections from the PS5 and the TV. Windows asks for permission once."],
             _ => text["Allow CouchSubs, then open Pair Device again on the PS5 and enter the new code."],
         };

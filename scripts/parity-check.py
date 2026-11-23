@@ -1,0 +1,379 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Platform eşitliği denetimi (KALICI KURAL: Windows = Mac, Android = iPhone). Üç karşılaştırma yapar (üçüncüsü:
+# CAPABILITIES, ortak çekirdek yeteneklerinin ve ortak deneme dosyalarının her platformda bulunması):
+#  1. Masaüstü ayarları: Windows UserSettings kaydının (windows/src/CouchSubs.Shell/Contracts.cs) alanları ile Mac'in
+#     kullandığı ortak UserSettings'in (core/.../AppSettings.swift) alanları. Ad büyük/küçük harf gözetmeden eşlenir.
+#  2. Telefon ayar ekranları: iPhone Profil/Ayarlar ekranlarının (couchsubs-ios/CouchSubs/UI/Profile.swift, DubbingTile.swift) kullandığı
+#     Localizable.xcstrings anahtarları ile Android Profil/Ayarlar ekranlarının (ui/ProfileScreens.kt, DubbingTile.kt) kullandığı
+#     strings.xml metinleri. Eşleme İngilizce metinle yapılır (Android values-en metni = xcstrings anahtarı).
+#  4. Altyazı biçimi alanları (TV'ye giden `style`): core SubtitleStyle (Mac, iPhone), Windows SubtitleStyle kaydı ve Android
+#     SubtitleStyle veri sınıfı aynı alanları taşımalı.
+#  5. Ayar ekranı metinleri Mac ↔ iPhone: Mac yeni arayüzünün Ayarlar sayfasındaki (mac/CouchSubs/UI/Yeni/SettingsPage.swift) her
+#     katalog anahtarı iPhone uygulamasında da kullanılmalı (Android = iPhone kuralı 2. karşılaştırmayla Android'e taşır).
+#  6. Telefon ayar modeli: Android AppSettings'in kalıcı ayarları ile ortak UserSettings + SubtitleStyle alanları (iPhone).
+# Yeni bir ayar tek platformda birleşemez: bu altı karşılaştırmadan biri kırmızı olur.
+# Bir tarafta olup öbüründe olmayan her şey ya eşlenmeli ya da scripts/parity-allowlist.json'da gerekçesiyle yazılmalı.
+# İzin listesindeki bir kayıt artık fark değilse o da hatadır (liste eskimesin).
+# Kullanım: python3 scripts/parity-check.py   (fark varsa çıkış kodu 1)
+import json, pathlib, re, sys
+import xml.etree.ElementTree as ET
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+ALLOWLIST = ROOT / "scripts" / "parity-allowlist.json"
+CATALOG = ROOT / "mac" / "CouchSubs" / "Resources" / "Localizable.xcstrings"
+WIN_SETTINGS = ROOT / "windows" / "src" / "CouchSubs.Shell" / "Contracts.cs"
+CORE_SETTINGS = ROOT / "core" / "Sources" / "CouchSubsCore" / "Pipeline" / "AppSettings.swift"
+IOS_SCREENS = [ROOT / "couchsubs-ios" / "CouchSubs" / "UI" / name for name in ("Profile.swift", "SettingsPages.swift", "DubbingTile.swift", "LocalAISection.swift")] + [
+    ROOT / "mac" / "CouchSubs" / "UI" / name for name in ("DubbingVoiceText.swift", "LocalAIText.swift", "Yeni/SubtitlePalette.swift")]
+ANDROID_SCREENS = [ROOT / "couchsubs-android" / "app" / "src" / "main" / "java" / "com" / "couchsubs" / "mobile" / "ui" / name
+                   for name in ("ProfileScreens.kt", "SettingsPages.kt", "DubbingTile.kt", "LocalAiSection.kt")]
+CORE_STYLE = ROOT / "core" / "Sources" / "CouchSubsCore" / "SubtitleServer.swift"
+WIN_STYLE = ROOT / "windows" / "src" / "CouchSubs.Core" / "SubtitleServer.cs"
+ANDROID_STYLE = ROOT / "couchsubs-android" / "app" / "src" / "main" / "java" / "com" / "couchsubs" / "mobile" / "core" / "SubtitleServer.kt"
+ANDROID_SETTINGS = ROOT / "couchsubs-android" / "app" / "src" / "main" / "java" / "com" / "couchsubs" / "mobile" / "settings" / "AppSettings.kt"
+MAC_SETTINGS_PAGE = ROOT / "mac" / "CouchSubs" / "UI" / "Yeni" / "SettingsPage.swift"
+IOS_APP = ROOT / "couchsubs-ios" / "CouchSubs"
+ANDROID_EN = ROOT / "couchsubs-android" / "app" / "src" / "main" / "res" / "values-en" / "strings.xml"
+CORE_FIXTURES = ROOT / "core" / "Tests" / "CouchSubsCoreTests" / "Fixtures"
+ANDROID_FIXTURES = ROOT / "couchsubs-android" / "app" / "src" / "test" / "resources" / "fixtures"
+
+_CORE = "core/Sources/CouchSubsCore/"
+_WIN = "windows/src/CouchSubs.Core/"
+_DROID = "couchsubs-android/app/src/main/java/com/couchsubs/mobile/core/"
+_CORE_TESTS = "core/Tests/CouchSubsCoreTests/"
+_WIN_TESTS = "windows/tests/CouchSubs.Core.Tests/"
+_DROID_TESTS = "couchsubs-android/app/src/test/java/com/couchsubs/mobile/core/"
+
+# 3. Ortak çekirdek yetenekleri: her yetenek her platformda (Mac/iPhone ortak çekirdeği, Windows, Android) kodda bulunmalı
+# ve ortak deneme dosyasını okuyan testi olmalı. (platform, dosya, düzenli ifade) üçlüleri; biri eksikse denetim kırmızı.
+# Android'de "RECENTER 13" gibi yanlış okunmuş tuş simgesi kutuda kalıyordu: markFree yalnız Mac ve Windows'taydı (#860).
+CAPABILITIES = {
+    "Görüntüden tuş simgesi bulma (markFree)": [
+        ("mac", _CORE + "ButtonIcons.swift", r"static func markFree\("),
+        ("windows", _WIN + "ButtonIcons.cs", r"public static TextLine MarkFree\("),
+        ("android", _DROID + "ButtonIcons.kt", r"fun markFree\("),
+    ],
+    "Renksiz simge denetimi (portre/harita simge sayılmaz)": [
+        ("mac", _CORE + "ButtonIcons.swift", r"static func isColourless\("),
+        ("windows", _WIN + "ButtonIcons.cs", r"static bool IsColourless\("),
+        ("android", _DROID + "ButtonIcons.kt", r"fun isColourless\("),
+    ],
+    "\"Ekranı çevir\"de satır ucundaki kısa parçayı görüntüden doğrulama (hasShortEdge)": [
+        ("mac", _CORE + "ScreenTranslation.swift", r"hasShortEdge\(line\) \? ButtonIcons\.markFree"),
+        ("windows", _WIN + "ScreenTranslation.cs", r"HasShortEdge\(line\) \? ButtonIcons\.MarkFree"),
+        ("android", _DROID + "ScreenTranslation.kt", r"hasShortEdge\(line\) -> ButtonIcons\.markFree"),
+    ],
+    "Ek alanda görüntüden tuş simgesi (otomatik alanda yalnız renksiz)": [
+        ("mac", _CORE + "RegionWatcher.swift", r"withButtonIcons\(frame: frame, monochrome: auto\)"),
+        ("windows", _WIN + "RegionWatcher.cs", r"WithButtonIcons\(frame, monochrome: auto\)"),
+        ("android", _DROID + "Areas.kt", r"withButtonIcons\(frame, color, monochrome = auto\)"),
+    ],
+    "Otomatik/hazır alanda kısa etiketler ayrı blok (autoGroups)": [
+        ("mac", _CORE + "RegionWatcher.swift", r"static func autoGroups\("),
+        ("windows", _WIN + "RegionWatcher.cs", r"AutoGroups\("),
+        ("android", _DROID + "Areas.kt", r"fun autoGroups\("),
+    ],
+    "Ortak deneme dosyası free-button-icons.json": [
+        ("mac", _CORE_TESTS + "FreeButtonIconsTests.swift", r"free-button-icons\.json"),
+        ("windows", _WIN_TESTS + "FreeButtonIconsTests.cs", r"free-button-icons\.json"),
+        ("android", _DROID_TESTS + "FreeButtonIconsTest.kt", r"free-button-icons\.json"),
+    ],
+    "Arayüz sözlüğü: tuş çubuğu sözlük biçimiyle, menü etiketi özgün biçimiyle (translate / translateLabel / translateLabelLoosely)": [
+        ("mac", _CORE + "UiCommands.swift", r"static func translateLabelLoosely\("),
+        ("windows", _WIN + "UiCommands.cs", r"public static string\? TranslateLabelLoosely\("),
+        ("android", _DROID + "UiCommands.kt", r"fun translateLabelLoosely\("),
+    ],
+    "Ortak deneme dosyası ui-commands.json": [
+        ("mac", _CORE_TESTS + "UiCommandsTests.swift", r"ui-commands\.json"),
+        ("windows", _WIN_TESTS + "UiCommandsTests.cs", r"ui-commands\.json"),
+        ("android", _DROID_TESTS + "UiCommandsTest.kt", r"ui-commands\.json"),
+    ],
+    "Ortak deneme dosyası screen-menu.json": [
+        ("mac", _CORE_TESTS + "ScreenMenuBarTests.swift", r"screen-menu\.json"),
+        ("windows", _WIN_TESTS + "ScreenMenuBarTests.cs", r"screen-menu\.json"),
+        ("android", _DROID_TESTS + "ScreenMenuBarTest.kt", r"screen-menu\.json"),
+    ],
+    "Ortak deneme dosyası mission-card.json": [
+        ("mac", _CORE_TESTS + "MissionCardTests.swift", r"mission-card\.json"),
+        ("windows", _WIN_TESTS + "MissionCardTests.cs", r"mission-card\.json"),
+        ("android", _DROID_TESTS + "MissionCardTest.kt", r"mission-card\.json"),
+    ],
+    # Yalnız masaüstü (#853): Xbox seçiliyken görüntü Xbox uygulaması / play.xbox.com / capture card ile OBS penceresinden
+    # okunur, CouchSubs Xbox'a bağlanmaz. iPhone ve Android'de okunacak bilgisayar penceresi yoktur; telefonlarda bu seçim
+    # bilinçli olarak yoktur (Android = iPhone eşitliği bozulmaz). Windows = Mac eşitliği burada denetlenir.
+    "Xbox'ta seçilen pencereden okuma, Xbox'a bağlanmadan (yalnız masaüstü)": [
+        ("mac", "mac/CouchSubs/AppModel+CaptureWindow.swift", r"var readsXboxWindow: Bool"),
+        ("mac", "mac/CouchSubs/UI/XboxViews.swift", r"model\.useXboxWindow\(\)"),
+        ("windows", "windows/src/CouchSubs.Shell/AppController.cs", r"public bool XboxReadsWindow =>"),
+        ("windows", "windows/src/CouchSubs.App/Views/Steps/XboxLoginStep.xaml.cs", r"Controller\.UseXboxWindow\(\)"),
+    ],
+    # GitHub #854/#882: HUD kırıntısı görev sayılmaz, kırıntı konuşmayı attırmaz, ilk karede bozuk sözcük düzeltilir.
+    "Okuma kırıntısı (isCrumb) ve bozuk sözcük düzeltmesi (repairsWords)": [
+        ("mac", _CORE + "OcrNoise.swift", r"static func isCrumb\("),
+        ("windows", _WIN + "OcrNoise.cs", r"public static bool IsCrumb\("),
+        ("android", _DROID + "OcrNoise.kt", r"fun isCrumb\("),
+        ("mac", _CORE + "SubtitleStabilizer.swift", r"static func repairsWords\("),
+        ("windows", _WIN + "SubtitleStabilizer.cs", r"static bool RepairsWords\("),
+        ("android", _DROID + "SubtitleStabilizer.kt", r"fun repairsWords\("),
+        ("mac", _CORE + "MissionLine.swift", r"static func isCandidate\("),
+        ("windows", _WIN + "MissionLine.cs", r"static bool IsCandidate\("),
+        ("android", _DROID + "MissionLine.kt", r"fun isCandidate\("),
+    ],
+    "Ortak deneme dosyası ocr-crumbs.json": [
+        ("mac", _CORE_TESTS + "OcrCrumbsTests.swift", r"ocr-crumbs\.json"),
+        ("windows", _WIN_TESTS + "OcrCrumbsTests.cs", r"ocr-crumbs\.json"),
+        ("android", _DROID_TESTS + "OcrCrumbsTest.kt", r"ocr-crumbs\.json"),
+    ],
+    # GitHub #884/#891: TV uygulaması sürümünü altyazı akışıyla bildirir (/events?v=); eskiyse dört platformda da ana
+    # ekranda "TV uygulamasını güncelle" çıkar (LG geliştirici modu kapalı / anahtar başka cihazdayken de).
+    "Eski TV uygulamasını akıştaki sürümden tanıma ve ana ekranda güncelleme önerisi": [
+        ("mac", _CORE + "SubtitleServer.swift", r"static func isTVAppOutdated\("),
+        ("windows", _WIN + "SubtitleServer.cs", r"public static bool IsTvAppOutdated\("),
+        ("android", _DROID + "SubtitleServer.kt", r"fun isTvAppOutdated\("),
+        ("mac", "mac/CouchSubs/AppModel.swift", r"func tvAppReported\("),
+        ("mac", "mac/CouchSubs/UI/Yeni/HomeStatus.swift", r"model\.updateTVApp\(\)"),
+        ("windows", "windows/src/CouchSubs.Shell/AppController.cs", r"public void TvAppReported\("),
+        ("windows", "windows/src/CouchSubs.App/Views/MainView.xaml.cs", r"controller\.UpdateTvAppAsync\(\)"),
+        ("ios", "couchsubs-ios/CouchSubs/PhoneModel.swift", r"func tvAppReported\("),
+        ("android", "couchsubs-android/app/src/main/java/com/couchsubs/mobile/tv/TvAppUpdate.kt", r"fun reported\("),
+    ],
+    "Gerçek kare ekran yazısı ölçütü (menü, görev listesi)": [
+        ("mac", "tools/frame-regression/Sources/frame-regression/ScreenCheck.swift", r"func checkScreen\("),
+        ("android", _DROID_TESTS + "ScreenFramesTest.kt", r"ocr/screen/"),
+    ],
+    # Telefonda günlükler (iPhone: remoteplay.log + altyazi.log + tvinstall.log; Android: uygulamanın logcat'i +
+    # tvinstall.log) tek dosyada, kişisel veri maskelenmiş paylaşılır (Profil › Hakkında). Masaüstünde (Mac, Windows) aynı
+    # iş "Günlük dosyasını göster" düğmesidir (dosya kullanıcının kendi diskinde, Finder/Dosya Gezgini'nde seçili açılır).
+    "Günlük paylaşma (telefonda maskelenmiş dosya, masaüstünde \"Günlük dosyasını göster\")": [
+        ("mac", "mac/CouchSubs/UI/Onboarding/ConsoleStep.swift", r"private func showLogFile\(\)"),
+        ("windows", "windows/src/CouchSubs.App/Views/Steps/LogFile.cs", r"public static void Show\(\)"),
+        ("ios", _CORE + "LogShare.swift", r"public static func redact\("),
+        ("ios", "couchsubs-ios/CouchSubs/UI/Profile.swift", r"ShareLink\(item: PhoneLogsZip\(\)"),
+        ("android", _DROID + "LogShare.kt", r"fun redact\("),
+        ("android", "couchsubs-android/app/src/main/java/com/couchsubs/mobile/ui/ProfileScreens.kt", r"shareLogs\(context\)"),
+    ],
+    "Ortak deneme dosyası log-redaction.json": [
+        ("ios", _CORE_TESTS + "LogShareTests.swift", r"log-redaction\.json"),
+        ("android", _DROID_TESTS + "LogShareTest.kt", r"log-redaction\.json"),
+    ],
+    # Sinan Bey'in iPhone'u (1.0.4) PS5'te 1 dk "Bağlanıyor…"da kaldı, neden görünmüyordu: 30 sn'den sonra durum satırının
+    # altında PS5 uyandırılıyor / yanıt vermiyor (aynı ağda mı) / yanıt verdi ama açılmıyor yazar.
+    "\"Bağlanıyor…\" 30 sn'yi geçince nedeni (ConnectingHint)": [
+        ("mac", _CORE + "ConnectingHint.swift", r"public static func text\(seconds:"),
+        ("mac", "mac/CouchSubs/AppModel.swift", r"ConnectingHint\.text\("),
+        ("ios", "couchsubs-ios/CouchSubs/PhoneModel.swift", r"ConnectingHint\.text\("),
+        ("windows", _WIN + "ConnectingHint.cs", r"public static string\? Text\("),
+        ("windows", "windows/src/CouchSubs.Shell/AppController.cs", r"ConnectingHint\.Text\("),
+        ("android", _DROID + "ConnectingHint.kt", r"fun reason\("),
+        ("android", "couchsubs-android/app/src/main/java/com/couchsubs/mobile/service/TranslationService.kt", r"ConnectingHint\.reason\("),
+    ],
+    # Mac (beta.80, PS5, GTA 6): ekranda diyalog varken altyazı günlüğü dakikalarca boştu; altyazının okunmadığı (menü), boş
+    # okunduğu, süzgeçte kaldığı ya da okumanın hata verdiği günlükte görünmüyordu.
+    "Altyazı alanında yazı çıkmayınca nedeni günlükte (QuietReads)": [
+        ("mac", _CORE + "Pipeline/SubtitlePipeline.swift", r"struct QuietReads"),
+        ("mac", "mac/CouchSubs/AppModel.swift", r"pipeline\?\.skipForMenu\(\)"),
+        ("ios", "couchsubs-ios/CouchSubs/PhoneModel.swift", r"\.skipForMenu\(\)"),
+        ("mac", _CORE_TESTS + "QuietReadsTests.swift", r"class QuietReadsTests"),
+        ("windows", _WIN + "SubtitlePipeline.cs", r"class QuietReads"),
+        ("windows", _WIN_TESTS + "QuietReadsTests.cs", r"class QuietReadsTests"),
+        ("android", _DROID + "SubtitlePipeline.kt", r"class QuietReads"),
+        ("android", "couchsubs-android/app/src/main/java/com/couchsubs/mobile/service/TranslationService.kt", r"skipForMenu\(\)"),
+        ("android", _DROID_TESTS + "QuietReadsTest.kt", r"class QuietReadsTest"),
+    ],
+}
+
+
+def capabilities(problems):
+    for name, places in CAPABILITIES.items():
+        for platform, path, pattern in places:
+            file = ROOT / path
+            if not file.is_file() or not re.search(pattern, file.read_text()):
+                problems.append(f"Ortak yetenek '{name}': {platform} tarafında yok ({path}).")
+    # Android'in deneme dosyaları çekirdeğinkilerin kopyasıdır; ayrışırsa üç platform aynı vakaları koşmuyor demektir.
+    for copy in sorted(ANDROID_FIXTURES.iterdir()):
+        original = CORE_FIXTURES / copy.name
+        if original.is_file() and original.read_bytes() != copy.read_bytes():
+            problems.append(f"Ortak deneme dosyası {copy.name}: Android kopyası çekirdektekinden farklı; yeniden kopyalayın.")
+
+
+def body(text, start):
+    """`start` ile başlayan bildirimin { … } gövdesi."""
+    i = text.index(start)
+    j = text.index("{", i)
+    depth = 0
+    for k in range(j, len(text)):
+        if text[k] == "{":
+            depth += 1
+        elif text[k] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[j + 1:k]
+    raise ValueError(start)
+
+
+def windows_fields():
+    record = body(WIN_SETTINGS.read_text(), "public sealed record UserSettings")
+    return set(re.findall(r"^\s*public\s+[\w<>\[\]?, .]+?\s+(\w+)\s*\{\s*get;\s*init\b", record, re.M))
+
+
+def core_fields():
+    struct = body(CORE_SETTINGS.read_text(), "public struct UserSettings")
+    return set(re.findall(r"^    public var (\w+)", struct, re.M))
+
+
+def core_style_fields():
+    struct = body(CORE_STYLE.read_text(), "public struct SubtitleStyle")
+    return set(re.findall(r"^    public var (\w+)", struct, re.M))
+
+
+def windows_style_fields():
+    text = WIN_STYLE.read_text()
+    start = text.index("public sealed record SubtitleStyle(")
+    params = text[start:text.index(")\n{", start)]
+    return set(re.findall(r"^\s*[\w<>\[\]?, .]+?\s+(\w+)\s*=", params, re.M))
+
+
+def android_style_fields():
+    text = ANDROID_STYLE.read_text()
+    start = text.index("data class SubtitleStyle(")
+    params = text[start:text.index("\n)", start)]
+    return set(re.findall(r"^\s*val (\w+)\s*:", params, re.M))
+
+
+def android_settings_fields():
+    cls = body(ANDROID_SETTINGS.read_text(), "class AppSettings(")
+    return set(re.findall(r"^    (?:override )?var (\w+)\s*:", cls, re.M))
+
+
+def catalog_keys(paths, catalog):
+    found = set()
+    for path in paths:
+        for match in re.findall(r'"((?:[^"\\]|\\.)*)"', path.read_text()):
+            key = match.replace('\\"', '"')
+            if key in catalog:
+                found.add(key)
+    return found
+
+
+def lowered(rules, left, right):
+    return {"pairs": {a.lower(): b.lower() for a, b in rules.get("pairs", {}).items()},
+            f"{left}_only": {k.lower(): v for k, v in rules.get(f"{left}_only", {}).items()},
+            f"{right}_only": {k.lower(): v for k, v in rules.get(f"{right}_only", {}).items()}}
+
+
+def normalized(text):
+    """Biçim yer tutucuları platforma göre değişir (%@, %lld, %1$s, %d): hepsi %@ sayılır."""
+    return re.sub(r"%(\d+\$)?(@|lld|ld|d|s)", "%@", text)
+
+
+def ios_texts(catalog):
+    found = set()
+    for path in IOS_SCREENS:
+        for match in re.findall(r'"((?:[^"\\]|\\.)*)"', path.read_text()):
+            key = match.replace('\\"', '"')
+            if key in catalog:
+                found.add(normalized(key))
+    return found
+
+
+def android_texts():
+    english = {}
+    for node in ET.parse(ANDROID_EN).getroot().iter("string"):
+        english[node.get("name")] = "".join(node.itertext()).replace("\\'", "'").replace('\\"', '"')
+    used = set()
+    for path in ANDROID_SCREENS:
+        used |= set(re.findall(r"R\.string\.([a-z0-9_]+)", path.read_text()))
+    return {normalized(english[name]): name for name in used if name in english}
+
+
+def compare(title, left_name, left, right_name, right, rules, problems):
+    """`left` ve `right` kümeleri; `rules`: pairs (sol → sağ), <sol>_only ve <sağ>_only (gerekçeli)."""
+    pairs = rules.get("pairs", {})
+    left_only_allowed = rules.get(f"{left_name}_only", {})
+    right_only_allowed = rules.get(f"{right_name}_only", {})
+    for key, value in list(left_only_allowed.items()) + list(right_only_allowed.items()):
+        if not isinstance(value, str) or not value.strip():
+            problems.append(f"{title}: '{key}' için gerekçe yok.")
+    matched_right = set()
+    for a, b in pairs.items():
+        if a not in left or b not in right:
+            problems.append(f"{title}: eşleme '{a}' → '{b}' artık geçerli değil (biri yok); listeden çıkarın.")
+        matched_right.add(b)
+    left_rest = {k for k in left - right if k not in pairs}
+    right_rest = {k for k in right - left if k not in matched_right}
+    for key in sorted(left_rest - set(left_only_allowed)):
+        problems.append(f"{title}: '{key}' yalnız {left_name} tarafında. Öbür platforma ekleyin ya da izin listesine gerekçesiyle yazın.")
+    for key in sorted(right_rest - set(right_only_allowed)):
+        problems.append(f"{title}: '{key}' yalnız {right_name} tarafında. Öbür platforma ekleyin ya da izin listesine gerekçesiyle yazın.")
+    for key in sorted(set(left_only_allowed) - left_rest):
+        problems.append(f"{title}: izin listesindeki '{key}' ({left_name}_only) artık fark değil; listeden çıkarın.")
+    for key in sorted(set(right_only_allowed) - right_rest):
+        problems.append(f"{title}: izin listesindeki '{key}' ({right_name}_only) artık fark değil; listeden çıkarın.")
+
+
+def main():
+    rules = json.loads(ALLOWLIST.read_text())
+    problems = []
+
+    win = {name.lower(): name for name in windows_fields()}
+    core = {name.lower(): name for name in core_fields()}
+    desktop = rules["desktop_settings"]
+    desktop_rules = {
+        "pairs": {a.lower(): b.lower() for a, b in desktop.get("pairs", {}).items()},
+        "windows_only": {k.lower(): v for k, v in desktop.get("windows_only", {}).items()},
+        "mac_only": {k.lower(): v for k, v in desktop.get("mac_only", {}).items()},
+    }
+    compare("Masaüstü ayarları (Windows UserSettings ↔ core UserSettings)", "windows", set(win), "mac", set(core),
+            desktop_rules, problems)
+
+    catalog = json.loads(CATALOG.read_text())["strings"]
+    ios = ios_texts(catalog)
+    android = android_texts()
+    mobile = rules["mobile_settings"]
+    mobile_rules = {
+        "pairs": {normalized(a): normalized(b) for a, b in mobile.get("pairs", {}).items()},
+        "iphone_only": {normalized(k): v for k, v in mobile.get("iphone_only", {}).items()},
+        "android_only": {normalized(k): v for k, v in mobile.get("android_only", {}).items()},
+    }
+    compare("Telefon ayar ekranları (iPhone Profile.swift ↔ Android ProfileScreens.kt)", "iphone", ios, "android",
+            set(android), mobile_rules, problems)
+
+    core_style = {name.lower() for name in core_style_fields()}
+    win_style = {name.lower() for name in windows_style_fields()}
+    android_style = {name.lower() for name in android_style_fields()}
+    style = rules["style_fields"]
+    compare("Altyazı biçimi (Windows SubtitleStyle ↔ core SubtitleStyle)", "windows", win_style, "mac", core_style,
+            lowered(style.get("windows_mac", {}), "windows", "mac"), problems)
+    compare("Altyazı biçimi (Android SubtitleStyle ↔ core SubtitleStyle)", "android", android_style, "iphone", core_style,
+            lowered(style.get("android_iphone", {}), "android", "iphone"), problems)
+
+    mac_page = catalog_keys([MAC_SETTINGS_PAGE], catalog)
+    iphone_all = catalog_keys(sorted(IOS_APP.rglob("*.swift")), catalog)
+    allowed = rules["mac_settings_on_iphone"]
+    for key in sorted(mac_page - iphone_all - set(allowed)):
+        problems.append(f"Mac Ayarlar ↔ iPhone: '{key}' Mac'in Ayarlar sayfasında var, iPhone'da yok. iPhone'a (ve Android'e) ekleyin "
+                        "ya da scripts/parity-allowlist.json › mac_settings_on_iphone'a gerekçesiyle yazın.")
+    for key, reason in allowed.items():
+        if not isinstance(reason, str) or not reason.strip():
+            problems.append(f"Mac Ayarlar ↔ iPhone: '{key}' için gerekçe yok.")
+        elif key not in mac_page or key in iphone_all:
+            problems.append(f"Mac Ayarlar ↔ iPhone: izin listesindeki '{key}' artık fark değil; listeden çıkarın.")
+
+    phone_core = {name.lower() for name in core_fields() | core_style_fields()}
+    android_settings = {name.lower() for name in android_settings_fields()}
+    compare("Telefon ayar modeli (Android AppSettings ↔ core UserSettings + SubtitleStyle)", "android", android_settings,
+            "iphone", phone_core, lowered(rules["phone_settings"], "android", "iphone"), problems)
+
+    capabilities(problems)
+
+    if problems:
+        print("Platform eşitliği denetimi başarısız (KALICI KURAL: Windows = Mac, Android = iPhone):")
+        print("\n".join("  - " + p for p in problems))
+        sys.exit(1)
+    print(f"Tamam: {len(win)} Windows / {len(core)} ortak ayar alanı, {len(ios)} iPhone / {len(android)} Android ayar metni eşit; "
+          f"{len(core_style)} altyazı biçimi alanı dört platformda, Mac Ayarlar'ın {len(mac_page)} metni iPhone'da, "
+          f"{len(android_settings)} Android ayarı eşli; {len(CAPABILITIES)} ortak yetenek her platformda.")
+
+
+main()

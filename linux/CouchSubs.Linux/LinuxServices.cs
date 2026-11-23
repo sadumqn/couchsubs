@@ -52,15 +52,15 @@ public sealed class LinuxServices : IAppServices
         }
     }
 
-    public async Task<TvPairing> PairTvAsync(LgTv tv, string? key, string server)
+    public async Task<TvPairing> PairTvAsync(LgTv tv, string? key, string server, string accessKey)
     {
-        // Sunucu Android TV'yi denetlemez; TV uygulaması sunucuyu kendisi bulur.
+        // Sunucu Android TV'yi denetlemez; TV uygulaması sunucuyu kendisi bulur ve paneldeki onayla eşleşir.
         if (tv.Brand == TvBrand.AndroidTv) return new TvPairing("", true);
         if (tv.Brand == TvBrand.Samsung)
         {
             using var samsung = new SamsungClient(tv, key);
             var token = await samsung.ConnectAsync();
-            try { await samsung.LaunchAsync(SamsungClient.AppId, new Dictionary<string, string> { ["server"] = server }); }
+            try { await samsung.LaunchAsync(SamsungClient.AppId, new Dictionary<string, string> { ["server"] = server, ["key"] = accessKey }); }
             catch (Exception) { /* TV uygulaması sunucuyu kendisi de bulabilir */ }
             return new TvPairing(token, true);
         }
@@ -68,7 +68,7 @@ public sealed class LinuxServices : IAppServices
         var newKey = await client.ConnectAsync();
         try
         {
-            await client.LaunchAsync(AppController.TvAppId, new Dictionary<string, string> { ["server"] = server });
+            await client.LaunchAsync(AppController.TvAppId, new Dictionary<string, string> { ["server"] = server, ["key"] = accessKey });
             return new TvPairing(newKey, true);
         }
         catch (Exception error)
@@ -78,19 +78,22 @@ public sealed class LinuxServices : IAppServices
         }
     }
 
-    public IStreamSession MakeStream(RegisteredConsole console, byte[] accountId) => new StreamSession(console, accountId);
+    public IStreamSession MakeStream(RegisteredConsole console, byte[] accountId, string? loginPasscode) =>
+        new StreamSession(console, accountId, loginPasscode);
 
-    public IKeeper MakeKeeper(LgTv tv, string? key, IReadOnlyDictionary<string, string> parameters, Func<bool> appConnected, Action<LgTv> onMoved)
+    public IKeeper MakeKeeper(LgTv tv, string? key, IReadOnlyDictionary<string, string> parameters, Func<bool> appConnected, Action<LgTv> onMoved,
+                              Action<string> onKey)
     {
         if (tv.Brand == TvBrand.AndroidTv) return new IdleKeeper();
         if (tv.Brand == TvBrand.Samsung)
         {
+            var token = new SamsungTokenHolder(key, onKey);
             var samsungLocator = new TvLocator(tv, async target =>
             {
-                var client = new SamsungClient(target, key);
+                var client = new SamsungClient(target, token.Current);
                 try
                 {
-                    await client.ConnectAsync();
+                    token.Received(await client.ConnectAsync());
                     return client;
                 }
                 catch
@@ -115,7 +118,8 @@ public sealed class LinuxServices : IAppServices
                 throw;
             }
         }, () => LgDiscovery.SearchAsync(), onMoved);
-        return new Keeper(new TvKeeper(locator.ConnectAsync, AppController.TvAppId, parameters));
+        // Açık ve bağlı TV uygulamasına yeni bağlantıda açma komutu gitmez (#1055; Windows ile aynı).
+        return new Keeper(new TvKeeper(locator.ConnectAsync, AppController.TvAppId, parameters, tvConnected: appConnected));
     }
 
     // --- TV uygulamasını kurma ---
@@ -138,7 +142,7 @@ public sealed class LinuxServices : IAppServices
         DevModeInstaller.FetchKeyAsync(host, passphrase, new ProcessRunner(), DevModeTools.ForThisSystem());
 
     public Task<string?> InstalledTvAppVersionAsync(string host, string devKey) =>
-        WithKeyFileAsync(devKey, file => Installer(host, file).InstalledVersionAsync());
+        WithKeyFileAsync(devKey, file => Installer(host, file).CheckInstalledVersionAsync());
 
     public async Task InstallTvAppAsync(string host, string devKey)
     {
@@ -187,13 +191,15 @@ public sealed class LinuxServices : IAppServices
 
     /// <summary>TV'deki sürüme bakar, eksik ya da eskiyse kurar (Windows'taki LiveServices gibi); ayrıntılı kurulum günlüğü
     /// veri klasöründeki tvinstall.log'a yazılır.</summary>
-    public async Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
+    public async Task<(string Version, bool Installed)> InstallSamsungAppAsync(string host, BundledTvApp app, bool openIfInstalled,
+                                                                              Action<TvInstallEvent> onEvent)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(1) };
         var log = new TvInstall.InstallLog(AppPaths.Folder("tvinstall.log"));
         var installer = new SamsungTvInstaller(host, AppPaths.Folder("samsung"), new SamsungCertificates(http, log))
         {
             Log = log,
+            OpenIfInstalled = openIfInstalled,
             Progress = step => onEvent(new TvInstallEvent(TvInstallEventKind.Progress, Step: step)),
             SignIn = token => SamsungLogin.SignInAsync(url => onEvent(new TvInstallEvent(TvInstallEventKind.SignIn, new Uri(url))),
                 TimeSpan.FromMinutes(10), token),
@@ -227,22 +233,33 @@ public sealed class LinuxServices : IAppServices
         SamsungInstallError.TvClockWrong => DevModeError.TvClockWrong,
         SamsungInstallError.PackageBlocked => DevModeError.PackageBlocked,
         SamsungInstallError.ConnectionLost => DevModeError.ConnectionLost,
+        SamsungInstallError.ForeignApp => DevModeError.ForeignApp,
         _ => DevModeError.InstallFailed,
     };
+
+    /// <summary>COUCHSUBS_SERVER_PORT: sunucuda 8787 başka bir serviste kullanılıyorsa altyazı sunucusunun portu (#617).</summary>
+    public int? PreferredServerPort { get; } = ServerPortFrom(Environment.GetEnvironmentVariable("COUCHSUBS_SERVER_PORT"));
+
+    internal static int? ServerPortFrom(string? value) =>
+        int.TryParse(value, out var port) && port is > 0 and <= 65535 ? port : null;
 
     public Task<bool> IsAndroidDebugOnAsync(string host) => AndroidTvInstaller.IsReachableAsync(host);
 
     public Task<IReadOnlyList<string>> ScanAndroidTvsAsync() => AndroidTvInstaller.ScanAsync();
 
-    public async Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, Action<TvInstallEvent> onEvent)
+    public Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, bool openIfInstalled, Action<TvInstallEvent> onEvent) =>
+        InstallAndroidAppAsync(host, app, openIfInstalled, null, onEvent);
+
+    public async Task<string> InstallAndroidAppAsync(string host, BundledTvApp app, bool openIfInstalled, string? launchParams,
+                                                     Action<TvInstallEvent> onEvent)
     {
-        var installer = new AndroidTvInstaller(host, AppPaths.Folder("adb"))
-        {
-            OnApprovalNeeded = () => onEvent(new TvInstallEvent(TvInstallEventKind.ApproveOnTv)),
-        };
+        void Approve() => onEvent(new TvInstallEvent(TvInstallEventKind.ApproveOnTv));
+        var installer = new AndroidTvInstaller(host, AppPaths.Folder("adb")) { OnApprovalNeeded = Approve, LaunchParams = launchParams };
         try
         {
-            var (version, _) = await Task.Run(() => installer.EnsureInstalledAsync(app.Path, app.Version));
+            // TV'den kaldırılıp kaydı kalan uygulama da kurulur; "yeniden kur"da güncel uygulama açılır (AndroidTvApp.cs).
+            var (version, _) = await Task.Run(() => CouchSubs.TvInstall.AndroidTvApp.EnsureInstalledAsync(installer, host, AppPaths.Folder("adb"),
+                app.Path, app.Version, openIfInstalled, Approve, message => Log.Write("tv", message)));
             return version;
         }
         catch (AndroidInstallException error)
@@ -252,6 +269,7 @@ public sealed class LinuxServices : IAppServices
             {
                 AndroidInstallError.Unreachable => DevModeError.Unreachable,
                 AndroidInstallError.NotApproved => DevModeError.NotApproved,
+                AndroidInstallError.ForeignApp => DevModeError.ForeignApp,
                 _ => DevModeError.InstallFailed,
             }, error.Message);
         }

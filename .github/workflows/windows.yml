@@ -14,6 +14,22 @@ on:
         description: Android TV APK'sı (tv-android iş akışının çıktısı) uygulamaya gömülsün
         type: boolean
         default: false
+    # Kullanım verisinin kimlikleri (release.yml geçirir); yoksa Windows paketinde ölçüm kapalı.
+    secrets:
+      GA_MEASUREMENT_ID:
+        required: false
+      GA_API_SECRET:
+        required: false
+      # Paket isteklerinin imzası (server/packs); yoksa Windows paketinde paket indirme kapalı.
+      PACKS_APP_SECRET:
+        required: false
+      # Uygulamayla gelen paketlerin özel R2 erişimi (scripts/fetch-packs.py); sürümde zorunlu.
+      PACKS_R2_ACCESS_KEY_ID:
+        required: false
+      PACKS_R2_SECRET_ACCESS_KEY:
+        required: false
+      PACKS_R2_ENDPOINT:
+        required: false
 
 env:
   FFMPEG_VERSION: "7.1.2"
@@ -38,7 +54,11 @@ jobs:
         run: |
           git submodule update --init --depth 1 third-party/chiaki-ng
           git -C third-party/chiaki-ng submodule update --init --depth 1 third-party/nanopb third-party/jerasure third-party/gf-complete third-party/curl
-          git -C third-party/chiaki-ng apply ../patches/chiaki-takion-send-after-close.patch
+          # Mac (scripts/build-chiaki-macos.sh) ve Android (scripts/patch-chiaki.sh) gibi bütün yamalar uygulanır.
+          Get-ChildItem third-party/patches/chiaki-*.patch | Sort-Object Name | ForEach-Object {
+            git -C third-party/chiaki-ng apply "../patches/$($_.Name)"
+            if ($LASTEXITCODE -ne 0) { throw "chiaki yaması uygulanamadı: $($_.Name)" }
+          }
 
       - uses: msys2/setup-msys2@v2
         with:
@@ -110,6 +130,39 @@ jobs:
       - name: Yerel testler
         run: build/native/couchsubs_native_test.exe remoteplay/Tests/RemotePlayTests/Fixtures/sample-1080p.h264
 
+      # Çökme kaydı (GitHub #587): kasıtlı erişim ihlalinde metin özeti ve küçük döküm yazılıyor mu. Türler: 0 çağıran iş
+      # parçacığında geçersiz adrese yazma, 1 yerel iş parçacığında aynısı, 2 bırakılmış belleğe atlama (adres hiçbir
+      # modüle düşmez; Windows bunu "StackHash" diye kaydeder).
+      - name: Çökme kaydı (yerel işleyici)
+        run: |
+          for kind in 0 1 2; do
+            dir="$PWD/crash-$kind"
+            mkdir -p "$dir"
+            code=0
+            build/native/couchsubs_native_test.exe --crash "$(cygpath -w "$dir")" "$kind" || code=$?
+            echo "tür $kind: çıkış kodu $code"
+            if [ "$code" -eq 0 ] || [ "$code" -eq 2 ] || [ "$code" -eq 3 ] || [ "$code" -eq 4 ]; then echo "süreç çökmedi"; exit 1; fi
+            txt=$(ls "$dir"/cokme-*.txt | head -1)
+            cat "$txt"
+            grep -aq "0xC0000005" "$txt" || { echo "istisna kodu yok"; exit 1; }
+            grep -aq "lenmedi: evet" "$txt" || { echo "işlenmedi satırı yok"; exit 1; }
+            grep -aq "m durumu: yaz" "$txt" || { echo "döküm yazılmadı"; exit 1; }
+            grep -aiq "kernel32.dll" "$txt" || { echo "modül listesi yok"; exit 1; }
+            grep -aq "^Komut bayt" "$txt" || { echo "komut baytları yok"; exit 1; }
+            if [ "$kind" -eq 2 ]; then
+              grep -aq "^Mod.*l yok" "$txt" || { echo "adres bir modüle düştü"; exit 1; }
+            else
+              grep -aq "^Mod.*couchsubs_native_test.exe+0x" "$txt" || { echo "hatalı modül bulunamadı"; exit 1; }
+              grep -aq "yazma 0x0000000012345678" "$txt" || { echo "erişim adresi yok"; exit 1; }
+            fi
+            dmp="${txt%.txt}.dmp"
+            size=$(stat -c %s "$dmp")
+            echo "döküm: $size bayt"
+            if [ "$size" -lt 1024 ] || [ "$size" -gt 67108864 ]; then echo "döküm boyutu beklenmedik"; exit 1; fi
+            # Döküm dosyası "MDMP" imzasıyla başlar.
+            [ "$(head -c 4 "$dmp")" = "MDMP" ] || { echo "döküm imzası yok"; exit 1; }
+          done
+
       - name: DLL yalnız Windows'un kendi DLL'lerine bağlı olmalı
         run: |
           DLL=build/native/couchsubs_native.dll
@@ -117,7 +170,7 @@ jobs:
           allowed='^(kernel32|user32|advapi32|shell32|ole32|oleaut32|gdi32|ws2_32|wsock32|iphlpapi|bcrypt|bcryptprimitives|crypt32|secur32|normaliz|msvcrt|ntdll|api-ms-win-.*|ucrtbase)\.dll$'
           bad=$(awk '{print tolower($3)}' deps.txt | grep -Ev "$allowed" || true)
           if [ -n "$bad" ]; then echo "İzin verilmeyen bağımlılık: $bad"; exit 1; fi
-          for fn in cs_init cs_discover cs_wake cs_register cs_session_start cs_session_stop; do
+          for fn in cs_init cs_discover cs_discover_ex cs_wake cs_register cs_session_start cs_session_stop cs_crash_install; do
             objdump -p "$DLL" | grep -qw "$fn" || { echo "Dışa aktarılmamış: $fn"; exit 1; }
           done
           ls -l "$DLL"
@@ -141,10 +194,35 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+
+      - name: Xbox görüntü bileşenini paketle
+        shell: pwsh
+        run: |
+          npm ci --prefix windows/xbox-bridge
+          npm run build --prefix windows/xbox-bridge
+          Copy-Item -LiteralPath (Get-Command node).Source -Destination windows/xbox-bridge/dist/node.exe
+
       - uses: actions/download-artifact@v4
         with:
           name: couchsubs-native
           path: windows/native/bin
+
+      # Paketler depoda değil (özel R2); sürüm etiketinde zorunlu (paketsiz Windows paketi çıkmaz).
+      - name: Oyun paketleri (özel R2)
+        shell: bash
+        env:
+          PACKS_R2_ACCESS_KEY_ID: ${{ secrets.PACKS_R2_ACCESS_KEY_ID }}
+          PACKS_R2_SECRET_ACCESS_KEY: ${{ secrets.PACKS_R2_SECRET_ACCESS_KEY }}
+          PACKS_R2_ENDPOINT: ${{ secrets.PACKS_R2_ENDPOINT }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then python scripts/fetch-packs.py --require; else python scripts/fetch-packs.py; fi
 
       - name: Derle
         run: dotnet build windows/CouchSubs.Windows.slnx -c Release
@@ -168,17 +246,55 @@ jobs:
           if [ -d android-apk ]; then ./scripts/bundle-android-apk.sh "$(ls android-apk/*.apk | head -1)"; fi
 
       # Sürüm etiketten gelir (v0.1.0-beta.10 → 0.1.0-beta.10); uygulama içi güncelleme bununla karşılaştırır.
+      # Kullanım verisi (GA4 Measurement Protocol) yalnız sürüm etiketinde ve iki sır da tanımlıysa açılır; yoksa ölçüm kapalı.
       - name: Yayınla
         shell: bash
+        env:
+          GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID }}
+          GA_API_SECRET: ${{ secrets.GA_API_SECRET }}
+          PACKS_APP_SECRET: ${{ secrets.PACKS_APP_SECRET }}
         run: |
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION=0.1.0-dev; fi
-          dotnet publish windows/src/CouchSubs.App -c Release -r win-x64 --self-contained -o publish/CouchSubs -p:Version="$VERSION"
+          PACK_ARGS=()
+          if [[ -n "$PACKS_APP_SECRET" ]]; then
+            PACK_ARGS=(-p:CouchSubsPacksSecret="$PACKS_APP_SECRET")
+          else
+            echo "::warning title=Paket indirme kapalı::PACKS_APP_SECRET yok; Windows paketinde paket indirme kapalı."
+          fi
+          USAGE_ARGS=()
+          if [[ "$GITHUB_REF_TYPE" == tag && -n "$GA_MEASUREMENT_ID" && -n "$GA_API_SECRET" ]]; then
+            USAGE_ARGS=(-p:CouchSubsGaMeasurementId="$GA_MEASUREMENT_ID" -p:CouchSubsGaApiSecret="$GA_API_SECRET")
+          else
+            echo "::warning title=Kullanım verisi kapalı::GA_MEASUREMENT_ID/GA_API_SECRET yok ya da sürüm etiketi değil; Windows paketinde ölçüm kapalı."
+          fi
+          dotnet publish windows/src/CouchSubs.App -c Release -r win-x64 --self-contained -o publish/CouchSubs -p:Version="$VERSION" \
+            -p:CouchSubsPacksUrl=https://couchsubs-packs.enmera.workers.dev \
+            -p:CouchSubsPacksFallbackUrl=https://couchsubs-packs.enmeraapps.com "${USAGE_ARGS[@]}" "${PACK_ARGS[@]}"
 
-      # Ücretsiz çeviri motoru (ONNX Runtime) Visual C++ çalışma zamanına bağlı: onnxruntime.dll VCRUNTIME140(_1).dll ve
-      # MSVCP140(_1).dll ister. Bunlar Windows'la gelmez; Visual C++ paketi kurulu olmayan bilgisayarda onnxruntime.dll
-      # yüklenemiyor, ücretsiz çeviri hiç çalışmıyordu (DllNotFoundException 0x8007007E). Microsoft'un belgelediği uygulama
+      # CTranslate2'nin resmi Windows wheel'i CPU ve NVIDIA CUDA kodunu içerir. Python uygulamayla birlikte
+      # gelir; kullanıcının Python kurması gerekmez. CUDA bulunmazsa uygulama CPU'ya döner.
+      - name: CTranslate2 çalışma zamanı
+        shell: pwsh
+        run: |
+          $runtime = Join-Path (Resolve-Path publish/CouchSubs) 'ct2'
+          New-Item -ItemType Directory -Force $runtime | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP 'python-embed.zip'
+          Invoke-WebRequest 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' -OutFile $zip
+          # Sabit sürümün özeti: indirilen dosya değişmişse derleme durur.
+          $sha = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          if ($sha -ne '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3') { throw "Python gömülü paketinin özeti tutmuyor: $sha" }
+          Expand-Archive -LiteralPath $zip -DestinationPath $runtime
+          Set-Content -LiteralPath (Join-Path $runtime 'python312._pth') -Value @('python312.zip', '.', 'Lib\site-packages', 'import site')
+          # Paketler PyPI'den sabit sürüm ve SHA-256 özetiyle kurulur (windows/ct2/requirements.txt).
+          python -m pip install --disable-pip-version-check --no-deps --require-hashes --only-binary=:all: `
+            --python-version 3.12 --platform win_amd64 --implementation cp `
+            --target (Join-Path $runtime 'Lib\site-packages') -r windows/ct2/requirements.txt
+          Copy-Item windows/ct2/worker.py (Join-Path $runtime 'worker.py')
+          & (Join-Path $runtime 'python.exe') -c 'import ctranslate2; print("CTranslate2", ctranslate2.__version__)'
+
+      # CTranslate2'nin yerel uzantısı Visual C++ çalışma zamanına bağlı. Microsoft'un belgelediği uygulama
       # yanı dağıtımla Visual Studio'nun redist klasöründeki DLL'ler exe'nin yanına konur; .exe klasörü DLL aramasında
-      # System32'den önce gelir, Windows'taki eski bir msvcp140.dll de (ORT'yi çökertir) kullanılmaz. Kurulum dosyası ve zip
+      # System32'den önce gelir, Windows'taki eski bir msvcp140.dll de kullanılmaz. Kurulum dosyası ve zip
       # ikisi de bu klasörden çıkar; kurulumda yönetici izni istenmez.
       - name: Visual C++ çalışma zamanı (uygulamanın yanına)
         shell: pwsh
@@ -192,6 +308,7 @@ jobs:
           if (-not $crt) { throw "Visual C++ redist klasörü (Microsoft.VC14x.CRT) bulunamadı" }
           Write-Host "Kaynak: $($crt.FullName)"
           Copy-Item "$($crt.FullName)\*.dll" publish/CouchSubs/
+          Copy-Item "$($crt.FullName)\*.dll" publish/CouchSubs/ct2/
           Get-ChildItem $crt.FullName -Filter *.dll | ForEach-Object { "{0,-28} {1}" -f $_.Name, $_.VersionInfo.FileVersion }
 
       # Türkçe dublajın ses motoru (Kyutai pocket-tts, MIT): sabit sürüm, özeti denetlenir.
@@ -199,36 +316,50 @@ jobs:
         shell: bash
         run: ./scripts/fetch-pocket-tts.sh windows publish/CouchSubs/tts
 
-      # Kurulum dosyası ve zip bu klasörden çıkar: ONNX Runtime DLL'leri ve her yerel DLL/exe'nin istediği Visual C++
+      # Kurulum dosyası ve zip bu klasörden çıkar: CTranslate2 ve her yerel DLL/exe'nin istediği Visual C++
       # DLL'leri yanında değilse derleme durur. Bağımlılıklar dumpbin ile dosyaların kendi içe aktarma tablosundan okunur.
-      - name: ONNX Runtime ve Visual C++ DLL'leri yayın klasöründe mi
+      - name: CTranslate2 ve Visual C++ DLL'leri yayın klasöründe mi
         shell: pwsh
         run: |
           $dir = Resolve-Path publish/CouchSubs
-          foreach ($f in "onnxruntime.dll", "onnxruntime_providers_shared.dll", "Microsoft.ML.OnnxRuntime.dll",
+          foreach ($f in "ct2/python.exe", "ct2/python312.dll", "ct2/worker.py",
                          "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll") {
             if (-not (Test-Path (Join-Path $dir $f))) { throw "$f yayın klasöründe yok" }
           }
+          if (-not (Get-ChildItem (Join-Path $dir 'ct2/Lib/site-packages/ctranslate2') -Filter '*.pyd')) { throw 'CTranslate2 uzantısı yok' }
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
             -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -Last 1
           if (-not $dumpbin) { throw "dumpbin bulunamadı" }
           $vcRuntime = '^(vcruntime|msvcp|concrt|vccorlib|vcomp)\d+.*\.dll$'
           $deps = { param($file) & $dumpbin.FullName /nologo /dependents $file | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $vcRuntime } }
-          # Okuma bozulursa denetim boşa geçmesin: onnxruntime.dll'in bilinen bağımlılıkları görünmeli.
-          $ort = @(& $deps (Join-Path $dir onnxruntime.dll))
-          Write-Host "onnxruntime.dll Visual C++ bağımlılıkları: $($ort -join ', ')"
-          if ($ort -notcontains "VCRUNTIME140.dll" -or $ort -notcontains "MSVCP140.dll") { throw "onnxruntime.dll bağımlılıkları okunamadı" }
-          $missing = foreach ($bin in Get-ChildItem $dir -Recurse -Include *.dll, *.exe) {
+          # Python tekerlekleri (ör. NumPy) kendi adı özetli Visual C++ kopyasını <paket>.libs klasöründe taşır.
+          $vendored = @(Get-ChildItem (Join-Path $dir 'ct2/Lib/site-packages') -Directory -Filter '*.libs' |
+            Get-ChildItem -Filter *.dll | ForEach-Object Name)
+          $missing = foreach ($bin in Get-ChildItem $dir -Recurse -Include *.dll, *.exe, *.pyd) {
             foreach ($dep in & $deps $bin.FullName) {
-              if (-not (Test-Path (Join-Path $bin.DirectoryName $dep))) { "$($bin.FullName.Substring($dir.Path.Length + 1)) -> $dep" }
+              if ($vendored -notcontains $dep -and
+                  -not (Test-Path (Join-Path $bin.DirectoryName $dep)) -and
+                  -not (Test-Path (Join-Path $dir $dep)) -and
+                  -not (Test-Path (Join-Path $dir "ct2/$dep"))) { "$($bin.FullName.Substring($dir.Path.Length + 1)) -> $dep" }
             }
           }
           if ($missing) { $missing; throw "Visual C++ DLL'leri eksik" }
-          # ORT 1.19 ve sonrası eski msvcp140.dll ile std::mutex'te çöküyor; Microsoft 14.40 ve üstünü istiyor.
+          # Yerel bileşenlerle uyumlu güncel Visual C++ çalışma zamanı.
           $v = (Get-Item (Join-Path $dir msvcp140.dll)).VersionInfo
           if ([version]::new($v.FileMajorPart, $v.FileMinorPart) -lt [version]"14.40") { throw "msvcp140.dll eski: $($v.FileVersion)" }
           Write-Host "Tamam: msvcp140.dll $($v.FileVersion)"
+
+      # Yayına girecek gömülü çalışma zamanıyla gerçek OPUS-MT/CTranslate2 modelinden örnek satırlar çevir.
+      # Model test önbelleğine bir kez indirilir; CPU yolu gerçekten çalışmadan paket oluşturulmaz.
+      - name: CTranslate2 gerçek model testi
+        shell: pwsh
+        run: |
+          $env:COUCHSUBS_DOWNLOAD_TEST_MODELS = '1'
+          $env:COUCHSUBS_CT2_RUNTIME = (Resolve-Path publish/CouchSubs/ct2).Path
+          $env:CUDA_VISIBLE_DEVICES = '-1'
+          $env:COUCHSUBS_TEST_EXPECT_GPU_FALLBACK = '1'
+          dotnet test windows/tests/CouchSubs.Translation.Tests/CouchSubs.Translation.Tests.csproj -c Release --no-build -m:1 --filter 'FullyQualifiedName~TranslationIntegrationTests'
 
       # Kurulum dosyası ve uygulama içi güncelleme paketleri (Velopack, MIT). Sürümde önceki sürüm indirilir; yalnız
       # değişen parçalar (delta) da üretilir. Her derlemede denenir ki paketleme hatası sürüm anında çıkmasın.
@@ -282,7 +413,17 @@ jobs:
           if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "ekran görüntüsü aracı zamanında bitmedi" }
           if (Test-Path screens/errors.txt) { Get-Content screens/errors.txt; throw "ekranlardan biri hata verdi" }
           $count = (Get-ChildItem screens -Filter *.png).Count
-          if ($count -lt 22) { throw "beklenen 22 ekran görüntüsü, bulunan: $count" }
+          if ($count -lt 86) { throw "beklenen 86 ekran görüntüsü (ScreenRenderer.ExpectedCount), bulunan: $count" }
+
+      # Perde: boşta işlemci (hedef ≤ %2). Sanal makinede ekran kartı yok (WPF yazılımla çizer), değer gerçek bilgisayardakinden
+      # yüksek çıkar; bilgi amaçlıdır, adımı düşürmez. Aynı komut bir Windows bilgisayarda gerçek değeri verir.
+      - name: Boşta işlemci (bilgi)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $p = Start-Process publish/CouchSubs/CouchSubs.exe -ArgumentList "--olc-bosta", "10", "$PWD/bosta.txt" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); Write-Host "ölçüm zamanında bitmedi" }
+          if (Test-Path bosta.txt) { Get-Content bosta.txt -Encoding UTF8 } else { Write-Host "ölçüm sonucu yok" }
 
       # Antivirüs bir DLL'i karantinaya alınca uygulama sessizce kapanmamalı, eksik dosyayı söylemeli.
       - name: Eksik DLL ile açılış
@@ -296,6 +437,147 @@ jobs:
           $text = Get-Content broken-out/errors.txt -Raw
           $text
           if ($text -notmatch "CouchSubs\.RemotePlay\.dll") { throw "hata metni eksik dosyayı söylemiyor" }
+
+      # Kurulum, CouchSubs.exe'yi --veloapp-install ile çağırır; 30 saniyede 0 ile dönmezse "Yükleme Kısmen Başarılı"
+      # uyarısı çıkar (#676). Kanca, güvenlik yazılımının engelleyebileceği DLL'ler (Velopack, uygulamanın kendi
+      # DLL'leri) yokken de 0 ile dönmeli; normal açılış da sessizce kapanmak yerine eksik dosyayı söylemeli.
+      - name: Kurulum kancası DLL'ler eksikken de 0 ile döner
+        shell: pwsh
+        run: |
+          function Invoke-Hook($folder, $hook) {
+            $p = Start-Process "$folder/CouchSubs.exe" -ArgumentList $hook, "0.1.0-dev" -PassThru
+            $null = $p.Handle
+            if (-not $p.WaitForExit(30000)) { $p.Kill(); throw "$hook kancası 30 saniyede bitmedi ($folder)" }
+            if ($p.ExitCode -ne 0) { throw "$hook kancası $($p.ExitCode) ile döndü ($folder)" }
+          }
+          $hooks = "--veloapp-install", "--veloapp-updated", "--veloapp-obsolete", "--veloapp-uninstall"
+          foreach ($hook in $hooks) { Invoke-Hook publish/CouchSubs $hook }
+          Copy-Item publish/CouchSubs hook-broken -Recurse
+          Remove-Item hook-broken/Velopack.dll, hook-broken/CouchSubs.Shell.dll, hook-broken/CouchSubs.Core.dll
+          foreach ($hook in $hooks) { Invoke-Hook hook-broken $hook }
+          $p = Start-Process hook-broken/CouchSubs.exe -ArgumentList "--render-screens", "$PWD/hook-broken-out" -PassThru
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); throw "uygulama eksik DLL ile takıldı" }
+          if (-not (Test-Path hook-broken-out/errors.txt)) { throw "eksik DLL bildirilmedi" }
+          $text = Get-Content hook-broken-out/errors.txt -Raw
+          $text
+          if ($text -notmatch "Velopack|CouchSubs\.(Shell|Core)") { throw "hata metni eksik dosyayı söylemiyor" }
+
+      # Yerel çökme kaydı (GitHub #587): uygulama erişim ihlaliyle kapanınca %LOCALAPPDATA%\CouchSubs\cokme klasörüne
+      # özet ve küçük döküm yazılmalı, sonraki açılış kaydı bulup tamamlamalı ve bir kez bildirmeli. Çökme yalnız
+      # --crash-test argümanıyla yapılır. Türler: yerel (P/Invoke altında yerel kodda), is-parcacigi (yerel iş
+      # parçacığında), atlama (bırakılmış belleğe atlama), yonetilen (yönetilen kodda geçersiz adrese yazma).
+      - name: Çökme kaydı
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:LOCALAPPDATA 'CouchSubs\cokme'
+          function Get-Records { @(Get-ChildItem $dir -Filter 'cokme-*.txt' -ErrorAction SilentlyContinue) }
+          function Invoke-App([string[]]$arguments) {
+            $p = Start-Process publish/CouchSubs/CouchSubs.exe -ArgumentList $arguments -PassThru
+            $null = $p.Handle
+            if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "uygulama zamanında kapanmadı: $arguments" }
+            return $p.ExitCode
+          }
+          # Önceki adımlarda uygulama işleyici kuruluyken hatasız çalıştı: kayıt bırakmamış olmalı.
+          if ((Get-Records).Count -gt 0) { Get-Records | ForEach-Object { Get-Content $_.FullName }; throw "çökme olmadan kayıt yazılmış" }
+          # Yakalanan NullReferenceException çökme değildir: kayıt yazılmaz, sonraki açılış bir şey bildirmez.
+          $code = Invoke-App '--crash-test', 'bos'
+          if ($code -ne 0) { throw "bos: çıkış kodu $code" }
+          if ((Get-Records).Count -gt 0) { throw "yakalanan hata için kayıt yazılmış" }
+          $code = Invoke-App '--crash-report', "$PWD\crash-none.txt"
+          if ($code -ne 6) { throw "çökme yokken kayıt bildirildi (çıkış kodu $code)" }
+          # GitHub #587 varsayımı: kısa diziyle eski AutoLevel döngüsü Parallel.For içinde binlerce kez istisna atar; .NET'in
+          # istisna dağıtımı bunu erişim ihlaline çevirmemeli (süreç 0 ile döner), bugünkü okuma kısa kareyi atlar.
+          Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+          $code = Invoke-App '--crash-test', 'kisa-kare'
+          Write-Host "kisa-kare: çıkış kodu $code"
+          if ($code -ne 0) { throw "kisa-kare: yönetilen istisna süreci düşürdü ya da kısa kare okundu (çıkış kodu $code)" }
+          if ((Get-Records).Count -gt 0) { throw "kisa-kare: çökme kaydı yazılmış" }
+          foreach ($kind in 'yerel', 'is-parcacigi', 'atlama', 'yonetilen', 'paralel-yonetilen') {
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            $code = Invoke-App '--crash-test', $kind
+            Write-Host "${kind}: çıkış kodu $code"
+            if ($code -in 0, 4, 5) { throw "${kind}: süreç çökmedi (çıkış kodu $code)" }
+            $summary = Get-Records | Select-Object -First 1
+            if (-not $summary) { throw "${kind}: özet yazılmadı" }
+            $dump = [IO.Path]::ChangeExtension($summary.FullName, '.dmp')
+            if (-not (Test-Path $dump)) { Get-Content $summary.FullName; throw "${kind}: döküm yazılmadı" }
+            $size = (Get-Item $dump).Length
+            Write-Host "${kind}: döküm $size bayt"
+            if ($size -lt 1024 -or $size -gt 64MB) { throw "${kind}: döküm boyutu beklenmedik ($size)" }
+            # Sonraki açılış: kayıt bulunur, modül sürümleri, son günlük satırları ve Windows'un kaydıyla tamamlanır.
+            $report = "$PWD\crash-$kind.txt"
+            $code = Invoke-App '--crash-report', $report
+            if ($code -ne 0) { Get-Content $summary.FullName; throw "${kind}: sonraki açılış kaydı bulmadı (çıkış kodu $code)" }
+            $text = Get-Content $report -Raw -Encoding UTF8
+            $text
+            $expected = @('0xC0000005', 'Sürüm: 0\.1\.0', 'İşlemci: ', 'Komut baytları \(RIP-16 \| RIP\+32\):', 'hiçbir yere göndermez', 'Yüklü modüller:', 'coreclr\.dll  \[\d+', 'kernel32\.dll  \[\d+',
+                          'Son günlük satırları \(altyazi\.log\):', 'Windows olay günlüğü:', 'Döküm durumu: yazıldı', 'Tamamlandı:')
+            $expected += switch ($kind) {
+              'yerel' { 'Modül: couchsubs_native\.dll\+0x', 'Erişim: yazma 0x0000000012345678' }
+              'is-parcacigi' { 'Modül: couchsubs_native\.dll\+0x', 'Erişim: yazma 0x0000000012345678', 'İşlenmedi: evet' }
+              'atlama' { 'Modül: modül yok', 'Erişim: yürütme' }
+              'yonetilen' { 'Modül: modül yok', 'Erişim: yazma 0x0000000012345678' }
+              'paralel-yonetilen' { 'Modül: modül yok', 'Erişim: yazma 0x0000000012345678' }
+            }
+            foreach ($pattern in $expected) { if ($text -notmatch $pattern) { throw "${kind}: özette yok: $pattern" } }
+            # Kullanıcı klasörünün yolu özete girmez.
+            if ($text -match [regex]::Escape($env:USERPROFILE)) { throw "${kind}: özette kullanıcı klasörünün yolu var" }
+            # #587 kanıtı (bilgi, düşürmez): yönetilen koddaki donanım erişim ihlalinde .NET'in kaydı yığının tepesinde
+            # System.Runtime.EH.DispatchEx gösteriyor mu? Gösteriyorsa #587'deki yığın, AutoLevel'ın kendi okumasında olan
+            # bir erişim ihlalidir, dağıtılan başka bir istisna değil.
+            if ($kind -in 'yonetilen', 'paralel-yonetilen') {
+              $net = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = '.NET Runtime'; StartTime = (Get-Date).AddMinutes(-3) } -ErrorAction SilentlyContinue |
+                Where-Object { $_.Message -match 'CouchSubs' } | Select-Object -First 1
+              if ($net) {
+                Write-Host "${kind}: .NET Runtime kaydı:`n$($net.Message)"
+                Write-Host "${kind}: DispatchEx tepede: $($net.Message -match 'System\.Runtime\.EH\.DispatchEx'), AccessViolationException: $($net.Message -match 'AccessViolationException')"
+              } else { Write-Host "${kind}: .NET Runtime kaydı bulunamadı" }
+            }
+            # Kayıt bir kez bildirilir.
+            $code = Invoke-App '--crash-report', "$PWD\crash-again.txt"
+            if ($code -ne 6) { throw "${kind}: kayıt ikinci kez bildirildi (çıkış kodu $code)" }
+          }
+
+      # Okuma hattının yük testi (GitHub #587: uzun oturumda paralel yedek okumada erişim ihlali). Gerçek oturumdan çok
+      # daha yoğun: 2560x1440 kareler Windows görüntüsünden kopyalanır, birkaç okuma hattı aynı kareyi aynı anda bütün
+      # hazırlıklarla okur. Süreç kapanırsa çökme kaydı (özet ve döküm) yapıt olarak yüklenir.
+      - name: Okuma hattı yük testi
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:LOCALAPPDATA 'CouchSubs\cokme'
+          Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+          function Invoke-Stress($name, $seconds) {
+            $out = "$PWD\stress-$name.txt"
+            $p = Start-Process publish/CouchSubs/CouchSubs.exe -ArgumentList '--stress-okuma', $seconds, $out -PassThru
+            $null = $p.Handle
+            if (-not $p.WaitForExit(($seconds + 180) * 1000)) { $p.Kill(); throw "yük testi ($name) zamanında bitmedi" }
+            if (Test-Path $out) { Get-Content $out -Encoding UTF8 }
+            if ($p.ExitCode -ne 0) {
+              # Çökme kaydı tamamlanır ve dökümle birlikte yapıta konur.
+              $r = Start-Process publish/CouchSubs/CouchSubs.exe -ArgumentList '--crash-report', "$PWD\crash-stress-$name.txt" -PassThru
+              $null = $r.WaitForExit(120000)
+              if (Test-Path "$PWD\crash-stress-$name.txt") { Get-Content "$PWD\crash-stress-$name.txt" -Encoding UTF8 }
+              New-Item -ItemType Directory -Force stress-cokme | Out-Null
+              Copy-Item "$dir\*" stress-cokme -ErrorAction SilentlyContinue
+              throw "yük testi ($name) düştü (çıkış kodu $($p.ExitCode))"
+            }
+          }
+          # Yazı tanıma motoru olmadan: her okuma boş döner ve paralel yedek okumaya düşer (en yoğun yol).
+          $env:COUCHSUBS_STRESS_NO_OCR = '1'
+          Invoke-Stress 'motorsuz' 150
+          # Windows'un yazı tanımasıyla (CI makinesinde dil yüklü değilse yine motorsuz koşar).
+          $env:COUCHSUBS_STRESS_NO_OCR = '0'
+          Invoke-Stress 'motorlu' 60
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: couchsubs-cokme
+          path: |
+            crash-*.txt
+            stress-*.txt
+            stress-cokme
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -5,19 +5,24 @@ rows=[json.loads(l) for l in open(sys.argv[1])]
 pat=sys.argv[3]
 units={}
 for r in rows:
-    units[c.key(r['text'])]=r['text']
-    for s in c.sentences(r['text']): units[c.key(s)]=s
+    for s in [r['text']] + c.sentences(r['text']):
+        k = c.key(s)
+        if k:
+            units[k] = s
 grams={k:set(''.join(c.folded(v))[i:i+3] for i in range(len(c.folded(v))-2)) for k,v in units.items()}
 pool=json.load(open(sys.argv[2]))['lines']
 pool=[l for l in pool if re.search(pat,l['text'],re.I)] if pat!='-' else pool
 exact=fz=0; misses=[]
 def body(t):
-    m=re.match(r'^.{0,32}?[:•]\s*',t)
+    # Only strip plausible capitalized speaker names, not dialogue like
+    # "Tell me: keep moving" where a colon belongs to the spoken sentence.
+    m = re.match(r"^\s*[A-Z][A-Za-z.'’\-]*(?:\s+[A-Z][A-Za-z.'’\-]*){0,3}\s*[:•]\s+", t)
     return t[m.end():] if m else t
 for l in pool:
     b=body(l['text'])
-    parts=[b]+c.sentences(b)
-    if c.key(b) in units or all(c.key(p) in units for p in c.sentences(b)):
+    k = c.key(b)
+    parts = [p for p in c.sentences(b) if c.key(p)]
+    if k and (k in units or (parts and all(c.key(p) in units for p in parts))):
         exact+=1; continue
     fq=''.join(c.folded(b)); g=set(fq[i:i+3] for i in range(len(fq)-2))
     if len(fq)<16 or not g: misses.append(b); continue

@@ -1,0 +1,1 @@
+0.9.48: On LG, audio focus is explicitly requested while the PS5 picture is shown in the app; if the TV's sound stays muted when the picture opens, it is unmuted. The info panel also shows the TV's digital sound output. If there is no sound in the app with a soundbar connected, try setting the PS5 Audio Format to Linear PCM.

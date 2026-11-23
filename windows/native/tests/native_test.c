@@ -146,6 +146,17 @@ static void test_reason_is_read_from_log(void)
 	CHECK(!cs_reason_from_log(NULL, &reason));
 }
 
+/* Mac/iPhone'daki VideoSampleSizeTests ile aynı (GitHub #855). */
+static void test_sample_size_guard(void)
+{
+	CHECK(!cs_sample_size_plausible(0));
+	CHECK(!cs_sample_size_plausible((size_t)-1));
+	CHECK(!cs_sample_size_plausible((size_t)1 << 63));
+	CHECK(!cs_sample_size_plausible(CS_MAX_SAMPLE_BYTES + 1));
+	CHECK(cs_sample_size_plausible(1));
+	CHECK(cs_sample_size_plausible(2000000));
+}
+
 static void test_throttle_thirty_fps_at_four(void)
 {
 	cs_throttle throttle;
@@ -171,11 +182,12 @@ static void test_quit_reasons(void)
 	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE) == CS_QUIT_IN_USE);
 	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_SESSION_REQUEST_CONNECTION_REFUSED) == CS_QUIT_REFUSED);
 	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_CTRL_CONNECTION_REFUSED) == CS_QUIT_REFUSED);
-	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_PSN_REGIST_FAILED) == CS_QUIT_REFUSED);
-	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED) == CS_QUIT_NETWORK);
-	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_SHUTDOWN) == CS_QUIT_NETWORK);
+	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_PSN_REGIST_FAILED) == CS_QUIT_PSN_REGIST_FAILED);
+	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED) == CS_QUIT_CONSOLE_CLOSED);
+	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_SHUTDOWN) == CS_QUIT_CONSOLE_CLOSED);
 	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_CTRL_CONNECT_FAILED) == CS_QUIT_NETWORK);
 	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_STREAM_CONNECTION_UNKNOWN) == CS_QUIT_NETWORK);
+	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_CRASH) == CS_QUIT_RP_CRASHED);
 	CHECK(cs_quit_reason(CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_VERSION_MISMATCH) == CS_QUIT_OTHER);
 }
 
@@ -294,6 +306,15 @@ static void test_stop_right_after_start(void)
 	cs_session_stop(session);
 }
 
+/* 720p istenen oturum da açılır ve hemen durdurulabilir (bağlantı sık koparsa uygulama 720p ister). */
+static void test_stop_right_after_start_720p(void)
+{
+	uint8_t key[16] = { 0 }, morning[16] = { 0 }, account[8] = { 0 };
+	cs_session *session = cs_session_start_ex("127.0.0.1", key, morning, account, 15, 720, NULL, NULL, NULL, NULL);
+	CHECK(session != NULL);
+	cs_session_stop(session);
+}
+
 static void count_console(const char *host, const char *name, int awake, void *user)
 {
 	(void)host;
@@ -314,8 +335,47 @@ static void test_discover_returns_after_timeout(void)
 	CHECK(cs_discover(NULL, 0, 100, count_console, &found) != 0);
 }
 
+static void count_console_ex(const char *host, const char *name, int awake, const char *titleid, const char *app, void *user)
+{
+	(void)host;
+	(void)name;
+	(void)awake;
+	(void)titleid;
+	(void)app;
+	(*(int *)user)++;
+}
+
+static void test_discover_ex_returns_after_timeout(void)
+{
+	const char *targets[] = { "127.0.0.1" };
+	int found = 0;
+	CHECK(cs_discover_ex(targets, 1, 600, count_console_ex, &found) == 0);
+	CHECK(found == 0);
+	CHECK(cs_discover_ex(targets, 1, 100, NULL, &found) != 0);
+}
+
+#ifdef _WIN32
+/* couchsubs_native_test --crash <klasör> <tür>: çökme kaydını kurar ve kasıtlı erişim ihlali yapar (CI doğrular). */
+static int crash_main(const char *directory, int kind)
+{
+	wchar_t wide[512];
+	if(!MultiByteToWideChar(CP_UTF8, 0, directory, -1, wide, 512))
+		return 2;
+	/* Windows'un hata penceresi CI'ı bekletmesin. */
+	SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+	if(cs_crash_install((const uint16_t *)wide, "Deneme: yerel test\r\n") != 0)
+		return 3;
+	cs_crash_test(kind);
+	return 4; /* buraya gelinmemeli */
+}
+#endif
+
 int main(int argc, char **argv)
 {
+#ifdef _WIN32
+	if(argc == 4 && strcmp(argv[1], "--crash") == 0)
+		return crash_main(argv[2], atoi(argv[3]));
+#endif
 	if(argc < 2)
 	{
 		fprintf(stderr, "usage: %s <sample-1080p.h264>\n", argv[0]);
@@ -325,12 +385,15 @@ int main(int argc, char **argv)
 	CHECK(cs_init() == 0);
 	test_reason_is_read_from_log();
 	test_throttle_thirty_fps_at_four();
+	test_sample_size_guard();
 	test_quit_reasons();
 	test_fixture_decodes(argv[1]);
 	test_garbage_does_not_crash();
 	test_discover_returns_after_timeout();
+	test_discover_ex_returns_after_timeout();
 	test_session_to_closed_port_quits_and_stops();
 	test_stop_right_after_start();
+	test_stop_right_after_start_720p();
 	if(failures)
 	{
 		fprintf(stderr, "%d check(s) failed\n", failures);

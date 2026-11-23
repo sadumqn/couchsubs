@@ -12,8 +12,9 @@ namespace CouchSubs.Core;
 /// <summary>
 /// Ortak havuz (varsayılan açık, ayarlardan kapatılabilir; ayarlarda ve kurulumun son adımında açıkça söylenir): hiçbir pakette bulunmayan İngilizce oyun satırları biriktirilir ve
 /// beş dakikada bir (ve uygulama kapanırken) sunucuya gönderilir; yeni paketler bunlardan hazırlanır. Yalnız satırın
-/// metni, anahtarı ve ilk görüldüğü an gider; kimlik olarak kuruluma özgü rastgele bir UUID kullanılır (IP, kullanıcı adı,
-/// PSN bilgisi yok). Sunucuya ulaşılamazsa kuyruk diskte bekler, sonra sessizce yeniden denenir.
+/// metni, anahtarı, ilk görüldüğü an ve biliniyorsa PS5'te o an çalışan oyunun kimliğiyle adı (<see cref="RunningGame"/>)
+/// gider; kimlik olarak kuruluma özgü rastgele bir UUID kullanılır (IP, kullanıcı adı, PSN bilgisi yok). Sunucuya
+/// ulaşılamazsa kuyruk diskte bekler, sonra sessizce yeniden denenir.
 /// Mac'teki CouchSubsCore/LinePool.swift ile aynı kurallar.
 /// </summary>
 public sealed class LinePool : IDisposable
@@ -32,10 +33,13 @@ public sealed class LinePool : IDisposable
     /// <summary>Kuyruk en geç bu aralıkla diske yazılır (her satırda yazılmaz).</summary>
     internal static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(30);
 
+    /// <param name="TitleId">Satır okunurken PS5'te çalışan oyun; bilinmiyorsa null ve JSON'a hiç yazılmaz.</param>
     public sealed record Line(
         [property: JsonPropertyName("text")] string Text,
         [property: JsonPropertyName("key")] string Key,
-        [property: JsonPropertyName("firstSeen")] string FirstSeen);
+        [property: JsonPropertyName("firstSeen")] string FirstSeen,
+        [property: JsonPropertyName("titleId"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TitleId = null,
+        [property: JsonPropertyName("game"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Game = null);
 
     private sealed class State
     {
@@ -70,6 +74,7 @@ public sealed class LinePool : IDisposable
     private DateTimeOffset lastSave = DateTimeOffset.MinValue;
     private bool dirty;
     private bool enabled;
+    private RunningGame? game;
 
     /// <param name="handler">HTTP katmanı; testlerde sahtesi verilir.</param>
     public LinePool(string file, string app, Uri? endpoint = null, string platform = "windows", bool enabled = EnabledByDefault,
@@ -107,6 +112,15 @@ public sealed class LinePool : IDisposable
         }
     }
 
+    /// <summary>PS5'te o an çalışan oyun (keşif yanıtından; bağlantı yokken null). Yeni satırlara eklenir.</summary>
+    public RunningGame? Game { get { lock (gate) return game; } }
+
+    /// <summary>PS5'te çalışan oyun değişti (bilinmiyorsa null); bundan sonra kuyruğa giren satırlar bu oyunla gider.</summary>
+    public void SetGame(RunningGame? value)
+    {
+        lock (gate) game = value;
+    }
+
     /// <summary>Okunan (pakette bulunmayan) satırı kuyruğa ekler; kapalıysa, filtreye takılırsa ya da zaten varsa bir şey yapmaz.</summary>
     public void Offer(string text)
     {
@@ -115,7 +129,7 @@ public sealed class LinePool : IDisposable
         lock (gate)
         {
             if (!enabled || queuedKeys.Contains(key) || sentKeys.Contains(key)) return;
-            state.Queue.Add(new Line(text, key, Timestamp(clock())));
+            state.Queue.Add(new Line(text, key, Timestamp(clock()), game?.TitleId, game?.Name));
             queuedKeys.Add(key);
             // Sınır aşılırsa en eski satırlar düşer.
             if (state.Queue.Count > MaxQueue)
@@ -159,12 +173,21 @@ public sealed class LinePool : IDisposable
                 using (response)
                 {
                     var status = (int)response.StatusCode;
+                    var saturated = Array.Empty<string>();
+                    if (status is >= 200 and < 300)
+                    {
+                        try { saturated = SaturatedKeys(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)); }
+                        catch (Exception error) when (error is HttpRequestException or IOException or TaskCanceledException) { }
+                    }
                     lock (gate)
                     {
                         if (status is >= 200 and < 300)
                         {
                             state.RetryAfter = null;
                             Remove(batch, sent: true);
+                            // Sunucu doymuş ("saturated") bildirdiği satırı bir daha istemez: kuyrukta bekleyenler atılır,
+                            // hepsi "gönderildi" sayılır (eski sunucuda alan yok; yok sayılır).
+                            MarkSaturated(saturated);
                         }
                         else if (status == (int)HttpStatusCode.TooManyRequests)
                         {
@@ -175,8 +198,8 @@ public sealed class LinePool : IDisposable
                         }
                         else if (status is >= 400 and < 500)
                         {
-                            // Sunucu bu parçayı kabul etmiyor; yeniden göndermek düzeltmez.
-                            Remove(batch, sent: false);
+                            // Sunucu bu parçayı kabul etmiyor; yeniden göndermek düzeltmez, aynı satırlar bir daha gitmesin.
+                            Remove(batch, sent: true);
                         }
                         else
                         {
@@ -215,6 +238,44 @@ public sealed class LinePool : IDisposable
         lastSave = clock();
     }
 
+    /// <summary>Yanıttaki <c>saturated</c> listesinden geçerli (16 onaltılık) anahtarlar; alan yoksa ya da bozuksa boş.</summary>
+    internal static string[] SaturatedKeys(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("saturated", out var list)
+                || list.ValueKind != JsonValueKind.Array) return [];
+            return [.. list.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString()!)
+                .Where(key => key.Length == 16 && key.All(Uri.IsHexDigit))
+                .Select(key => key.ToLowerInvariant())];
+        }
+        catch (JsonException) { return []; }
+    }
+
+    /// <summary>Doymuş anahtarlar "gönderildi"ye yazılır ve kuyruktaki aynıları atılır.</summary>
+    private void MarkSaturated(string[] keys)
+    {
+        if (keys.Length == 0) return;
+        var set = keys.ToHashSet();
+        state.Queue.RemoveAll(line => set.Contains(line.Key));
+        queuedKeys.ExceptWith(set);
+        foreach (var key in keys) if (sentKeys.Add(key)) state.Sent.Add(key);
+        TrimSent();
+        dirty = true;
+    }
+
+    private void TrimSent()
+    {
+        if (state.Sent.Count <= RememberedSent) return;
+        var dropped = state.Sent.Count - RememberedSent;
+        sentKeys.ExceptWith(state.Sent.Take(dropped));
+        state.Sent.RemoveRange(0, dropped);
+    }
+
     private void Remove(List<Line> batch, bool sent)
     {
         var keys = batch.Select(line => line.Key).ToHashSet();
@@ -222,14 +283,8 @@ public sealed class LinePool : IDisposable
         queuedKeys.ExceptWith(keys);
         if (sent)
         {
-            state.Sent.AddRange(batch.Select(line => line.Key));
-            sentKeys.UnionWith(keys);
-            if (state.Sent.Count > RememberedSent)
-            {
-                var dropped = state.Sent.Count - RememberedSent;
-                sentKeys.ExceptWith(state.Sent.Take(dropped));
-                state.Sent.RemoveRange(0, dropped);
-            }
+            foreach (var key in batch.Select(line => line.Key)) if (sentKeys.Add(key)) state.Sent.Add(key);
+            TrimSent();
         }
         dirty = true;
     }

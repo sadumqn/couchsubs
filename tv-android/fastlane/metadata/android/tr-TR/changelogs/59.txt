@@ -1,0 +1,1 @@
+0.9.56: Android TV'de PS5 açılınca, HDR devreye girince ya da bildirim gelince TV kendi HDMI girişine geçerse CouchSubs ekranı kendiliğinden geri geliyor; bildirim görüntüyü kesmiyor. Bilgisayar ya da telefon uygulamayı yeniden açtığında ekran kapanıp katmana geçmiyor, HDMI girişi seçilebiliyor. Bilgisayar ve telefon TV uygulamasını yalnız gerçekten kapalıysa açıyor.

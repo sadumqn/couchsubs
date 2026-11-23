@@ -1,0 +1,1 @@
+0.9.79: Konuşan adı renklendirmesi yalnız adı boyuyor; cümle, bilgisayarda/telefonda seçilen yazı renginde (beyaz ya da sarı) kalıyor. Önceden adlı satırın tamamı konuşanın renginde görünüyordu.

@@ -1,0 +1,1 @@
+0.9.51: On Samsung ultrawide monitors (Odyssey) that report a 1920x1080 screen to apps, the real panel size is read; picture window methods for the PS5 are tried in turn and the Yellow button moves to the next one if the picture does not fill. Yellow is now in the key list on these monitors too; the Window row of the info panel shows the panel resolution and aspect ratio.

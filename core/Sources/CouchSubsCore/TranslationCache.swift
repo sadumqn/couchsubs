@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import CryptoKit
 import Foundation
 
 /// Çevrilmiş satır ve cümlelerin kalıcı önbelleği (Windows'taki `TranslationCache` ile aynı dosya biçimi).
@@ -35,8 +36,21 @@ public final class TranslationCache: @unchecked Sendable {
 
     /// Motor ve dil çiftine göre dosya: `v1-apple-en-tr.jsonl`.
     public static func file(in directory: URL, engine: String, source: String, target: String) -> URL {
-        let name = ["v\(formatVersion)", engine, source, target].map(safe).joined(separator: "-")
-        return directory.appendingPathComponent(name + ".jsonl")
+        // Basit motor adlarında önceki dosya yolu korunur.
+        if [engine, source, target].allSatisfy(legacySafe) {
+            let name = ["v\(formatVersion)", engine, source, target].map(safe).joined(separator: "-")
+            return directory.appendingPathComponent(name + ".jsonl")
+        }
+        // Noktalama karakterlerini '_' yapmak farklı modellerin aynı çeviriyi paylaşmasına yol açıyordu.
+        let key = [engine, source, target].joined(separator: "\0")
+        let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        return directory.appendingPathComponent("v\(formatVersion)h-\(digest).jsonl")
+    }
+
+    private static func legacySafe(_ part: String) -> Bool {
+        !part.isEmpty && part.unicodeScalars.allSatisfy {
+            ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-"
+        }
     }
 
     private static let openLock = NSLock()
@@ -163,12 +177,15 @@ public final class TranslationProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var hitCount = 0
     private var fresh: [String] = []
+    private var fallbackReason: String?
 
     public init() {}
 
     func noteHit() { lock.withLock { hitCount += 1 } }
 
     func noteFresh(engine: String?) { lock.withLock { fresh.append(engine ?? "") } }
+
+    func noteFallback(_ reason: String) { lock.withLock { fallbackReason = reason } }
 
     public var hits: Int { lock.withLock { hitCount } }
 
@@ -178,8 +195,13 @@ public final class TranslationProbe: @unchecked Sendable {
     /// "çeviri:<motor>" (motor yeni çevirdi), "önbellek" (her parça önbellekten geldi) ya da bilinmiyorsa "çeviri:<yedek ad>".
     public func outcome(fallbackEngine: String = "motor") -> String {
         lock.withLock {
-            if let engine = fresh.last { return "çeviri:" + (engine.isEmpty ? fallbackEngine : engine) }
-            return hitCount > 0 ? "önbellek" : "çeviri:" + fallbackEngine
+            let result: String
+            if let engine = fresh.last {
+                result = "çeviri:" + (engine.isEmpty ? fallbackEngine : engine)
+            } else {
+                result = hitCount > 0 ? "önbellek" : "çeviri:" + fallbackEngine
+            }
+            return fallbackReason.map { "\(result), ücretsiz yedek: \($0)" } ?? result
         }
     }
 }

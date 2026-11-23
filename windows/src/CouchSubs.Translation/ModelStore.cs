@@ -16,8 +16,6 @@ public sealed record ModelFile(string Name, Uri Url, long Size, string Sha256);
 /// </summary>
 public sealed class ModelStore
 {
-    public const string EncoderFile = "encoder_model_int8.onnx";
-    public const string DecoderFile = "decoder_model_merged_int8.onnx";
     public const string SourceSpmFile = "source.spm";
     public const string VocabFile = "vocab.json";
 
@@ -30,13 +28,9 @@ public sealed class ModelStore
     private const string Revision = "ce128ea834a090aca240e4e113e7756e06cc78e0";
     private static readonly string BaseUrl = $"https://huggingface.co/onnx-community/opus-mt-tc-big-en-tr/resolve/{Revision}/";
 
-    /// <summary>Helsinki-NLP opus-mt-tc-big-en-tr (CC BY 4.0), onnx-community'nin int8 ONNX dönüşümü.</summary>
+    /// <summary>CTranslate2 modelinin belirteçleyicisi için özgün OPUS-MT sözlüğü.</summary>
     public static IReadOnlyList<ModelFile> EnglishTurkish { get; } =
     [
-        new(EncoderFile, new Uri(BaseUrl + "onnx/" + EncoderFile), 135_730_164,
-            "58bfc076347346049a52a8d53b1f6e4664af74e9737aded374d7d1f78805f46e"),
-        new(DecoderFile, new Uri(BaseUrl + "onnx/" + DecoderFile), 395_716_769,
-            "23223bce303d925b119ec905b9422a2814e7ad5f96275407be1d387b13879147"),
         new(SourceSpmFile, new Uri(BaseUrl + SourceSpmFile), 796_953,
             "180d3f94ddfee5585d78b702290ded0f4f9bd40f299349c8383b32a579fefad4"),
         new(VocabFile, new Uri(BaseUrl + VocabFile), 1_501_287,
@@ -159,8 +153,19 @@ public sealed class ModelStore
         File.Move(partPath, finalPath, overwrite: true);
     }
 
-    private Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-        _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        stall.CancelAfter(StallTimeout);
+        try
+        {
+            return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stall.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException("Model download stalled");
+        }
+    }
 
     private static async Task HashExistingAsync(string path, IncrementalHash hash, CancellationToken ct)
     {

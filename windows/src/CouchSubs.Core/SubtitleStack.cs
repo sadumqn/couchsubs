@@ -25,7 +25,12 @@ public sealed class SubtitleStack
 
     /// <param name="Paragraphs">Başlık ve maddeli yazılar (görev paneli gibi) satır satır, sola yaslı gösterilir.</param>
     /// <param name="Fading">Üstteki satır solarak kalkıyor.</param>
-    public sealed record Line(int Id, string Text, Role Role, bool Paragraphs, bool Fading);
+    public sealed record Line(int Id, string Text, Role Role, bool Paragraphs, bool Fading)
+    {
+        /// <summary>Görünümde kullanılacak metin ve yazı boyu çarpanı: uzun çeviri en çok 3 satıra dengeli bölünür
+        /// (bkz. <see cref="SubtitleWrap"/>). Görev paneli gibi satır satır yazılar olduğu gibi kalır.</summary>
+        public SubtitleWrap.Result Wrapped => Paragraphs ? new SubtitleWrap.Result(Text, 1) : SubtitleWrap.Fit(Text);
+    }
 
     private sealed record Current(int Id, string Text, bool Paragraphs, double ShownAt, double HideAt, double HoldUntil);
 
@@ -136,11 +141,22 @@ public sealed class SubtitleStack
         var x = Plain(a);
         var y = Plain(b);
         if (x.Length == 0 || y.Length == 0) return x == y;
-        return x == y || x.Contains(y, StringComparison.Ordinal) || y.Contains(x, StringComparison.Ordinal);
+        // Boşluklar karşılaştırmaya girmez (OCR boşluğu bazen yutar ya da fazladan koyar). Tek sözcüklük satır ise
+        // ancak öteki satırda tam sözcük olarak geçerse aynıdır: "No!" ≠ "Not now!", "Go!" ≠ "Going home.".
+        var cx = x.Replace(" ", "", StringComparison.Ordinal);
+        var cy = y.Replace(" ", "", StringComparison.Ordinal);
+        if (cx == cy) return true;
+        if (cx.Contains(cy, StringComparison.Ordinal))
+            return y.Contains(' ') || (" " + x + " ").Contains(" " + y + " ", StringComparison.Ordinal);
+        if (cy.Contains(cx, StringComparison.Ordinal))
+            return x.Contains(' ') || (" " + y + " ").Contains(" " + x + " ", StringComparison.Ordinal);
+        return false;
     }
 
     private const string Punctuation = ".,!?;:…\"'“”‘’«»()[]-–—";
 
     private static string Plain(string text) =>
-        new([.. text.ToLowerInvariant().Where(c => !char.IsWhiteSpace(c) && !Punctuation.Contains(c))]);
+        string.Join(' ', text.ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => new string([.. word.Where(c => !Punctuation.Contains(c))]))
+            .Where(word => word.Length > 0));
 }

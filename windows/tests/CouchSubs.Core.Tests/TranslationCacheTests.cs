@@ -39,6 +39,29 @@ public sealed class TranslationCacheTests : IDisposable
         Assert.Equal("v1-opus_mt-en-tr.jsonl", Path.GetFileName(FileOf("opus-mt")));
     }
 
+    [Theory]
+    [InlineData("local:qwen2.5:7b", "local:qwen2-5:7b")]
+    [InlineData("local:model.a", "local:model_a")]
+    [InlineData("opus-mt", "opus_mt")]
+    public void DifferentEngineIdsNeverShareTheSameCache(string firstEngine, string otherEngine)
+    {
+        var firstFile = FileOf(firstEngine);
+        var otherFile = FileOf(otherEngine);
+        Assert.NotEqual(firstFile, otherFile);
+        var first = TranslationCache.Shared(_directory, firstEngine, "en", "tr");
+        var other = TranslationCache.Shared(_directory, otherEngine, "en", "tr");
+        Assert.NotSame(first, other);
+        first.Store("Run!", "First model translation");
+        Assert.Null(Get(other, "Run!"));
+    }
+
+    [Fact]
+    public void SpecialEngineFileNamesAreStableAcrossPlatforms()
+    {
+        Assert.Equal("v1h-6b5f11ab62999719865a030d1fb7f93bbcf1184290b58d4d603d1bee6c03249c.jsonl",
+            Path.GetFileName(FileOf("local:model.a")));
+    }
+
     [Fact]
     public void LinesWithQuotesAndNewlinesRoundTrip()
     {

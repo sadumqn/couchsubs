@@ -1,0 +1,2041 @@
+{
+ "cases": [
+  {
+   "name": "sohbet, dik telefon",
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Brian",
+     "box": [
+      0.7601,
+      0.2376,
+      0.7999,
+      0.2568
+     ]
+    },
+    {
+     "text": "Did you hear back from the",
+     "box": [
+      0.6965,
+      0.303,
+      0.8198,
+      0.3204
+     ]
+    },
+    {
+     "text": "guy at the marina?",
+     "box": [
+      0.6965,
+      0.3256,
+      0.784,
+      0.343
+     ]
+    },
+    {
+     "text": "Today 9:41 PM",
+     "box": [
+      0.7561,
+      0.3839,
+      0.8039,
+      0.3978
+     ]
+    },
+    {
+     "text": "Not yet. He said tonight.",
+     "box": [
+      0.7522,
+      0.4274,
+      0.8655,
+      0.4448
+     ]
+    },
+    {
+     "text": "Text me the second he calls",
+     "box": [
+      0.6965,
+      0.4834,
+      0.8277,
+      0.5008
+     ]
+    },
+    {
+     "text": "Will do",
+     "box": [
+      0.8198,
+      0.5394,
+      0.8655,
+      0.5568
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "header",
+     "Brian"
+    ],
+    [
+     "incoming",
+     "Did you hear back from the guy at the marina?"
+    ],
+    [
+     "note",
+     "Today 9:41 PM"
+    ],
+    [
+     "outgoing",
+     "Not yet. He said tonight."
+    ],
+    [
+     "incoming",
+     "Text me the second he calls"
+    ],
+    [
+     "outgoing",
+     "Will do"
+    ]
+   ]
+  },
+  {
+   "name": "sohbet, sağa eğik telefon",
+   "pose": [
+    0.76,
+    0.17,
+    0.82,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Brian",
+     "box": [
+      0.7461,
+      0.2347,
+      0.7875,
+      0.2599
+     ]
+    },
+    {
+     "text": "Did you hear back from the",
+     "box": [
+      0.6882,
+      0.2966,
+      0.8131,
+      0.3339
+     ]
+    },
+    {
+     "text": "guy at the marina?",
+     "box": [
+      0.6902,
+      0.325,
+      0.7792,
+      0.3568
+     ]
+    },
+    {
+     "text": "Today 9:41 PM",
+     "box": [
+      0.755,
+      0.3798,
+      0.804,
+      0.4019
+     ]
+    },
+    {
+     "text": "Not yet. He said tonight.",
+     "box": [
+      0.7549,
+      0.4124,
+      0.8698,
+      0.4498
+     ]
+    },
+    {
+     "text": "Text me the second he calls",
+     "box": [
+      0.7041,
+      0.4747,
+      0.8369,
+      0.5164
+     ]
+    },
+    {
+     "text": "Will do",
+     "box": [
+      0.8324,
+      0.5231,
+      0.8797,
+      0.5491
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "header",
+     "Brian"
+    ],
+    [
+     "incoming",
+     "Did you hear back from the guy at the marina?"
+    ],
+    [
+     "note",
+     "Today 9:41 PM"
+    ],
+    [
+     "outgoing",
+     "Not yet. He said tonight."
+    ],
+    [
+     "incoming",
+     "Text me the second he calls"
+    ],
+    [
+     "outgoing",
+     "Will do"
+    ]
+   ]
+  },
+  {
+   "name": "sohbet, sola eğik telefon",
+   "pose": [
+    0.8,
+    0.17,
+    0.74,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Brian",
+     "box": [
+      0.7725,
+      0.2347,
+      0.8139,
+      0.2599
+     ]
+    },
+    {
+     "text": "Did you hear back from the",
+     "box": [
+      0.7032,
+      0.2897,
+      0.828,
+      0.3268
+     ]
+    },
+    {
+     "text": "guy at the marina?",
+     "box": [
+      0.7012,
+      0.3121,
+      0.7902,
+      0.3437
+     ]
+    },
+    {
+     "text": "Today 9:41 PM",
+     "box": [
+      0.756,
+      0.3798,
+      0.805,
+      0.4019
+     ]
+    },
+    {
+     "text": "Not yet. He said tonight.",
+     "box": [
+      0.7479,
+      0.4225,
+      0.8628,
+      0.4601
+     ]
+    },
+    {
+     "text": "Text me the second he calls",
+     "box": [
+      0.6873,
+      0.4681,
+      0.8201,
+      0.5097
+     ]
+    },
+    {
+     "text": "Will do",
+     "box": [
+      0.8056,
+      0.547,
+      0.8529,
+      0.5734
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "header",
+     "Brian"
+    ],
+    [
+     "incoming",
+     "Did you hear back from the guy at the marina?"
+    ],
+    [
+     "note",
+     "Today 9:41 PM"
+    ],
+    [
+     "outgoing",
+     "Not yet. He said tonight."
+    ],
+    [
+     "incoming",
+     "Text me the second he calls"
+    ],
+    [
+     "outgoing",
+     "Will do"
+    ]
+   ]
+  },
+  {
+   "name": "kaymış sohbet: kesik üst ve alt satır",
+   "pose": [
+    0.3,
+    0.16,
+    0.27,
+    0.86
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Jason",
+     "box": [
+      0.2798,
+      0.2284,
+      0.3134,
+      0.2506
+     ]
+    },
+    {
+     "text": "bring the van around",
+     "box": [
+      0.2086,
+      0.2711,
+      0.3195,
+      0.2876
+     ]
+    },
+    {
+     "text": "Where are we meeting?",
+     "box": [
+      0.2674,
+      0.327,
+      0.3808,
+      0.3539
+     ]
+    },
+    {
+     "text": "Behind the laundromat",
+     "box": [
+      0.2035,
+      0.3794,
+      0.3231,
+      0.4072
+     ]
+    },
+    {
+     "text": "on Ocean Drive. Ten minutes.",
+     "box": [
+      0.2025,
+      0.4026,
+      0.3384,
+      0.432
+     ]
+    },
+    {
+     "text": "Copy that",
+     "box": [
+      0.3193,
+      0.4599,
+      0.3753,
+      0.4827
+     ]
+    },
+    {
+     "text": "Leave your phone at",
+     "box": [
+      0.1848,
+      0.8094,
+      0.2922,
+      0.8427
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "header",
+     "Jason"
+    ],
+    [
+     "outgoing",
+     "Where are we meeting?"
+    ],
+    [
+     "incoming",
+     "Behind the laundromat on Ocean Drive. Ten minutes."
+    ],
+    [
+     "outgoing",
+     "Copy that"
+    ]
+   ]
+  },
+  {
+   "name": "uzun mesaj: satırlar birleşir, tireli sözcük",
+   "pose": [
+    0.8,
+    0.18,
+    0.79,
+    0.86
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Mom",
+     "box": [
+      0.7868,
+      0.2473,
+      0.8109,
+      0.2671
+     ]
+    },
+    {
+     "text": "Honey, there's been a last-",
+     "box": [
+      0.7142,
+      0.317,
+      0.8417,
+      0.3378
+     ]
+    },
+    {
+     "text": "minute change to dinner on",
+     "box": [
+      0.7138,
+      0.3396,
+      0.8374,
+      0.3604
+     ]
+    },
+    {
+     "text": "Sunday so call me back",
+     "box": [
+      0.7135,
+      0.3622,
+      0.8212,
+      0.3826
+     ]
+    },
+    {
+     "text": "This is a really long reply that fills",
+     "box": [
+      0.7085,
+      0.4286,
+      0.8858,
+      0.4513
+     ]
+    },
+    {
+     "text": "the whole width of the screen",
+     "box": [
+      0.7082,
+      0.4512,
+      0.8716,
+      0.4735
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "header",
+     "Mom"
+    ],
+    [
+     "incoming",
+     "Honey, there's been a last-minute change to dinner on Sunday so call me back"
+    ],
+    [
+     "message",
+     "This is a really long reply that fills the whole width of the screen"
+    ]
+   ]
+  },
+  {
+   "name": "sohbet listesi: adlar çevrilmez, önizlemeler çevrilir",
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Messages",
+     "box": [
+      0.6965,
+      0.2345,
+      0.7601,
+      0.2554
+     ]
+    },
+    {
+     "text": "Lucia",
+     "box": [
+      0.7283,
+      0.2968,
+      0.7641,
+      0.3142
+     ]
+    },
+    {
+     "text": "You coming or what?",
+     "box": [
+      0.7283,
+      0.3185,
+      0.8397,
+      0.3342
+     ]
+    },
+    {
+     "text": "Jason",
+     "box": [
+      0.7283,
+      0.3839,
+      0.7681,
+      0.4013
+     ]
+    },
+    {
+     "text": "Grab some smokes on the way",
+     "box": [
+      0.7283,
+      0.4056,
+      0.8635,
+      0.4213
+     ]
+    },
+    {
+     "text": "Cal Hampton",
+     "box": [
+      0.7283,
+      0.471,
+      0.7959,
+      0.4884
+     ]
+    },
+    {
+     "text": "Did you see the news about...",
+     "box": [
+      0.7283,
+      0.4927,
+      0.8635,
+      0.5084
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "heading",
+     "Messages"
+    ],
+    [
+     "contact",
+     "Lucia"
+    ],
+    [
+     "preview",
+     "You coming or what?"
+    ],
+    [
+     "contact",
+     "Jason"
+    ],
+    [
+     "preview",
+     "Grab some smokes on the way"
+    ],
+    [
+     "contact",
+     "Cal Hampton"
+    ],
+    [
+     "preview",
+     "Did you see the news about..."
+    ]
+   ]
+  },
+  {
+   "name": "emoji ve fotoğraf",
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Dre'Quan",
+     "box": [
+      0.7601,
+      0.2376,
+      0.7999,
+      0.2568
+     ]
+    },
+    {
+     "text": "Happy birthday",
+     "box": [
+      0.6965,
+      0.3092,
+      0.7601,
+      0.3266
+     ]
+    },
+    {
+     "text": "see you tonight",
+     "box": [
+      0.774,
+      0.3092,
+      0.8277,
+      0.3266
+     ]
+    },
+    {
+     "text": "Love you ©",
+     "box": [
+      0.7999,
+      0.3714,
+      0.8655,
+      0.3888
+     ]
+    },
+    {
+     "text": "PIZZA",
+     "box": [
+      0.7104,
+      0.4461,
+      0.7999,
+      0.4949
+     ]
+    },
+    {
+     "text": "Look what I found",
+     "box": [
+      0.6965,
+      0.5456,
+      0.7959,
+      0.5631
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "header",
+     "Dre'Quan"
+    ],
+    [
+     "incoming",
+     "Happy birthday see you tonight"
+    ],
+    [
+     "outgoing",
+     "Love you"
+    ],
+    [
+     "incoming",
+     "Look what I found"
+    ]
+   ]
+  },
+  {
+   "name": "ana ekran: bildirim bileşeni yerinde, saat ve hava atlanır, uygulama adı çevrilmez",
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "14:36",
+     "box": [
+      0.6925,
+      0.2034,
+      0.7203,
+      0.219
+     ]
+    },
+    {
+     "text": "76°",
+     "box": [
+      0.8397,
+      0.2034,
+      0.8635,
+      0.219
+     ]
+    },
+    {
+     "text": "Reminders",
+     "box": [
+      0.7004,
+      0.2719,
+      0.7601,
+      0.2893
+     ]
+    },
+    {
+     "text": "10 Notifications",
+     "box": [
+      0.7004,
+      0.2936,
+      0.784,
+      0.3092
+     ]
+    },
+    {
+     "text": "WhatUp",
+     "box": [
+      0.7561,
+      0.7323,
+      0.8039,
+      0.7478
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "home",
+     "Reminders"
+    ],
+    [
+     "home",
+     "10 Notifications"
+    ]
+   ]
+  },
+  {
+   "name": "ana ekran: simge ızgarası etiketleri çevrilmez, bildirim metni çevrilir",
+   "pose": [
+    0.76,
+    0.17,
+    0.82,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Lucia",
+     "box": [
+      0.6883,
+      0.2655,
+      0.7295,
+      0.288
+     ]
+    },
+    {
+     "text": "Where are you? Call me",
+     "box": [
+      0.6901,
+      0.27,
+      0.8307,
+      0.3081
+     ]
+    },
+    {
+     "text": "back when you can",
+     "box": [
+      0.6918,
+      0.2955,
+      0.7967,
+      0.3282
+     ]
+    },
+    {
+     "text": "Camera",
+     "box": [
+      0.6976,
+      0.4863,
+      0.7386,
+      0.5074
+     ]
+    },
+    {
+     "text": "Maps",
+     "box": [
+      0.7493,
+      0.479,
+      0.7784,
+      0.4979
+     ]
+    },
+    {
+     "text": "Music",
+     "box": [
+      0.799,
+      0.4699,
+      0.8281,
+      0.4887
+     ]
+    },
+    {
+     "text": "Settings",
+     "box": [
+      0.8388,
+      0.4605,
+      0.8798,
+      0.4813
+     ]
+    },
+    {
+     "text": "Contacts",
+     "box": [
+      0.7049,
+      0.5924,
+      0.7499,
+      0.6148
+     ]
+    },
+    {
+     "text": "Email",
+     "box": [
+      0.7586,
+      0.5845,
+      0.7897,
+      0.6042
+     ]
+    },
+    {
+     "text": "Notes",
+     "box": [
+      0.8064,
+      0.5751,
+      0.8374,
+      0.5947
+     ]
+    },
+    {
+     "text": "WhatUp",
+     "box": [
+      0.7857,
+      0.7271,
+      0.8349,
+      0.7531
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "home",
+     "Lucia"
+    ],
+    [
+     "home",
+     "Where are you? Call me back when you can"
+    ]
+   ]
+  },
+  {
+   "name": "sohbet: başka kişi",
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "lines": [
+    {
+     "text": "Lucia",
+     "box": [
+      0.7601,
+      0.2376,
+      0.7999,
+      0.2568
+     ]
+    },
+    {
+     "text": "Did you get the money from",
+     "box": [
+      0.6965,
+      0.303,
+      0.8198,
+      0.3204
+     ]
+    },
+    {
+     "text": "the guy downtown?",
+     "box": [
+      0.6965,
+      0.3256,
+      0.784,
+      0.343
+     ]
+    },
+    {
+     "text": "Yesterday 8:15 PM",
+     "box": [
+      0.7561,
+      0.3839,
+      0.8039,
+      0.3978
+     ]
+    },
+    {
+     "text": "Yeah. All of it.",
+     "box": [
+      0.7522,
+      0.4274,
+      0.8655,
+      0.4448
+     ]
+    },
+    {
+     "text": "Meet me at the docks",
+     "box": [
+      0.6965,
+      0.4834,
+      0.8277,
+      0.5008
+     ]
+    },
+    {
+     "text": "On my way",
+     "box": [
+      0.8198,
+      0.5394,
+      0.8655,
+      0.5568
+     ]
+    }
+   ],
+   "groups": [
+    [
+     "header",
+     "Lucia"
+    ],
+    [
+     "incoming",
+     "Did you get the money from the guy downtown?"
+    ],
+    [
+     "note",
+     "Yesterday 8:15 PM"
+    ],
+    [
+     "outgoing",
+     "Yeah. All of it."
+    ],
+    [
+     "incoming",
+     "Meet me at the docks"
+    ],
+    [
+     "outgoing",
+     "On my way"
+    ]
+   ]
+  }
+ ],
+ "outside": {
+  "pose": [
+   0.78,
+   0.17,
+   0.78,
+   0.85
+  ],
+  "aspect": 1.777778,
+  "boxes": [
+   {
+    "box": [
+     0.7004,
+     0.4461,
+     0.8397,
+     0.4647
+    ],
+    "inside": true
+   },
+   {
+    "box": [
+     0.3,
+     0.8,
+     0.95,
+     0.84
+    ],
+    "inside": false
+   },
+   {
+    "box": [
+     0.2,
+     0.3,
+     0.5,
+     0.33
+    ],
+    "inside": false
+   },
+   {
+    "box": [
+     0.8496,
+     0.5083,
+     0.8854,
+     0.527
+    ],
+    "inside": true
+   }
+  ]
+ },
+ "flat": [
+  {
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.6965,
+    0.3216,
+    0.8198,
+    0.3391
+   ],
+   "flat": [
+    0.08,
+    0.2,
+    0.7,
+    0.228
+   ]
+  },
+  {
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.7601,
+    0.5705,
+    0.8655,
+    0.5879
+   ],
+   "flat": [
+    0.4,
+    0.6,
+    0.93,
+    0.628
+   ]
+  },
+  {
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.7402,
+    0.2283,
+    0.8198,
+    0.2457
+   ],
+   "flat": [
+    0.3,
+    0.05,
+    0.7,
+    0.078
+   ]
+  },
+  {
+   "pose": [
+    0.76,
+    0.17,
+    0.82,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.6898,
+    0.3152,
+    0.8147,
+    0.3528
+   ],
+   "flat": [
+    0.08,
+    0.2,
+    0.7,
+    0.228
+   ]
+  },
+  {
+   "pose": [
+    0.76,
+    0.17,
+    0.82,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.7754,
+    0.5538,
+    0.8824,
+    0.5919
+   ],
+   "flat": [
+    0.4,
+    0.6,
+    0.93,
+    0.628
+   ]
+  },
+  {
+   "pose": [
+    0.76,
+    0.17,
+    0.82,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.7254,
+    0.2224,
+    0.8065,
+    0.2518
+   ],
+   "flat": [
+    0.3,
+    0.05,
+    0.7,
+    0.078
+   ]
+  },
+  {
+   "pose": [
+    0.8,
+    0.17,
+    0.74,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.7015,
+    0.3081,
+    0.8264,
+    0.3456
+   ],
+   "flat": [
+    0.08,
+    0.2,
+    0.7,
+    0.228
+   ]
+  },
+  {
+   "pose": [
+    0.8,
+    0.17,
+    0.74,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.7432,
+    0.5666,
+    0.8502,
+    0.6048
+   ],
+   "flat": [
+    0.4,
+    0.6,
+    0.93,
+    0.628
+   ]
+  },
+  {
+   "pose": [
+    0.8,
+    0.17,
+    0.74,
+    0.85
+   ],
+   "aspect": 1.777778,
+   "box": [
+    0.7535,
+    0.2224,
+    0.8346,
+    0.2518
+   ],
+   "flat": [
+    0.3,
+    0.05,
+    0.7,
+    0.078
+   ]
+  }
+ ],
+ "cards": [
+  {
+   "phone": [
+    0.7,
+    0.18,
+    0.92,
+    0.86
+   ],
+   "card": [
+    0.384,
+    0.18,
+    0.692,
+    0.86
+   ]
+  },
+  {
+   "phone": [
+    0.06,
+    0.18,
+    0.28,
+    0.86
+   ],
+   "card": [
+    0.288,
+    0.18,
+    0.596,
+    0.86
+   ]
+  },
+  {
+   "phone": [
+    0.1,
+    0.2,
+    0.9,
+    0.9
+   ],
+   "card": [
+    0.1,
+    0.2,
+    0.9,
+    0.9
+   ]
+  },
+  {
+   "phone": [
+    0.8,
+    0.18,
+    0.95,
+    0.86
+   ],
+   "card": [
+    0.572,
+    0.18,
+    0.792,
+    0.86
+   ]
+  },
+  {
+   "phone": [
+    0.45,
+    0.2,
+    0.6,
+    0.8
+   ],
+   "avoid": [
+    [
+     0.2,
+     0.4,
+     0.4,
+     0.5
+    ]
+   ],
+   "card": [
+    0.608,
+    0.2,
+    0.828,
+    0.8
+   ]
+  },
+  {
+   "phone": [
+    0.1,
+    0.05,
+    0.9,
+    0.6
+   ],
+   "card": [
+    0.008,
+    0.608,
+    0.992,
+    0.97
+   ]
+  }
+ ],
+ "panels": [
+  {
+   "name": "ana ekran: bildirim bileşeni yerinde, saat ve hava atlanır, uygulama adı çevrilmez",
+   "lines": [
+    {
+     "text": "14:36",
+     "box": [
+      0.06,
+      0.01,
+      0.2,
+      0.035
+     ]
+    },
+    {
+     "text": "76°",
+     "box": [
+      0.8,
+      0.01,
+      0.92,
+      0.035
+     ]
+    },
+    {
+     "text": "Reminders",
+     "box": [
+      0.1,
+      0.12,
+      0.4,
+      0.148
+     ]
+    },
+    {
+     "text": "10 Notifications",
+     "box": [
+      0.1,
+      0.155,
+      0.52,
+      0.18
+     ]
+    },
+    {
+     "text": "WhatUp",
+     "box": [
+      0.38,
+      0.86,
+      0.62,
+      0.885
+     ]
+    }
+   ],
+   "groups": [
+    "Reminders 10 Notifications"
+   ]
+  },
+  {
+   "name": "ana ekran: simge ızgarası etiketleri çevrilmez, bildirim metni çevrilir",
+   "lines": [
+    {
+     "text": "Lucia",
+     "box": [
+      0.1,
+      0.1,
+      0.3,
+      0.126
+     ]
+    },
+    {
+     "text": "Where are you? Call me",
+     "box": [
+      0.1,
+      0.132,
+      0.8,
+      0.158
+     ]
+    },
+    {
+     "text": "back when you can",
+     "box": [
+      0.1,
+      0.164,
+      0.62,
+      0.19
+     ]
+    },
+    {
+     "text": "Camera",
+     "box": [
+      0.05,
+      0.45,
+      0.25,
+      0.472
+     ]
+    },
+    {
+     "text": "Maps",
+     "box": [
+      0.31,
+      0.45,
+      0.45,
+      0.472
+     ]
+    },
+    {
+     "text": "Music",
+     "box": [
+      0.56,
+      0.45,
+      0.7,
+      0.472
+     ]
+    },
+    {
+     "text": "Settings",
+     "box": [
+      0.76,
+      0.45,
+      0.96,
+      0.472
+     ]
+    },
+    {
+     "text": "Contacts",
+     "box": [
+      0.04,
+      0.62,
+      0.26,
+      0.642
+     ]
+    },
+    {
+     "text": "Email",
+     "box": [
+      0.31,
+      0.62,
+      0.46,
+      0.642
+     ]
+    },
+    {
+     "text": "Notes",
+     "box": [
+      0.55,
+      0.62,
+      0.7,
+      0.642
+     ]
+    },
+    {
+     "text": "WhatUp",
+     "box": [
+      0.38,
+      0.86,
+      0.62,
+      0.885
+     ]
+    }
+   ],
+   "groups": [
+    "Lucia Where are you? Call me back when you can"
+   ]
+  },
+  {
+   "name": "sohbet: kısa yanıt ana ekran sayılmaz, satırlar kalır",
+   "lines": [
+    {
+     "text": "Brian",
+     "box": [
+      0.4,
+      0.06,
+      0.6,
+      0.09
+     ]
+    },
+    {
+     "text": "Where are you man",
+     "box": [
+      0.08,
+      0.2,
+      0.62,
+      0.235
+     ]
+    },
+    {
+     "text": "Ok",
+     "box": [
+      0.8,
+      0.32,
+      0.9,
+      0.355
+     ]
+    }
+   ],
+   "groups": [
+    "Brian",
+    "Where are you man",
+    "Ok"
+   ]
+  }
+ ],
+ "switch": {
+  "chats": [
+   "sohbet, dik telefon",
+   "sohbet: başka kişi",
+   "sohbet, dik telefon",
+   "sohbet: başka kişi"
+  ],
+  "calls": [
+   5,
+   5,
+   0,
+   0
+  ]
+ },
+ "layouts": [
+  {
+   "name": "sıkışık balonlar aralıklı dizilir",
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "items": [
+    {
+     "role": "header",
+     "source": "Brian",
+     "translation": "Brian",
+     "top": 0.04,
+     "left": 0.1,
+     "right": 0.7,
+     "line": 0.018,
+     "unchanged": true
+    },
+    {
+     "role": "incoming",
+     "source": "m0",
+     "translation": "0 Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.12,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m1",
+     "translation": "1 Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.19,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "incoming",
+     "source": "m2",
+     "translation": "2 Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.26,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m3",
+     "translation": "3 Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.33,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "incoming",
+     "source": "m4",
+     "translation": "4 Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.4,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m5",
+     "translation": "5 Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.47000000000000003,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    }
+   ],
+   "card": [
+    0.408625,
+    0.17816,
+    0.676375,
+    0.8398
+   ],
+   "kept": [
+    "m0",
+    "m1",
+    "m2",
+    "m3",
+    "m4",
+    "m5"
+   ]
+  },
+  {
+   "name": "uzun sohbet: kart uzar, eskiler düşer",
+   "pose": [
+    0.78,
+    0.3,
+    0.78,
+    0.75
+   ],
+   "items": [
+    {
+     "role": "incoming",
+     "source": "m0",
+     "translation": "0 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.05,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m1",
+     "translation": "1 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.125,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "incoming",
+     "source": "m2",
+     "translation": "2 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.2,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m3",
+     "translation": "3 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.27499999999999997,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "incoming",
+     "source": "m4",
+     "translation": "4 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.35,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m5",
+     "translation": "5 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.425,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "incoming",
+     "source": "m6",
+     "translation": "6 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.49999999999999994,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m7",
+     "translation": "7 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.5750000000000001,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "incoming",
+     "source": "m8",
+     "translation": "8 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.65,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m9",
+     "translation": "9 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.725,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "incoming",
+     "source": "m10",
+     "translation": "10 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.8,
+     "left": 0.05,
+     "right": 0.6,
+     "line": 0.018,
+     "unchanged": false
+    },
+    {
+     "role": "outgoing",
+     "source": "m11",
+     "translation": "11 Bu mesajın Türkçesi biraz uzun, iki satır tutar Bu mesajın Türkçesi biraz uzun, iki satır tutar",
+     "top": 0.875,
+     "left": 0.4,
+     "right": 0.95,
+     "line": 0.018,
+     "unchanged": false
+    }
+   ],
+   "card": [
+    0.4887187,
+    0.03,
+    0.7087187,
+    0.97
+   ],
+   "kept": [
+    "m7",
+    "m8",
+    "m9",
+    "m10",
+    "m11"
+   ]
+  },
+  {
+   "name": "kartın altında kalan çeviri yanına alınır",
+   "pose": [
+    0.78,
+    0.17,
+    0.78,
+    0.85
+   ],
+   "outside": [
+    {
+     "source": "Find the car",
+     "translation": "Arabayı bul",
+     "box": [
+      0.55,
+      0.3,
+      0.62,
+      0.33
+     ]
+    }
+   ],
+   "items": [
+    {
+     "role": "incoming",
+     "source": "Where are you man",
+     "translation": "Neredesin adamım",
+     "top": 0.2,
+     "left": 0.1,
+     "right": 0.7,
+     "line": 0.018,
+     "unchanged": false
+    }
+   ],
+   "card": [
+    0.408625,
+    0.17816,
+    0.676375,
+    0.8398
+   ],
+   "kept": [
+    "Where are you man"
+   ],
+   "moved": [
+    [
+     0.330625,
+     0.3,
+     0.400625,
+     0.33
+    ]
+   ]
+  }
+ ],
+ "follow": [
+  {
+   "name": "sohbet değişince yeniden çevrilir, telefon kapanınca kart kalkar",
+   "steps": [
+    {
+     "settle": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ]
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ],
+     "expect": "keep"
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      20,
+      200
+     ],
+     "expect": "keep"
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      40,
+      0,
+      0
+     ],
+     "expect": "wait"
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      40,
+      0,
+      0
+     ],
+     "expect": "refresh"
+    },
+    {
+     "settle": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      40,
+      0,
+      0
+     ]
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      40,
+      0,
+      0
+     ],
+     "expect": "keep"
+    },
+    {
+     "phone": null,
+     "expect": "wait"
+    },
+    {
+     "phone": null,
+     "expect": "wait"
+    },
+    {
+     "phone": null,
+     "expect": "stop"
+    }
+   ]
+  },
+  {
+   "name": "kayan telefon durulunca kart yeniden dizilir",
+   "steps": [
+    {
+     "settle": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ]
+    },
+    {
+     "phone": [
+      0.75,
+      0.17,
+      0.91,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ],
+     "expect": "wait"
+    },
+    {
+     "phone": [
+      0.8,
+      0.17,
+      0.96,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ],
+     "expect": "wait"
+    },
+    {
+     "phone": [
+      0.8,
+      0.17,
+      0.96,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ],
+     "expect": "refresh"
+    }
+   ]
+  },
+  {
+   "name": "tek karelik ıska kartı kaldırmaz",
+   "steps": [
+    {
+     "settle": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ]
+    },
+    {
+     "phone": null,
+     "expect": "wait"
+    },
+    {
+     "phone": null,
+     "expect": "wait"
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      0,
+      0
+     ],
+     "expect": "keep"
+    },
+    {
+     "phone": null,
+     "expect": "wait"
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      70,
+      0
+     ],
+     "expect": "wait"
+    },
+    {
+     "phone": [
+      0.7,
+      0.17,
+      0.86,
+      0.85
+     ],
+     "sig": [
+      100,
+      70,
+      0
+     ],
+     "expect": "refresh"
+    }
+   ]
+  }
+ ]
+}

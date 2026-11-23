@@ -15,9 +15,16 @@ namespace CouchSubs.App.Services;
 /// </summary>
 public sealed class WindowsOcrReader : ITextReader
 {
-    private readonly OcrEngine engine;
+    private readonly OcrEngine? engine;
 
-    private WindowsOcrReader(OcrEngine engine) => this.engine = engine;
+    private WindowsOcrReader(OcrEngine? engine) => this.engine = engine;
+
+    /// <summary>
+    /// Yalnız yük testi (<see cref="ReadStress"/>): yazı tanıma motoru olmadan, okumanın geri kalanını (kare hazırlıkları,
+    /// Windows görüntüsüne kopyalama, paralel yedek okumalar) çalıştırır; her okuma boş döner. CI makinesinde yazı tanıma
+    /// dili yüklü olmasa da okuma hattının bellek kullanımı sınanabilsin.
+    /// </summary>
+    internal static WindowsOcrReader CreateWithoutEngine() => new(null);
 
     /// <summary>Hiçbir OCR dili yüklü değilse null.</summary>
     public static WindowsOcrReader? Create(string language)
@@ -35,9 +42,39 @@ public sealed class WindowsOcrReader : ITextReader
     public string Read(Frame image, bool deep) => string.Join(' ', ReadLines(image, deep).Lines.Select(line => line.Text));
 
     // Büyütülmüş yedek okumalarda (boş bölge) yalnız eski iki hazırlık denenir; işlemci yükü artmasın.
-    public Reading ReadLines(Frame image, bool deep) =>
-        deep ? ReadingFallback.FirstLines(image, frame => ReferenceEquals(frame, image) ? Recognize(frame) : Recognize(frame, allowChain: false))
-             : Recognize(image);
+    public Reading ReadLines(Frame image, bool deep)
+    {
+        if (!Usable(image)) return Reading.Empty;
+        return deep ? ReadingFallback.FirstLines(image, frame => ReferenceEquals(frame, image) ? Recognize(frame) : Recognize(frame, allowChain: false))
+                    : Recognize(image);
+    }
+
+    private static int inconsistentNoted;
+
+    /// <summary>
+    /// Boyutları dizisine uymayan kare (<see cref="Frame.IsConsistent"/>) okunmaz: piksel döngüleri dizinin dışına
+    /// taşardı. Böyle bir kare bugünkü yakalama yollarından gelmemeli; gelirse altyazi.log'a bir kez yazılır (GitHub #587).
+    /// </summary>
+    internal static bool Usable(Frame image)
+    {
+        if (image.IsConsistent) return true;
+        if (Interlocked.Exchange(ref inconsistentNoted, 1) == 0) SubtitleLog.Write($"tutarsız kare atlandı: {image.Layout}");
+        return false;
+    }
+
+    /// <summary>
+    /// "Ekranı çevir": kare olduğu gibi okunur, yalnız beyaz yazı bırakılan okumadan da ham okumanın bulmadığı satırlar
+    /// eklenir (<see cref="ScreenTranslation.Combined"/>). Altyazının hazırlık zinciri (<see cref="Recognize(Frame)"/>)
+    /// kullanılmaz: o zincir pakete/sözlüğe en uyan hazırlığı seçiyor, ekranın tamamında altyazıyı bırakıp menü, görev ve
+    /// bilgi yazılarını silen gölgeli-beyaz hazırlık kazanıyordu (GTA 6'da yalnız altyazı çevriliyordu).
+    /// </summary>
+    public Reading ReadScreen(Frame image)
+    {
+        if (!Usable(image)) return Reading.Empty;
+        if (image.Width < 40 || image.Height < 40) return RecognizeOnce(image);
+        if (UseAutoLevel) image = AutoLevel(image);
+        return ScreenTranslation.Combined(RecognizeOnce(image), RecognizeOnce(TextImage.WhiteTextOnly(image)));
+    }
 
     /// <summary>
     /// Kare hem olduğu gibi hem de yalnız beyaz yazısı bırakılarak okunur; daha sözcüğe benzeyen okuma seçilir.
@@ -78,43 +115,8 @@ public sealed class WindowsOcrReader : ITextReader
     /// </summary>
     private Reading Recognize(Frame image) => Recognize(image, allowChain: true);
 
-    /// <summary>
-    /// Otomatik seviye: bölgenin en parlak %0,5'i beyaza çekilir. Karanlık ya da soluk görüntüde (HDR'den dönüştürülmüş
-    /// video, karanlık sahne, geçiş efekti) beyaz altyazı ancak 120-180 parlaklıkta kalıyor, beyaz yazı süzgeçleri hiç
-    /// çalışmıyordu. Yazı zaten beyazsa (en parlak kısım 235 ve üstü) görüntü değişmez.
-    /// </summary>
-    public static Frame AutoLevel(Frame image)
-    {
-        var hist = new int[256];
-        for (var y = 0; y < image.Height; y++)
-            for (var x = 0; x < image.Width; x++)
-            {
-                var i = (y * image.Stride) + (x * 4);
-                hist[(image.Pixels[i + 2] * 3 + image.Pixels[i + 1] * 6 + image.Pixels[i]) / 10]++;
-            }
-        var limit = image.Width * image.Height * 0.005;
-        int top = 255, count = 0;
-        for (; top > 0; top--)
-        {
-            count += hist[top];
-            if (count >= limit) break;
-        }
-        if (top >= 235 || top < 60) return image;
-        var scale = 250.0 / top;
-        var lookup = new byte[256];
-        for (var v = 0; v < 256; v++) lookup[v] = (byte)Math.Min(255, v * scale);
-        var result = new Frame(new byte[image.Width * image.Height * 4], image.Width, image.Height, image.Width * 4);
-        for (var y = 0; y < image.Height; y++)
-            for (var x = 0; x < image.Width; x++)
-            {
-                int i = (y * image.Stride) + (x * 4), o = (y * result.Stride) + (x * 4);
-                result.Pixels[o] = lookup[image.Pixels[i]];
-                result.Pixels[o + 1] = lookup[image.Pixels[i + 1]];
-                result.Pixels[o + 2] = lookup[image.Pixels[i + 2]];
-                result.Pixels[o + 3] = 255;
-            }
-        return result;
-    }
+    /// <summary>Otomatik seviye (<see cref="TextImage.AutoLevel"/>; Core'da, birim testleri olsun diye).</summary>
+    public static Frame AutoLevel(Frame image) => TextImage.AutoLevel(image);
 
     private Reading Recognize(Frame image, bool allowChain)
     {
@@ -226,16 +228,19 @@ public sealed class WindowsOcrReader : ITextReader
     /// </summary>
     public static Frame ShadowText(Frame image, int radius, int minBright, int maxSpread, int darkLuma, bool colored = false)
     {
+        if (!image.IsConsistent) return image;
         int width = image.Width, height = image.Height;
         var bright = new bool[width * height];
         var dark = new int[(width + 1) * (height + 1)];
         for (var y = 0; y < height; y++)
         {
             var rowSum = 0;
+            // Satır, sınır denetimli dilim olarak (64 bit başlangıç; bkz. TextImage.AutoLevel, #903).
+            ReadOnlySpan<byte> row = image.Pixels.AsSpan(checked((int)((long)y * image.Stride)), width * 4);
             for (var x = 0; x < width; x++)
             {
-                var i = (y * image.Stride) + (x * 4);
-                int b = image.Pixels[i], g = image.Pixels[i + 1], r = image.Pixels[i + 2];
+                var i = x * 4;
+                int b = row[i], g = row[i + 1], r = row[i + 2];
                 int min = Math.Min(r, Math.Min(g, b)), max = Math.Max(r, Math.Max(g, b));
                 // colored: parlak ve doygun renkli harfler de (açık mavi, kırmızı, sarı) yazı sayılır.
                 bright[(y * width) + x] = (min >= minBright && max - min <= maxSpread)
@@ -270,12 +275,13 @@ public sealed class WindowsOcrReader : ITextReader
     private Reading RecognizeOnce(Frame image)
     {
         // OCR motoru çok küçük ya da çok büyük görüntüyü reddeder.
-        if (image.Width < 40 || image.Height < 40 || image.Width > OcrEngine.MaxImageDimension || image.Height > OcrEngine.MaxImageDimension)
+        if (!image.IsConsistent || image.Width < 40 || image.Height < 40 || image.Width > OcrEngine.MaxImageDimension || image.Height > OcrEngine.MaxImageDimension)
             return Reading.Empty;
         using var bitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, image.Width, image.Height, BitmapAlphaMode.Premultiplied);
-        bitmap.CopyFromBuffer(image.Pixels.AsBuffer());
+        BitmapPixels.Write(image, bitmap);
         // Bir OcrEngine aynı anda iki okuma yapamaz ("Another RecognizeAsync operation is already running");
-        // ReadingFallback iki büyütülmüş okumayı paralel başlatıyordu, biri hata verip okuma boş dönüyordu.
+        // ReadingFallback eskiden iki büyütülmüş okumayı paralel başlatıyordu, biri hata verip okuma boş dönüyordu.
+        if (engine is null) return Reading.Empty;
         OcrResult result;
         lock (engineGate) result = engine.RecognizeAsync(bitmap).AsTask().GetAwaiter().GetResult();
         double width = image.Width, height = image.Height;
@@ -303,15 +309,18 @@ public sealed class WindowsOcrReader : ITextReader
                 continue;
             var part = words.GetRange(start, index - start);
             TextBox? box = null;
+            var partWords = new List<TextWord>(part.Count);
             foreach (var word in part)
             {
                 var r = word.BoundingRect;
                 var wordBox = new TextBox(r.X / width, r.Y / height, (r.X + r.Width) / width, (r.Y + r.Height) / height);
                 box = box?.Union(wordBox) ?? wordBox;
+                partWords.Add(new TextWord(word.Text, wordBox));
             }
             // Bölünmeyen satırın metni Windows'un verdiği gibi kalır (boşluksuz yazılan dillerde sözcükler birleşik).
             var text = start == 0 && end ? line.Text : string.Join(' ', part.Select(word => word.Text));
-            yield return new TextLine(text.Trim(), box);
+            // Sözcük yerleri yazının içindeki kumanda simgesini bulmaya yarar (ButtonIcons).
+            yield return new TextLine(text.Trim(), box, Words: partWords);
             start = index;
         }
     }

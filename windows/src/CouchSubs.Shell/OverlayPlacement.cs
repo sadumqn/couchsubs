@@ -35,19 +35,93 @@ public static class OverlayPlacement
     /// <summary>Pencere en çok üç satıra (ve satırların kaymasına) yetecek kadar yüksektir.</summary>
     public static double Height(int fontSize, double scale) => Math.Round(FontSize(fontSize) * scale * 8.1 + 140 * scale);
 
-    /// <summary>Kayıtlı yer (ekranlardan birinde yeterince görünüyorsa) ya da çalışma alanının altında ortada, %70 genişlikte.</summary>
-    public static OverlayBounds Place(OverlayBounds? saved, ScreenArea virtualScreen, ScreenArea workArea, double height)
+    /// <summary>Yükseklik oranının sınırları: pencere en az bir satıra, en çok yazı boyunun üç katı yüksekliğe kadar.</summary>
+    public const double SmallestHeightScale = 0.5;
+    public const double LargestHeightScale = 3;
+
+    /// <summary>Kayıtlı yükseklik oranı; bozuk kayıtta 1, uç değerlerde sınırda.</summary>
+    public static double ClampHeightScale(double scale) =>
+        double.IsFinite(scale) && scale > 0 ? Math.Clamp(scale, SmallestHeightScale, LargestHeightScale) : 1;
+
+    /// <summary>Kenardan büyütülen ya da küçültülen pencerenin yüksekliği, yazı boyundan hesaplanana oranla.</summary>
+    public static double HeightScaleFor(double height, double baseHeight) =>
+        double.IsFinite(height) && double.IsFinite(baseHeight) && baseHeight > 0 ? ClampHeightScale(height / baseHeight) : 1;
+
+    /// <summary>"Yazı kadar" kutunun oyundaki altyazıyı örterken her yana bıraktığı pay (1080 satırlık ekranda piksel).</summary>
+    public const double CoverMargin = 8;
+
+    /// <summary>
+    /// "Yazı kadar" zeminde kutunun oyundaki altyazıyı örtmesi için en küçük dış boyu: altyazının karedeki kutusu ekran
+    /// boyuyla çarpılır (oyun görüntüsü ekranı kaplıyor sayılır), her yana <see cref="CoverMargin"/> eklenir. Kutu yoksa,
+    /// boşsa ya da altyazı olamayacak kadar yüksekse (karenin yarısından fazla) null; kutu eskisi gibi yazı kadar kalır.
+    /// </summary>
+    public static (double Width, double Height)? CoverSize(CouchSubs.Core.TextBox? box, double screenWidth, double screenHeight, double scale)
+    {
+        if (box is not { } b || !double.IsFinite(scale) || scale <= 0) return null;
+        var width = (b.Right - b.Left) * screenWidth;
+        var height = (b.Bottom - b.Top) * screenHeight;
+        if (!double.IsFinite(width) || !double.IsFinite(height) || width <= 0 || height <= 0 || b.Bottom - b.Top > 0.5) return null;
+        var margin = 2 * CoverMargin * scale;
+        return (width + margin, height + margin);
+    }
+
+    /// <summary>
+    /// Kayıtlı yer ya da çalışma alanının altında ortada, %70 genişlikte. Kayıt bir ekranın adını taşıyorsa ve o ekran
+    /// bağlıysa yer o ekrana göre hesaplanır (ekranların dizilişi değişse de pencere aynı ekranda kalır); ekran artık
+    /// yoksa ya da eski kayıtsa tüm ekranlardaki yeri, o da görünmüyorsa varsayılan yer. <paramref name="height"/> yazı
+    /// boyundan hesaplanan yüksekliktir; kayıttaki oran buna uygulanır.
+    /// </summary>
+    public static OverlayBounds Place(OverlayBounds? saved, ScreenArea virtualScreen, ScreenArea workArea, double height,
+        IReadOnlyList<DisplayArea>? displays = null)
     {
         var work = workArea.IsUsable ? workArea : virtualScreen.IsUsable ? virtualScreen : Fallback;
         var screen = virtualScreen.IsUsable ? virtualScreen : work;
         if (!double.IsFinite(height) || height <= 0) height = Height(0, 1);
-        if (saved is { } s && double.IsFinite(s.Left) && double.IsFinite(s.Top) && double.IsFinite(s.Width) && s.Width > 0)
+        if (saved is { } s && double.IsFinite(s.Width) && s.Width > 0)
         {
+            var heightScale = ClampHeightScale(s.HeightScale);
+            var tall = height * heightScale;
             var width = Math.Clamp(s.Width, SmallestWidth, Math.Max(SmallestWidth, screen.Width));
-            if (Visible(s.Left, s.Top, width, height, screen)) return new OverlayBounds(s.Left, s.Top, width);
+            if (s.Screen is { } name && s.ScreenLeft is { } dx && s.ScreenTop is { } dy && double.IsFinite(dx) && double.IsFinite(dy)
+                && displays?.FirstOrDefault(d => d.Name == name && d.Area.IsUsable) is { Name: not null } display)
+            {
+                var left = display.Area.Left + dx;
+                var top = display.Area.Top + dy;
+                if (Visible(left, top, width, tall, display.Area))
+                    return s with { Left = left, Top = top, Width = width, HeightScale = heightScale };
+            }
+            if (double.IsFinite(s.Left) && double.IsFinite(s.Top) && Visible(s.Left, s.Top, width, tall, screen))
+                return s with { Width = width, HeightScale = heightScale };
         }
         var placed = Math.Max(SmallestWidth, Math.Round(work.Width * 0.7));
         return new OverlayBounds(work.Left + (work.Width - placed) / 2, work.Bottom - work.Height * 0.04 - height, placed);
+    }
+
+    /// <summary>Pencerenin üstünde en çok kaldığı ekran (yoksa null).</summary>
+    public static DisplayArea? DisplayOf(double left, double top, double width, double height, IReadOnlyList<DisplayArea> displays)
+    {
+        DisplayArea? best = null;
+        var most = 0.0;
+        foreach (var display in displays)
+        {
+            if (!display.Area.IsUsable) continue;
+            var across = Math.Min(left + width, display.Area.Right) - Math.Max(left, display.Area.Left);
+            var down = Math.Min(top + height, display.Area.Bottom) - Math.Max(top, display.Area.Top);
+            var area = Math.Max(0, across) * Math.Max(0, down);
+            if (area > most) { most = area; best = display; }
+        }
+        return best;
+    }
+
+    /// <summary>Kaydedilecek yer, yükseklik oranı ve ekran; değerlerden biri sonlu değilse (JSON'a yazılamaz) kaydedilmez.</summary>
+    public static OverlayBounds? ToSave(double left, double top, double width, double height, double baseHeight,
+        IReadOnlyList<DisplayArea> displays)
+    {
+        if (ToSave(left, top, width) is not { } bounds || !double.IsFinite(height)) return null;
+        bounds = bounds with { HeightScale = Math.Round(HeightScaleFor(height, baseHeight), 3) };
+        return DisplayOf(left, top, width, height, displays) is { } display
+            ? bounds with { Screen = display.Name, ScreenLeft = Math.Round(left - display.Area.Left), ScreenTop = Math.Round(top - display.Area.Top) }
+            : bounds;
     }
 
     /// <summary>Kenardan genişletilen pencerenin yeni genişliği: en az <see cref="SmallestWidth"/>, en çok tüm ekranlar.</summary>

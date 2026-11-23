@@ -1,0 +1,1 @@
+0.9.55: On Samsung 4K and 8K TVs the PS5 picture no longer stays small in the top-left corner; it fills the screen on launch without pressing Yellow. On Samsung the Yellow button is always available: on ultrawide monitors it tries 21:9 and 32:9 full-width methods, and the choice is remembered.

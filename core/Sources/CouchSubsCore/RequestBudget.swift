@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Foundation
+import CryptoKit
 
 /// Kayan bir dakikalık pencerede en çok `perMinute` istek hakkı (Windows'taki CouchSubs.Core/RequestBudget.cs ile aynı).
 /// Gemini'nin ücretsiz katmanı dakikadaki istek sayısını sınırlar; sınırın üstüne çıkan istek 429 alır ve beklemek
@@ -44,10 +45,17 @@ public final class RequestBudget: @unchecked Sendable {
     nonisolated(unsafe) private static var registry: [String: RequestBudget] = [:]
 
     /// Modelin uygulama genelindeki ortak hakkı (Google sınırı proje ve model başına sayar); modelin sınırı yoksa nil.
-    public static func shared(provider: AIProvider, model: AIModel) -> RequestBudget? {
-        guard let perMinute = model.requestsPerMinute else { return nil }
+    public static func shared(provider: AIProvider, model: AIModel, apiKey: String = "",
+                              paidTier: Bool = false) -> RequestBudget? {
+        // Start paid keys without a guessed free-tier limit, while keeping the budget
+        // so Google's actual per-minute 429 response can lower it.
+        let paid = paidTier && provider == .gemini
+        guard let perMinute = paid ? Int.max : model.requestsPerMinute else { return nil }
         return registryLock.withLock {
-            let id = provider.engineID(model: model.id)
+            // Different keys can belong to different projects; do not retain the raw secret as an identifier.
+            let digest = SHA256.hash(data: Data(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).utf8))
+            let id = provider.engineID(model: model.id) + (paid ? ":paid:" : ":free:") +
+                Data(digest).base64EncodedString()
             if let budget = registry[id] { return budget }
             let budget = RequestBudget(perMinute: perMinute)
             registry[id] = budget

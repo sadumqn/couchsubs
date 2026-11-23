@@ -1,0 +1,1 @@
+0.9.49: Uygulama arka plandan öne gelince altyazı bağlantısı beklemeden yeniden kurulur ve süresi dolmamış son satır yeniden gösterilir. TV uygulaması gösterdiği HDMI girişini bilgisayara/telefona bildirir; böylece LG'de PS tuşu TV'yi PS5 girişine geçirdiğinde uygulama hemen geri getirilir.

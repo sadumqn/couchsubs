@@ -12,6 +12,20 @@ public enum DubbingVoice: String, CaseIterable, Codable, Sendable {
     public var gender: Gender { rawValue.hasPrefix("female") ? .female : .male }
 
     public static func voices(_ gender: Gender) -> [DubbingVoice] { allCases.filter { $0.gender == gender } }
+
+    /// Cihazın kendi Türkçe sesiyle ("Hızlı" dublaj: Windows'ta Microsoft Tolga, iPhone'da AVSpeechSynthesizer, Android'de
+    /// TextToSpeech) karakterler ton ve hızla ayrılır; cihazda çoğunlukla tek Türkçe ses vardır. 1 = sesin kendi tonu ve
+    /// hızı. Windows WindowsVoiceModel.Tone ve Android DubbingVoice.tone ile aynı değerler.
+    public var systemTone: (pitch: Double, rate: Double) {
+        switch self {
+        case .female1: (1.55, 1.1)
+        case .female2: (1.4, 1.0)
+        case .female3: (1.48, 1.05)
+        case .male1: (0.85, 0.95)
+        case .male2: (1.05, 1.15)
+        case .male3: (0.95, 1.05)
+        }
+    }
 }
 
 /// Karakterlere ses dağıtır. Her konuşmacı adı kalıcı olarak bir sese bağlanır (Kratos oyun boyunca aynı sesle konuşur);

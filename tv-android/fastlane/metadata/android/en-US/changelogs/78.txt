@@ -1,0 +1,1 @@
+0.9.75: GTA 6 phone messages appear in a chat panel next to the phone: a rounded, translucent card with the contact's name on top, their messages on the left and yours on the right; the text follows the subtitle size.

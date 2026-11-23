@@ -1,0 +1,1 @@
+0.9.52: On 4K Samsung TVs and Samsung ultrawide monitors the PS5 picture window is no longer re-requested needlessly every few seconds; on some models this made the brightness jump briefly and return, over and over. If Samsung keeps resetting the window, it is re-requested at most three times a minute.

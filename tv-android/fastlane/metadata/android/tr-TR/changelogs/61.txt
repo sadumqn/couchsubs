@@ -1,0 +1,1 @@
+0.9.58: "Örtsün" seçiliyken Türkçe kutu oyundaki İngilizce altyazıyı genişlikte ve yükseklikte tamamen örtüyor; altyazının yeri gelmeyen satırda son bilinen yer örtülüyor. Yazı boyu seçtiğiniz boyda kalıyor: sığmayan uzun satırda yalnız bir kademe küçülüyor, sonraki satırlarda büyüyüp küçülmüyor.
