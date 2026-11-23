@@ -46,7 +46,7 @@ public static class CrashRecords
     private const string TimeFormat = "yyyy-MM-dd HH:mm:ss";
 
     public static string DefaultDirectory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "cokme");
+        Path.Combine(AppDataPaths.Root, "cokme");
 
     /// <summary>Kullanıcıya gösterilen yol (Dosya Gezgini'nin adres çubuğuna yazılabilir).</summary>
     public const string DisplayPath = @"%LOCALAPPDATA%\CouchSubs\cokme";

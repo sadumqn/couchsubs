@@ -9,7 +9,7 @@ import html
 import re
 import sys
 
-OLDER = re.compile(r"^\*\*(beta\.\d+\S*\s+gelenler\b|Daha önce\b|Önceki sürüm)")
+OLDER = re.compile(r"^\*\*(beta\.\d+(?:\s+ve\s+beta\.\d+)?\S*\s+gelenler\b|Daha önce\b|Önceki sürüm)")
 
 
 def inline(text: str) -> str:

@@ -205,7 +205,7 @@
     <string name="settings_display_mode_auto">Otomatik</string>
     <string name="settings_display_mode_in_app">Uygulama içinde</string>
     <string name="settings_display_mode_overlay">Katman</string>
-    <string name="settings_display_mode_note">Otomatik, TV uygulaması izin verdikçe Katman\'ı kullanır: TV, PS5\'i kendi HDMI girişinde gösterir, altyazı görüntünün üstünde çıkar. Bazı TV\'lerde CouchSubs TV uygulamasının içinde görüntü siyah kalıyor. PS5\'i CouchSubs TV uygulamasının içinde görmek isterseniz Uygulama içinde\'yi seçin; orada görüntü gelmezse TV uygulaması önce HDMI girişlerini gösterir, Katman varsa ona geçer. Katman\'da TV\'nin görüntü modu değişmez, oyun modu ya da HDR kaybolmaz. Google Play\'den kurulan TV uygulamasında Katman yok: orada Otomatik uygulamanın içinde kalır, Katman seçilirse TV bunu ekranda söyler.</string>
+    <string name="settings_display_mode_note">Otomatik, TV uygulaması izin verdikçe Katman\'ı kullanır: TV, PS5\'i kendi HDMI girişinde gösterir, altyazı görüntünün üstünde çıkar. Bazı TV\'lerde CouchSubs TV uygulamasının içinde görüntü siyah kalıyor. PS5\'i CouchSubs TV uygulamasının içinde görmek isterseniz Uygulama içinde\'yi seçin; TV uygulaması o zaman kendiliğinden Katman\'a hiç geçmez: görüntü gelmezse HDMI girişini yeniden açar ve girişleri gösterir, Katman\'ı oradan siz seçebilirsiniz. Katman\'da TV\'nin görüntü modu değişmez, oyun modu ya da HDR kaybolmaz. Google Play\'den kurulan TV uygulamasında Katman yok: orada Otomatik uygulamanın içinde kalır, Katman seçilirse TV bunu ekranda söyler.</string>
     <string name="settings_screen_on">Ekranı açık tut</string>
     <string name="settings_screen_on_note">Telefon kilitlense ya da ekran kapansa da TV\'deki çeviri sürer. Ancak ekran kapalıyken Wi-Fi güç tasarrufuna geçer; bazı telefonlarda bağlantı yavaşlayabilir ya da kopabilir. En sağlam yol, ekranı açık bırakıp parlaklığı kısmak.</string>
     <string name="background_limit_title">Telefon kilitlenince çeviri durabilir</string>
@@ -299,6 +299,7 @@
     <string name="game_ask_dont_ask">Sorma</string>
     <string name="game_played">Oynanan oyun</string>
     <string name="game_unknown">Bilinmiyor</string>
+    <string name="game_xbox_unknown_note">Xbox oynanan oyunu bildirmiyor; oyunu seçerseniz oyuna özel çeviri ve GTA 6 telefonu açılır.</string>
     <string name="game_change">Değiştir</string>
     <string name="area_profile_title">Bu oyunun alanları</string>
     <string name="area_profile_saved">Bu alanlar %1$s için kayıtlı.</string>
@@ -503,9 +504,9 @@
     <string name="tvinstall_lg_session_note">Geliştirici modu en çok 1000 saat açık kalır. Telefon TV\'ye ulaşabildiği sürece CouchSubs bunu günde bir kez kendisi uzatır.</string>
     <string name="tvinstall_lg_tv_says">TV\'nin yanıtı: %1$s</string>
     <string name="tvinstall_lg_err_unreachable">TV yanıt vermedi. TV\'nin açık ve bu telefonla aynı Wi-Fi\'da olduğundan, Developer Mode uygulamasında Dev Mode Status\'un açık olduğundan emin ol.</string>
-    <string name="tvinstall_lg_err_restart_needed">TV\'de Key Server açık ama geliştirici bağlantısı kapalı. Dev Mode Status açıldıktan sonra TV yeniden başlamalı: Developer Mode uygulamasında RESTART\'a bas (ya da TV\'yi fişten çekip tak), sonra uygulamayı yeniden açıp Key Server\'ı aç ve tekrar dene.</string>
+    <string name="tvinstall_lg_err_restart_needed">Geliştirici modu açık görünüyor (TV\'nin Key Server\'ı yanıt veriyor) ama TV kurulum bağlantısını reddediyor. TV\'yi fişten çek, 30 saniye bekleyip yeniden tak (ya da Developer Mode uygulamasında RESTART\'a bas); sonra Developer Mode uygulamasını açıp Dev Mode Status\'un açık olduğuna bak, Key Server\'ı aç ve tekrar dene. webOS Hub kullanan bazı TV\'lerde bu bağlantı TV\'nin yazılımında kapalı olabilir; o zaman TV uygulaması bu yolla kurulamaz.</string>
     <string name="tvinstall_lg_err_dev_mode_off">TV bu adreste açık ama geliştirici modu kapalı. TV\'de Developer Mode uygulamasını aç: Dev Mode Status açık olmalı (süresi dolunca kendiliğinden kapanır; yeniden aç, TV yeniden başlar). Sonra Key Server\'ı açıp tekrar dene.</string>
-    <string name="tvinstall_lg_err_tv_not_found">Bu adreste TV yanıt vermiyor. TV kapalı, başka bir Wi-Fi\'da ya da adresi değişmiş olabilir. TV\'yi aç, TV\'de Ayarlar › Ağ\'dan IP adresine bak ve yukarıdaki listeden doğru TV\'yi seç.</string>
+    <string name="tvinstall_lg_err_tv_not_found">TV bu adreste yanıt vermiyor (açık ve aynı ağda mı?) TV ağda arandı, bulunamadı. TV\'yi aç, TV\'de Ayarlar › Ağ\'dan IP adresine bak ve yukarıdaki listeden doğru TV\'yi seç.</string>
     <string name="tvinstall_lg_err_key_server">Key Server kapalı. TV\'deki Developer Mode uygulamasında Key Server\'ı aç ve uygulamayı ekranda açık tut.</string>
     <string name="tvinstall_lg_err_passphrase">Passphrase doğru değil. TV ekranındakiyle karşılaştır.</string>
     <string name="tvinstall_lg_err_key_refused">TV anahtarı kabul etmedi. Key Server\'ı açıp Passphrase\'i yeniden yaz.</string>
@@ -900,4 +901,15 @@
     <string name="perde_not_set_up">Kurulmadı</string>
     <string name="perde_on_this_screen">Bu ekranda</string>
     <string name="perde_ready_translation">Hazır çeviri</string>
+    <string name="tv_not_responding">TV bu adreste yanıt vermiyor (açık ve aynı ağda mı?)</string>
+    <string name="tv_not_responding_at">TV %1$s adresinde yanıt vermiyor; TV\'nin adresi değişmiş olabilir.</string>
+    <string name="tv_searching_again">Yanıt vermiyor — yeniden aranıyor…</string>
+    <string name="tv_search_again">TV\'yi Yeniden Ara</string>
+    <string name="tv_enter_ip">IP Adresi Gir</string>
+    <string name="tv_use_address">Ekle</string>
+    <string name="tv_ip_not_recognised">Bu adreste TV tanınmadı.</string>
+    <string name="tv_change">TV\'yi Değiştir</string>
+    <string name="tv_remove_pairing">Eşleşmeyi Kaldır</string>
+    <string name="tv_remove_pairing_title">Eşleşme Kaldırılsın mı?</string>
+    <string name="tv_remove_pairing_confirm">Eşli TV kaldırılacak. TV\'yi Değiştir ile yeniden TV seçebilirsiniz.</string>
 </resources>

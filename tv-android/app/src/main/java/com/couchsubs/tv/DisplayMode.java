@@ -23,7 +23,10 @@ import java.util.Locale;
 final class DisplayMode {
     /** Varsayılan: katman izni varsa katman, yoksa uygulama içinde. Eski "inApp" de budur. */
     static final String AUTO = "auto";
-    /** Bilerek seçilmiş uygulama içi; görüntü hiç gelmezse yine kendiliğinden katmana geçilir (bkz. FallbackWatch). */
+    /**
+     * Bilerek seçilmiş uygulama içi; hiçbir durumda kendiliğinden katmana geçilmez (bkz. mayAutoSwitch). Katmanı yalnız
+     * kullanıcı seçer (seçicideki "Katman'a geç" ya da Görüntü modu).
+     */
     static final String IN_APP = "inAppOnly";
     /** TV'nin kendi HDMI ekranının üstünde katman. */
     static final String OVERLAY = "overlay";
@@ -82,6 +85,27 @@ final class DisplayMode {
     static boolean wantsOverlay(String preference, boolean canDrawOverlays) {
         String mode = orAuto(preference);
         return canDrawOverlays && (OVERLAY.equals(mode) || AUTO.equals(mode));
+    }
+
+    /**
+     * Uygulama içindeyken kendiliğinden katmana geçilebilir mi: görüntü 10 sn gelmedi (FallbackWatch), TV HDMI'yı
+     * açılıştan hemen sonra kendi oynatıcısına aldı ya da ekranı geri alma hakkı doldu (ScreenReclaim.GIVE_UP).
+     *
+     * X'te bildirildi (Samsung S25 Ultra ile, TV ekranı aç-kapa yapıyor): kullanıcı katman penceresinde çöken TV'de
+     * (EGL_BAD_ALLOC, #1074) bilerek Uygulama içinde seçmişti; görüntü gelmeyince ya da TV HDMI'yı kendine alınca uygulama
+     * yine katmana geçiyor, katman çöküyor, uygulama yeniden açılıyordu. Bilerek seçilen uygulama içi artık hiçbir otomatik
+     * durumda katmana geçmez; uygulama içinde kalır ve durumu söyler. Otomatik ve Katman eskisi gibi.
+     */
+    static boolean mayAutoSwitch(String preference, boolean canDrawOverlays) {
+        return canDrawOverlays && !IN_APP.equals(orAuto(preference));
+    }
+
+    /**
+     * Katmana geçilebilecek bir anda (izin var) uygulama içinde yalnız kullanıcının seçimi yüzünden mi kalındı: o zaman
+     * durum ekranda söylenir (seçici, geri alma notu).
+     */
+    static boolean keptInApp(String preference, boolean canDrawOverlays) {
+        return canDrawOverlays && IN_APP.equals(orAuto(preference));
     }
 
     /** Tanınmayan ya da kayıtsız tercih Otomatik'tir. */

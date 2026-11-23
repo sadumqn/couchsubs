@@ -102,4 +102,23 @@ public class ScreenReclaimTest {
         reclaim.signal(200_000, 0);
         assertTrue(reclaim.shouldReclaim(200_500, true));
     }
+
+    /**
+     * Uygulama içi bilerek seçiliyken TV girişi açar açmaz HDMI'yı kendine aldı: katman yerine CouchSubs ekranı geri öne
+     * getirilir; geri alma hakkını paylaşır, dakikada en çok MAX_PER_MINUTE kez (TV ile sonsuz itişme olmasın).
+     */
+    @Test
+    public void retakesForChosenInAppShareTheMinuteBudget() {
+        ScreenReclaim reclaim = new ScreenReclaim();
+        int done = 0;
+        for (long t = 100_000; t < 130_000; t += 6_000) {
+            if (reclaim.retake(t)) done++;
+        }
+        assertEquals(ScreenReclaim.MAX_PER_MINUTE, done);
+        // Hak dolmuşken sinyal olayıyla gelen devralma da geri alınmaz.
+        reclaim.signal(131_000, 0);
+        assertEquals(ScreenReclaim.Action.GIVE_UP, reclaim.onTakenAway(131_500, true));
+        // Bir dakika sonra yeniden hak var.
+        assertTrue(reclaim.retake(170_000));
+    }
 }

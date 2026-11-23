@@ -29,7 +29,15 @@ export function gameKey(value) {
   t = t.replace(/[^\p{L}\p{N}]+/gu, " ");
   // "gta6" → "gta 6" (harf ve rakam ayrılır).
   t = t.replace(/(\p{L})(\p{N})/gu, "$1 $2").replace(/(\p{N})(\p{L})/gu, "$1 $2");
-  let words = t.split(" ").filter(Boolean).map((w) => ROMAN[w] ?? w);
+  const rawWords = t.split(" ").filter(Boolean);
+  // Preserve literal franchise letters without changing established sequel keys
+  // (e.g. GTA V Premium Edition and Final Fantasy X HD).
+  const megaManX = rawWords[0] === "mega" && rawWords[1] === "man" && rawWords[2] === "x";
+  let words = rawWords.map((w, i) => {
+    const literal = (w === "x" && ((megaManX && i === 2) || rawWords[i + 1] === "men"))
+      || (w === "v" && rawWords[i + 1] === "rally");
+    return literal ? w : (ROMAN[w] ?? w);
+  });
   if (words[0] === "the" && words.length > 1) words = words.slice(1);
   let joined = ` ${words.join(" ")} `;
   for (const [long, short] of ALIASES) joined = joined.split(` ${long} `).join(short ? ` ${short} ` : " ");

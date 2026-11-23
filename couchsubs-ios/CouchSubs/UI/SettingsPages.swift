@@ -588,6 +588,13 @@ private struct OutputsPage: View {
     @Binding var path: [Route]
     @EnvironmentObject private var model: PhoneModel
     @State private var sent = false
+    /// "Eşleşmeyi Kaldır" onayı.
+    @State private var confirmRemove = false
+    /// "IP Adresi Gir": eşli TV'nin yeni adresi elle yazılıyor.
+    @State private var enteringAddress = false
+    @State private var typedAddress = ""
+    @State private var addressRejected = false
+    @State private var applyingAddress = false
 
     var body: some View {
         Tile(spacing: Mobile.Space.gap) {
@@ -630,6 +637,10 @@ private struct OutputsPage: View {
                 .background(Mobile.Palette.surface2, in: RoundedRectangle(cornerRadius: DS.radius("control")))
             VStack(alignment: .leading, spacing: Mobile.Space.hair) {
                 Text(verbatim: model.tv?.name ?? "TV").font(Mobile.TypeScale.headline)
+                // Kartta TV'nin adresi de görünür: TV ağda yeni adreste bulununca yeni adres burada görünür (Mac ile aynı).
+                if let tv = model.tv, !tv.host.isEmpty {
+                    Text(verbatim: "\(brandName(tv.brand)) · \(tv.host)").font(Font.dsMonoValue).foregroundStyle(Mobile.Palette.tertiary)
+                }
                 Text(tvState).dsMuted()
             }
             Spacer(minLength: Mobile.Space.inline)
@@ -644,9 +655,80 @@ private struct OutputsPage: View {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             sent = false
         }
+        // Eşli TV yanıt vermiyorsa kart kendiliğinden yeniden arar (~10 sn'de bir yoklama, ağ araması en çok 30 sn'de bir).
+        .task(id: model.tv?.host) {
+            while !Task.isCancelled {
+                await model.checkTVReachable()
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
+        if let host = model.tvUnreachableHost, model.tvClients == 0 { unreachableBox(host) }
+        if model.hasTV {
+            // Eşli TV her zaman değiştirilebilir ya da kaldırılabilir (önceden eşli TV kaldırılamıyordu).
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Mobile.Space.inline) { pairingButtons }
+                ButtonStack { pairingButtons }
+            }
+            .confirmationDialog("Remove Pairing?", isPresented: $confirmRemove, titleVisibility: .visible) {
+                Button("Remove Pairing", role: .destructive) { model.removeTVPairing() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The paired TV will be removed. You can choose a TV again with Change the TV.")
+            }
+        }
         if model.tvPairingOpened, model.tvPairingRequest == nil, model.tvClients == 0 {
             InfoBox(text: String(localized: "Pairing is open for 2 minutes. Open CouchSubs on the TV; if the TV says pairing did not finish, press OK on its remote. When the TV shows a code, approve it in the window that opens on this phone."),
                     tone: Mobile.Palette.secondary)
+        }
+    }
+
+    @ViewBuilder private var pairingButtons: some View {
+        Button("Change the TV") { path.append(.target) }.buttonStyle(DSButtonStyle(kind: .secondary))
+        Button("Remove Pairing") { confirmRemove = true }.buttonStyle(DSButtonStyle(kind: .danger))
+    }
+
+    /// "TV'yi Eşleştir" / "Deneme Altyazısı Gönder" eşli TV'ye ulaşamadı ve TV ağda bulunamadı: açık hata, yeniden arama ve
+    /// elle adres girişi (önceden düğmeler hiçbir şey göstermiyordu).
+    @ViewBuilder private func unreachableBox(_ host: String) -> some View {
+        MobileNote(text: String(format: String(localized: "The TV isn't responding at %@. Its address may have changed."), host))
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Mobile.Space.inline) { unreachableButtons }
+            ButtonStack { unreachableButtons }
+        }
+        if enteringAddress {
+            TVAddressField(label: TVText.address, text: $typedAddress)
+                .onChange(of: typedAddress) { _ in addressRejected = false }
+            if addressRejected { MobileNote(text: String(localized: "No TV was recognised at this address.")) }
+            Button("Add") {
+                applyingAddress = true
+                Task {
+                    let used = await model.useTVAddress(typedAddress)
+                    applyingAddress = false
+                    addressRejected = !used
+                    if used {
+                        enteringAddress = false
+                        typedAddress = ""
+                    }
+                }
+            }
+            .buttonStyle(DSButtonStyle(kind: .primary, busy: applyingAddress))
+            .disabled(applyingAddress || typedAddress.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+    }
+
+    @ViewBuilder private var unreachableButtons: some View {
+        Button("Search for the TV Again") { Task { await model.searchTVAgain() } }
+            .buttonStyle(DSButtonStyle(kind: .secondary, busy: model.tvSearching))
+            .disabled(model.tvSearching)
+        Button("Enter IP Address") { enteringAddress = true }.buttonStyle(DSButtonStyle(kind: .secondary))
+    }
+
+    /// Marka adı çevrilmez (katalog anahtarı değil; Android'deki pairedTvDetail ile aynı).
+    private func brandName(_ brand: TVBrand) -> String {
+        switch brand {
+        case .lg: "LG"
+        case .samsung: "Samsung"
+        case .androidTV: "Android TV"
         }
     }
 

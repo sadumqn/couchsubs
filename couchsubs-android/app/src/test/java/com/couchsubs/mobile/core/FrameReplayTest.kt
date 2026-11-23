@@ -31,11 +31,19 @@ class FrameReplayTest {
             confidence = if (line.has("confidence")) line.getDouble("confidence").toFloat() else null)
     })
 
+    /** Satır (birleşmişse satır parçası) kutusu koyu yazılı bir okumanın ortasını taşıyor mu (Mac ve Windows aynı). */
+    private fun holdsDark(box: TextBox, dark: List<TextBox>) = dark.any { line ->
+        val x = (line.left + line.right) / 2
+        val y = (line.top + line.bottom) / 2
+        x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
+    }
+
     @Test
     fun selectionMatchesMacOnRealFrames() {
         val frames = JSONObject(File(directory, "frames.json").readText()).getJSONArray("frames")
         val expected = JSONObject(File(directory, "ocr/selection.json").readText())
         val bands = mutableMapOf<String, SubtitleBand>()
+        val styles = mutableMapOf<String, DarkInkStyle>()
         assertTrue(frames.length() >= 40)
         assertEquals(frames.length(), expected.length())
         for (i in 0 until frames.length()) {
@@ -43,7 +51,14 @@ class FrameReplayTest {
             val id = frame.getString("id")
             val fixture = JSONObject(File(directory, "ocr/$id.json").readText())
             val area = box(fixture.getJSONArray("region"))
-            val band = bands.getOrPut(frame.optString("session", id).ifEmpty { id }) { SubtitleBand() }
+            val key = frame.optString("session", id).ifEmpty { id }
+            val band = bands.getOrPut(key) { SubtitleBand() }
+            val style = styles.getOrPut(key) { DarkInkStyle() }
+            // Açık zemindeki koyu yazı ([InkTone]): okumadaki "dark" işareti (Mac'te karenin pikselleriyle denetlenir).
+            val recorded = fixture.getJSONArray("lines")
+            val dark = (0 until recorded.length()).map { recorded.getJSONObject(it) }
+                .filter { it.optBoolean("dark", false) && it.has("box") }.map { box(it.getJSONArray("box")) }
+            val darkBlocks = mutableListOf<Reading>()
             var lines = reading(fixture.getJSONArray("lines"))
             fixture.optJSONArray("phone")?.let { p ->
                 // Altyazı hattı gibi: telefonun ekranındaki satırlar okunmaz (SubtitlePipeline.process phone).
@@ -51,7 +66,11 @@ class FrameReplayTest {
                     GamePhoneGeometry.Pose(p.getDouble(0), p.getDouble(1), p.getDouble(2), p.getDouble(3)), p.getDouble(4))
                 lines = Reading(lines.lines.filter { line -> line.box?.let { !ScreenPhoneCard.holds(it.placedIn(area), handset) } ?: true })
             }
-            val block = lines.withoutButtonPrompts().withoutOcrNoise().joiningRows().subtitleBlock(area, band)
+            val block = lines.withoutButtonPrompts().withoutOcrNoise().joiningRows().subtitleBlock(area, band,
+                darkInk = { b: TextBox -> holdsDark(b, dark) }.takeUnless { style.isGameStyle }) { skipped, reason ->
+                if (reason == InkTone.REASON) darkBlocks += skipped
+            }
+            for (skipped in darkBlocks) style.observe(skipped, area)
             band.record(block, area)
             assertEquals(id, expected.getString(id), block.text)
         }

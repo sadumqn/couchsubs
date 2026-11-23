@@ -164,11 +164,12 @@ public sealed class Reading
     /// çevrilir. Önceden ortalanmış blok yokken altyazı seçilip ekranın ortasında çiziliyordu. <paramref name="age"/>:
     /// satırın ne kadar süredir değişmeden okunduğu (<see cref="StickyRows.UnchangedMs"/>); verilirse
     /// <see cref="StaleMs"/>'dir değişmeyen ortalı blok, yanında yeni beliren ortalı blok varken seçilmez, atlanan blok
-    /// <paramref name="stale"/> ile bildirilir.
+    /// <paramref name="stale"/> ile bildirilir. <paramref name="darkInk"/>: satır kutusu açık zeminde koyu yazı mı
+    /// (<see cref="InkTone.Sampler"/>; kâğıt ilan sahne yazısıdır, GitHub #1124); verilmezse renge bakılmaz.
     /// </summary>
     public Reading SubtitleBlock(TextBox area, SubtitleBand? band = null, Action<Reading, string>? dropped = null,
                                  Action<Reading>? notices = null, Func<string, long?>? age = null,
-                                 Action<Reading>? stale = null)
+                                 Action<Reading>? stale = null, Func<TextBox, bool>? darkInk = null)
     {
         if (Lines.Count == 0 || Lines.Any(line => line.Box is null)) return IsActionLabel ? Empty : this;
         var blocks = new List<List<TextLine>>();
@@ -183,7 +184,7 @@ public sealed class Reading
         var candidates = blocks.SelectMany(WithoutSignLines).Select(block => new Reading(block)).Where(reading =>
         {
             if (reading.IsMenu || reading.IsActionLabel) return false;
-            if (SceneText.Reason(reading, area, band) is not { } reason) return true;
+            if (SceneText.Reason(reading, area, band, darkInk) is not { } reason) return true;
             dropped?.Invoke(reading, reason);
             return false;
         }).Where(reading =>

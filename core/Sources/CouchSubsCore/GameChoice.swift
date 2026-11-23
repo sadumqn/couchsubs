@@ -14,12 +14,17 @@ public final class GameChoice: ObservableObject {
     @Published public private(set) var source: GameSense.Source?
     /// Kart açık.
     @Published public private(set) var asking = false
+    /// Xbox'ta çeviri sürüyor ve oyun bilinmiyor: Xbox oynanan oyunu bildirmez; ana ekranda Oyun karosu vurgulanır ve
+    /// "oyunu seçin" notu görünür (zorlayıcı kart açılmaz). Oyun seçilince kalkar.
+    @Published public private(set) var xboxNeedsGame = false
 
     public let sense = GameSense()
     /// Oyun değişti (uygulama `LinePool.setGame`e bağlar).
     public var onChange: (RunningGame?) -> Void = { _ in }
     /// Oyun ya da nereden bilindiği her yayımlanışta (aynı oyun paketten sonra elle seçilince de): `GameAreas.follow`.
     public var onPublish: (RunningGame?, GameSense.Source?) -> Void = { _, _ in }
+    /// Günlük satırı (uygulama `SubtitleLog.write`a bağlar).
+    public var onLog: (String) -> Void = { _ in }
     /// Kurulu paketlerin oyun adları (öneriler için).
     public var packTitles: () -> [String] = { [] }
     /// Hazır paketler: kullanıcı elle oyun seçince satırlar yalnız o oyunun paketinde aranır (`GameSense.packLimit`).
@@ -33,16 +38,21 @@ public final class GameChoice: ObservableObject {
 
     private let defaults: UserDefaults
     private var console: String?
+    private var xbox = false
     private var timer: Task<Void, Never>?
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }
 
-    /// Çeviri başladı. `console`: PS5'in adı (son oyun bununla hatırlanır); `enabled`: soru ayarı ve ortak havuz açık mı.
-    public func start(console: String?, enabled: @escaping @MainActor () -> Bool) {
+    /// Çeviri başladı. `console`: PS5'in adı (son oyun bununla hatırlanır); `xbox`: Xbox oturumu (son oyun
+    /// `GameSense.xboxConsole` adıyla hatırlanır ve oyun bilinmiyorsa kendiliğinden kullanılır); `enabled`: soru ayarı ve
+    /// ortak havuz açık mı.
+    public func start(console: String?, xbox: Bool = false, enabled: @escaping @MainActor () -> Bool) {
         sense.startSession()
-        self.console = console
+        self.xbox = xbox
+        self.console = xbox ? GameSense.xboxConsole : console
+        if xbox { onLog(sense.startXbox(lastChosen: lastPlayed)) }
         publish()
         timer?.cancel()
         let started = Date()
@@ -62,6 +72,8 @@ public final class GameChoice: ObservableObject {
     /// Çeviri durdu: kart kapanır.
     public func stop() {
         sense.endSession()
+        xbox = false
+        xboxNeedsGame = false
         timer?.cancel()
         timer = nil
         asking = false
@@ -92,6 +104,7 @@ public final class GameChoice: ObservableObject {
             saved[console] = RunningGame(name: name)?.name
             defaults.set(saved, forKey: Self.rememberedKey)
         }
+        if xbox, let clean = RunningGame(name: name)?.name { onLog(GameSense.xboxChosenLog(clean)) }
         asking = false
         publish()
     }
@@ -123,6 +136,8 @@ public final class GameChoice: ObservableObject {
         packs?.limit(toGame: sense.packLimit)
         let current = sense.current
         source = sense.source
+        let needs = xbox && current == nil
+        if xboxNeedsGame != needs { xboxNeedsGame = needs }
         onPublish(current, source)
         guard current != game else { return }
         game = current

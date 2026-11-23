@@ -1,0 +1,994 @@
+[
+  {
+    "clear" : [
+      [
+        0.47399999999999998,
+        0.50900000000000001,
+        0.53600000000000003,
+        0.57099999999999995
+      ],
+      [
+        0.48299999999999998,
+        0.42999999999999999,
+        0.53100000000000003,
+        0.505
+      ],
+      [
+        0.95940000000000003,
+        0.70089999999999997,
+        0.97809999999999997,
+        0.73429999999999995
+      ],
+      [
+        0.95940000000000003,
+        0.76019999999999999,
+        0.97809999999999997,
+        0.79349999999999998
+      ],
+      [
+        0.95940000000000003,
+        0.81940000000000002,
+        0.97809999999999997,
+        0.8528
+      ],
+      [
+        0.95940000000000003,
+        0.87870000000000004,
+        0.97809999999999997,
+        0.91200000000000003
+      ],
+      [
+        0.95940000000000003,
+        0.93799999999999994,
+        0.97809999999999997,
+        0.97130000000000005
+      ]
+    ],
+    "height" : 1080,
+    "id" : "gta6-harita-kart",
+    "items" : [
+      {
+        "box" : {
+          "bottom" : 0.0625,
+          "left" : 0.577,
+          "right" : 0.6425,
+          "top" : 0.0331
+        },
+        "line" : 0.0284,
+        "room" : {
+          "bottom" : 0.0625,
+          "left" : 0.5668,
+          "right" : 0.6616,
+          "top" : 0.0331
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#485572",
+          "flat" : true,
+          "foreground" : "#A9B0C9"
+        },
+        "text" : "İLERLEME"
+      },
+      {
+        "box" : {
+          "bottom" : 0.062,
+          "left" : 0.4709,
+          "right" : 0.5,
+          "top" : 0.0336
+        },
+        "line" : 0.0284,
+        "room" : {
+          "bottom" : 0.062,
+          "left" : 0.4519,
+          "right" : 0.5095,
+          "top" : 0.0336
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#4A4D6E",
+          "flat" : true,
+          "foreground" : "#FFFFFF"
+        },
+        "text" : "HARİTA"
+      },
+      {
+        "box" : {
+          "bottom" : 0.062,
+          "left" : 0.5189,
+          "right" : 0.5567,
+          "top" : 0.0336
+        },
+        "line" : 0.0284,
+        "room" : {
+          "bottom" : 0.062,
+          "left" : 0.5095,
+          "right" : 0.5668,
+          "top" : 0.0336
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#45526F",
+          "flat" : true,
+          "foreground" : "#ABB3CD"
+        },
+        "text" : "ÖZET"
+      },
+      {
+        "box" : {
+          "bottom" : 0.4289,
+          "left" : 0.5451,
+          "right" : 0.6061,
+          "top" : 0.3928
+        },
+        "line" : 0.0362,
+        "room" : {
+          "bottom" : 0.4289,
+          "left" : 0.5415,
+          "right" : 0.7689,
+          "top" : 0.3928
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#4C4965",
+          "flat" : true,
+          "foreground" : "#D7D2EC"
+        },
+        "text" : "LEROY'NİN"
+      },
+      {
+        "box" : {
+          "bottom" : 0.5611,
+          "left" : 0.5451,
+          "right" : 0.7892,
+          "top" : 0.447
+        },
+        "line" : 0.0284,
+        "room" : {
+          "bottom" : 0.5611,
+          "left" : 0.5405,
+          "right" : 0.8116,
+          "top" : 0.447
+        },
+        "rows" : 3,
+        "style" : {
+          "align" : "left",
+          "bold" : false,
+          "condensed" : false,
+          "upper" : false
+        },
+        "surface" : {
+          "background" : "#4B5877",
+          "flat" : true,
+          "foreground" : "#BABFDB"
+        },
+        "text" : "Aksesuar ve yazlık giyim satan denizcilik temalı hediyelik eşya dükkânı."
+      },
+      {
+        "box" : {
+          "bottom" : 0.6102,
+          "left" : 0.7369,
+          "right" : 0.8024,
+          "top" : 0.581
+        },
+        "line" : 0.0291,
+        "room" : {
+          "bottom" : 0.6102,
+          "left" : 0.6613,
+          "right" : 0.812,
+          "top" : 0.581
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#496383",
+          "flat" : true,
+          "foreground" : "#B4C1DD"
+        },
+        "text" : "HEDİYELİK"
+      },
+      {
+        "box" : {
+          "bottom" : 0.6098,
+          "left" : 0.5451,
+          "right" : 0.5858,
+          "top" : 0.5814
+        },
+        "line" : 0.0291,
+        "room" : {
+          "bottom" : 0.6098,
+          "left" : 0.5406,
+          "right" : 0.6613,
+          "top" : 0.5814
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#444765",
+          "flat" : true,
+          "foreground" : "#BABBD7"
+        },
+        "text" : "TARZ"
+      },
+      {
+        "box" : {
+          "bottom" : 0.7316,
+          "left" : 0.8822,
+          "right" : 0.9535,
+          "top" : 0.7025
+        },
+        "line" : 0.031,
+        "room" : {
+          "bottom" : 0.7316,
+          "left" : 0.7427,
+          "right" : 0.954,
+          "top" : 0.7025
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#3C94BD",
+          "flat" : false,
+          "foreground" : "#1D2C3D"
+        },
+        "text" : "ORTALA"
+      },
+      {
+        "box" : {
+          "bottom" : 0.7935,
+          "left" : 0.8968,
+          "right" : 0.9527,
+          "top" : 0.762
+        },
+        "line" : 0.031,
+        "room" : {
+          "bottom" : 0.7935,
+          "left" : 0.7573,
+          "right" : 0.954,
+          "top" : 0.762
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#3B92BC",
+          "flat" : false,
+          "foreground" : "#1F2D3E"
+        },
+        "text" : "2B GÖRÜNÜM"
+      },
+      {
+        "box" : {
+          "bottom" : 0.8523,
+          "left" : 0.8632,
+          "right" : 0.9594,
+          "top" : 0.819
+        },
+        "line" : 0.031,
+        "room" : {
+          "bottom" : 0.8523,
+          "left" : 0.7237,
+          "right" : 0.9594,
+          "top" : 0.819
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#58859F",
+          "flat" : false,
+          "foreground" : "#192737"
+        },
+        "text" : "İŞARET EKLE"
+      },
+      {
+        "box" : {
+          "bottom" : 0.9121,
+          "left" : 0.8358,
+          "right" : 0.9541,
+          "top" : 0.8811
+        },
+        "line" : 0.031,
+        "room" : {
+          "bottom" : 0.9121,
+          "left" : 0.6963,
+          "right" : 0.9541,
+          "top" : 0.8811
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#3C8DB7",
+          "flat" : false,
+          "foreground" : "#192738"
+        },
+        "text" : "HEDEF BELİRLE"
+      },
+      {
+        "box" : {
+          "bottom" : 0.9704,
+          "left" : 0.0433,
+          "right" : 0.1471,
+          "top" : 0.9379
+        },
+        "line" : 0.0324,
+        "room" : {
+          "bottom" : 0.9704,
+          "left" : 0.0207,
+          "right" : 0.1694,
+          "top" : 0.9379
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : false,
+          "condensed" : false,
+          "upper" : false
+        },
+        "surface" : {
+          "background" : "#2C846D",
+          "flat" : true,
+          "foreground" : "#FFFFFF"
+        },
+        "text" : "Sunbelt Otoyolu"
+      },
+      {
+        "box" : {
+          "bottom" : 0.9694,
+          "left" : 0.9215,
+          "right" : 0.9537,
+          "top" : 0.9406
+        },
+        "line" : 0.031,
+        "room" : {
+          "bottom" : 0.9694,
+          "left" : 0.782,
+          "right" : 0.954,
+          "top" : 0.9406
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#6581B8",
+          "flat" : false,
+          "foreground" : "#2C314A"
+        },
+        "text" : "ÇIKIŞ"
+      }
+    ],
+    "width" : 1920
+  },
+  {
+    "clear" : [
+      [
+        0.1469,
+        0.18149999999999999,
+        0.18440000000000001,
+        0.25
+      ],
+      [
+        0.94059999999999999,
+        0.72409999999999997,
+        0.95830000000000004,
+        0.75560000000000005
+      ],
+      [
+        0.94059999999999999,
+        0.7722,
+        0.95830000000000004,
+        0.80369999999999997
+      ],
+      [
+        0.94059999999999999,
+        0.82040000000000002,
+        0.95830000000000004,
+        0.85189999999999999
+      ],
+      [
+        0.94059999999999999,
+        0.86850000000000005,
+        0.95830000000000004,
+        0.90000000000000002
+      ],
+      [
+        0.94059999999999999,
+        0.91669999999999996,
+        0.95830000000000004,
+        0.94810000000000005
+      ]
+    ],
+    "height" : 1080,
+    "id" : "gta6-menu-harita",
+    "items" : [
+      {
+        "box" : {
+          "bottom" : 0.1014,
+          "left" : 0.8182,
+          "right" : 0.9114,
+          "top" : 0.0614
+        },
+        "line" : 0.0399,
+        "room" : {
+          "bottom" : 0.1014,
+          "left" : 0.8045,
+          "right" : 0.9335,
+          "top" : 0.0614
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#1A305E",
+          "flat" : true,
+          "foreground" : "#D4DBED"
+        },
+        "text" : "İLERLEME"
+      },
+      {
+        "box" : {
+          "bottom" : 0.1009,
+          "left" : 0.7369,
+          "right" : 0.7907,
+          "top" : 0.0619
+        },
+        "line" : 0.0399,
+        "room" : {
+          "bottom" : 0.1009,
+          "left" : 0.7231,
+          "right" : 0.8045,
+          "top" : 0.0619
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#162D5C",
+          "flat" : true,
+          "foreground" : "#D1D8E7"
+        },
+        "text" : "ÖZET"
+      },
+      {
+        "box" : {
+          "bottom" : 0.1034,
+          "left" : 0.6686,
+          "right" : 0.7093,
+          "top" : 0.062
+        },
+        "line" : 0.0399,
+        "room" : {
+          "bottom" : 0.1034,
+          "left" : 0.6431,
+          "right" : 0.7231,
+          "top" : 0.062
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#1B2A5D",
+          "flat" : true,
+          "foreground" : "#E070A9"
+        },
+        "text" : "HARİTA"
+      },
+      {
+        "box" : {
+          "bottom" : 0.2444,
+          "left" : 0.1875,
+          "right" : 0.35,
+          "top" : 0.1926
+        },
+        "line" : 0.0518,
+        "room" : {
+          "bottom" : 0.2444,
+          "left" : 0.1875,
+          "right" : 0.4729,
+          "top" : 0.1926
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#153067",
+          "flat" : true,
+          "foreground" : "#E3E9F3"
+        },
+        "text" : "ADA HAYALLERİ"
+      },
+      {
+        "box" : {
+          "bottom" : 0.4089,
+          "left" : 0.1417,
+          "right" : 0.4625,
+          "top" : 0.2765
+        },
+        "line" : 0.0337,
+        "room" : {
+          "bottom" : 0.4089,
+          "left" : 0.1407,
+          "right" : 0.4755,
+          "top" : 0.2765
+        },
+        "rows" : 3,
+        "style" : {
+          "align" : "left",
+          "bold" : false,
+          "condensed" : false,
+          "upper" : false
+        },
+        "surface" : {
+          "background" : "#122E67",
+          "flat" : true,
+          "foreground" : "#DFE7F5"
+        },
+        "text" : "Kenton'ın dalış noktasında hazine ararken bekârlığa veda partisine göz kulak ol."
+      },
+      {
+        "box" : {
+          "bottom" : 0.7544,
+          "left" : 0.8689,
+          "right" : 0.9352,
+          "top" : 0.7194
+        },
+        "line" : 0.0358,
+        "room" : {
+          "bottom" : 0.7544,
+          "left" : 0.7079,
+          "right" : 0.9352,
+          "top" : 0.7194
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#0973EA",
+          "flat" : true,
+          "foreground" : "#CFE6FB"
+        },
+        "text" : "ORTALA"
+      },
+      {
+        "box" : {
+          "bottom" : 0.8018,
+          "left" : 0.8791,
+          "right" : 0.9336,
+          "top" : 0.766
+        },
+        "line" : 0.0358,
+        "room" : {
+          "bottom" : 0.8018,
+          "left" : 0.7181,
+          "right" : 0.9351,
+          "top" : 0.766
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#0B73E8",
+          "flat" : true,
+          "foreground" : "#CCE3F8"
+        },
+        "text" : "2B GÖRÜNÜM"
+      },
+      {
+        "box" : {
+          "bottom" : 0.852,
+          "left" : 0.8499,
+          "right" : 0.9368,
+          "top" : 0.8135
+        },
+        "line" : 0.0358,
+        "room" : {
+          "bottom" : 0.852,
+          "left" : 0.6889,
+          "right" : 0.9368,
+          "top" : 0.8135
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#0873EA",
+          "flat" : true,
+          "foreground" : "#C8E0F8"
+        },
+        "text" : "İŞARET EKLE"
+      },
+      {
+        "box" : {
+          "bottom" : 0.8996,
+          "left" : 0.8268,
+          "right" : 0.9325,
+          "top" : 0.8632
+        },
+        "line" : 0.0358,
+        "room" : {
+          "bottom" : 0.8996,
+          "left" : 0.6658,
+          "right" : 0.9351,
+          "top" : 0.8632
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#0273F1",
+          "flat" : false,
+          "foreground" : "#D3E7FA"
+        },
+        "text" : "HEDEF BELİRLE"
+      },
+      {
+        "box" : {
+          "bottom" : 0.9483,
+          "left" : 0.9055,
+          "right" : 0.9315,
+          "top" : 0.9147
+        },
+        "line" : 0.0358,
+        "room" : {
+          "bottom" : 0.9483,
+          "left" : 0.7445,
+          "right" : 0.9351,
+          "top" : 0.9147
+        },
+        "style" : {
+          "align" : "right",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#0475F2",
+          "flat" : false,
+          "foreground" : "#BEDFFC"
+        },
+        "text" : "ÇIKIŞ"
+      }
+    ],
+    "width" : 1920
+  },
+  {
+    "clear" : [
+      [
+        0.14580000000000001,
+        0.18060000000000001,
+        0.25829999999999997,
+        0.29170000000000001
+      ],
+      [
+        0.14580000000000001,
+        0.32869999999999999,
+        0.25829999999999997,
+        0.43980000000000002
+      ],
+      [
+        0.14580000000000001,
+        0.47689999999999999,
+        0.25829999999999997,
+        0.58799999999999997
+      ]
+    ],
+    "height" : 1080,
+    "id" : "gta6-menu-gorevler",
+    "items" : [
+      {
+        "box" : {
+          "bottom" : 0.1009,
+          "left" : 0.6713,
+          "right" : 0.7067,
+          "top" : 0.0593
+        },
+        "line" : 0.0413,
+        "room" : {
+          "bottom" : 0.1009,
+          "left" : 0.6428,
+          "right" : 0.7218,
+          "top" : 0.0593
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#19305E",
+          "flat" : true,
+          "foreground" : "#CCD4E6"
+        },
+        "text" : "HARİTA"
+      },
+      {
+        "box" : {
+          "bottom" : 0.1014,
+          "left" : 0.8182,
+          "right" : 0.9114,
+          "top" : 0.0614
+        },
+        "line" : 0.0413,
+        "room" : {
+          "bottom" : 0.1014,
+          "left" : 0.8045,
+          "right" : 0.9332,
+          "top" : 0.0614
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#1A305E",
+          "flat" : true,
+          "foreground" : "#D4DBED"
+        },
+        "text" : "İLERLEME"
+      },
+      {
+        "box" : {
+          "bottom" : 0.1034,
+          "left" : 0.7369,
+          "right" : 0.7907,
+          "top" : 0.062
+        },
+        "line" : 0.0413,
+        "room" : {
+          "bottom" : 0.1034,
+          "left" : 0.7218,
+          "right" : 0.8045,
+          "top" : 0.062
+        },
+        "style" : {
+          "align" : "center",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#1E2A5D",
+          "flat" : true,
+          "foreground" : "#E36FA9"
+        },
+        "text" : "ÖZET"
+      },
+      {
+        "box" : {
+          "bottom" : 0.2148,
+          "left" : 0.2689,
+          "right" : 0.3895,
+          "top" : 0.1806
+        },
+        "line" : 0.0343,
+        "room" : {
+          "bottom" : 0.2148,
+          "left" : 0.2621,
+          "right" : 0.5437,
+          "top" : 0.1806
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#163065",
+          "flat" : true,
+          "foreground" : "#E8EDF7"
+        },
+        "text" : "ADA HAYALLERİ"
+      },
+      {
+        "box" : {
+          "bottom" : 0.2972,
+          "left" : 0.2689,
+          "right" : 0.5218,
+          "top" : 0.237
+        },
+        "line" : 0.037,
+        "room" : {
+          "bottom" : 0.2972,
+          "left" : 0.263,
+          "right" : 0.6313,
+          "top" : 0.237
+        },
+        "rows" : 2,
+        "style" : {
+          "align" : "left",
+          "bold" : false,
+          "condensed" : false,
+          "upper" : false
+        },
+        "surface" : {
+          "background" : "#163066",
+          "flat" : true,
+          "foreground" : "#C7D1E6"
+        },
+        "text" : "Kenton'ın dalış noktasında hazine ararken bekârlığa veda partisine göz kulak ol."
+      },
+      {
+        "box" : {
+          "bottom" : 0.3651,
+          "left" : 0.2688,
+          "right" : 0.3489,
+          "top" : 0.33
+        },
+        "line" : 0.0351,
+        "room" : {
+          "bottom" : 0.3651,
+          "left" : 0.2628,
+          "right" : 0.507,
+          "top" : 0.33
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#163065",
+          "flat" : true,
+          "foreground" : "#EDF4FC"
+        },
+        "text" : "YÜKSEK GELGİT"
+      },
+      {
+        "box" : {
+          "bottom" : 0.4472,
+          "left" : 0.2689,
+          "right" : 0.5276,
+          "top" : 0.3876
+        },
+        "line" : 0.0315,
+        "room" : {
+          "bottom" : 0.4472,
+          "left" : 0.2617,
+          "right" : 0.632,
+          "top" : 0.3876
+        },
+        "rows" : 2,
+        "style" : {
+          "align" : "left",
+          "bold" : false,
+          "condensed" : false,
+          "upper" : false
+        },
+        "surface" : {
+          "background" : "#142E66",
+          "flat" : true,
+          "foreground" : "#D6DFF3"
+        },
+        "text" : "Sahil güvenlik gelmeden marinada Boobie ile buluş ve paketi al."
+      },
+      {
+        "box" : {
+          "bottom" : 0.5185,
+          "left" : 0.2667,
+          "right" : 0.425,
+          "top" : 0.4741
+        },
+        "line" : 0.0444,
+        "room" : {
+          "bottom" : 0.5185,
+          "left" : 0.2641,
+          "right" : 0.625,
+          "top" : 0.4741
+        },
+        "style" : {
+          "align" : "left",
+          "bold" : true,
+          "condensed" : false,
+          "upper" : true
+        },
+        "surface" : {
+          "background" : "#0F2E6A",
+          "flat" : false,
+          "foreground" : "#E9EEF8"
+        },
+        "text" : "RIHTIMIN ORADA"
+      },
+      {
+        "box" : {
+          "bottom" : 0.5944,
+          "left" : 0.2689,
+          "right" : 0.5333,
+          "top" : 0.5333
+        },
+        "line" : 0.037,
+        "room" : {
+          "bottom" : 0.5944,
+          "left" : 0.2625,
+          "right" : 0.6312,
+          "top" : 0.5333
+        },
+        "rows" : 2,
+        "style" : {
+          "align" : "left",
+          "bold" : false,
+          "condensed" : false,
+          "upper" : false
+        },
+        "surface" : {
+          "background" : "#163067",
+          "flat" : true,
+          "foreground" : "#C7D1E5"
+        },
+        "text" : "Kargo kamyonunu Port Gellhorn'a kadar izle ve çalıntı malları kimin aldığını öğren."
+      }
+    ],
+    "width" : 1920
+  }
+]

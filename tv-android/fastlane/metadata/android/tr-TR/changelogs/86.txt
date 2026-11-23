@@ -1,0 +1,1 @@
+0.9.83: Bazı Android TV'lerde (Philips) katman modu çökmüyor; katman grafik işlemcisiyle çizilemezse bir sonraki açılışta yazılımla çiziliyor.

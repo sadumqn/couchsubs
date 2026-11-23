@@ -1051,6 +1051,16 @@ class AiTranslator(
      * (parça başına istek dakikalık hakkı bitirirdi; Mac/iPhone AITranslationCore.translateAll ile aynı). Önbellekteki
      * parçalar gönderilmez. Hata olursa kalan parçalar yerel motorla çevrilir; o da yoksa hata yukarı çıkar.
      */
+    /** Önbellekteki çevirisi ([translateAll] ile aynı anahtar: oynanan oyun ve ek talimatla); istek göndermez. */
+    override fun cachedTranslation(text: String): String? {
+        val previous = enterInstructionScope()
+        return try {
+            cache.get(cacheKey(text, game()))
+        } finally {
+            leaveInstructionScope(previous)
+        }
+    }
+
     override fun translateAll(texts: List<String>): List<String> {
         val previous = enterInstructionScope()
         return try {

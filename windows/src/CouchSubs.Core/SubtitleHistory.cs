@@ -83,7 +83,7 @@ public sealed class SubtitleHistory
 
     /// <summary>%LOCALAPPDATA%\CouchSubs\history.json.</summary>
     public static string DefaultFile { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "history.json");
+        Path.Combine(AppDataPaths.Root, "history.json");
 
     private static readonly JsonSerializerOptions Json = new()
     {

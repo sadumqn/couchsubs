@@ -21,6 +21,19 @@ class AppcastLinkTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             return result.stdout
 
+    def test_combined_old_release_heading_stops_new_release_section(self):
+        # This exact heading exists in docs/surum-notlari.md.
+        html = self.render(
+            "New feature.\n\n**beta.25 ve beta.26'da gelenler**\n\n- Historical feature.")
+        self.assertIn("New feature.", html)
+        self.assertNotIn("Historical feature.", html)
+        self.assertNotIn("beta.25", html)
+
+    def test_single_old_release_heading_still_stops_new_section(self):
+        html = self.render("New feature.\n\n**beta.87'de gelenler:**\n\n- Older note.")
+        self.assertIn("New feature.", html)
+        self.assertNotIn("Older note.", html)
+
     def test_link_query_separator_is_escaped_only_once(self):
         html = self.render("[Detaylar](https://example.org/notes?a=1&b=2)")
         self.assertIn('<a href="https://example.org/notes?a=1&amp;b=2">Detaylar</a>', html)

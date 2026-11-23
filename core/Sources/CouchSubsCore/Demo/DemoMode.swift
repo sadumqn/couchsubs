@@ -240,5 +240,7 @@ public final class DemoTranslator: TextTranslator {
 
     public var translatesTogether: Bool { base?.translatesTogether ?? false }
 
+    public func cachedTranslation(_ text: String) -> String? { base?.cachedTranslation(text) }
+
     public func noteSpeaker(_ name: String) { base?.noteSpeaker(name) }
 }

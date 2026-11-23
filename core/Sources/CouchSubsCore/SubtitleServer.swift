@@ -43,7 +43,7 @@ public enum NameColorMode: String, Codable, CaseIterable, Sendable {
 public enum TVDisplayMode: String, Codable, CaseIterable, Sendable {
     /// Varsayılan: TV uygulaması katmana izin veriyorsa (bilgisayarın/telefonun kurduğu APK) katman, yoksa uygulama içi.
     case auto = "inApp"
-    /// Bilerek seçilmiş uygulama içi: HDMI CouchSubs'ın içinde; görüntü hiç gelmezse TV uygulaması kendiliğinden katmana geçer.
+    /// Bilerek seçilmiş uygulama içi: HDMI CouchSubs'ın içinde; TV uygulaması (0.9.84+) hiçbir durumda kendiliğinden katmana geçmez.
     case inApp = "inAppOnly"
     /// TV HDMI'yı kendi ekranında gösterir, altyazı üstteki şeffaf katmanda (bazı TV'lerde uygulama içi görüntü siyah kalıyor).
     case overlay
@@ -522,6 +522,9 @@ public final class SubtitleServer: @unchecked Sendable {
         let line = Decimal(Int((max(0, min(1, item.lineHeight)) * 10000).rounded())) / 10000
         var result: [String: Any] = ["box": Self.json(item.box), "line": line, "text": item.translation]
         if item.paragraphs { result["paragraphs"] = true }
+        // Yerleşim (`ScreenFit`): kutunun genişleyebileceği alan ve özgün satır sayısı (eski TV yok sayar).
+        if let room = item.room { result["room"] = Self.json(room) }
+        if item.rows > 1 { result["rows"] = item.rows }
         if phone || item.look != nil, let style = item.style, isRGB(style.background), isRGB(style.foreground) {
             var surface: [String: Any] = ["background": style.background, "foreground": style.foreground]
             if let look = item.look { surface["flat"] = look.flat }

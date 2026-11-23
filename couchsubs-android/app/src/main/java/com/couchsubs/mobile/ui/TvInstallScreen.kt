@@ -68,6 +68,7 @@ import com.couchsubs.mobile.tv.TvAppStatus
 import com.couchsubs.mobile.tv.TvAppUpdate
 import com.couchsubs.mobile.tv.TvBrand
 import com.couchsubs.mobile.tv.TvDiscovery
+import com.couchsubs.mobile.tv.TvRelocation
 import com.couchsubs.mobile.tv.samsung.AdbKey
 import com.couchsubs.mobile.tv.samsung.InstallLog
 import com.couchsubs.mobile.tv.samsung.InstallStep
@@ -95,11 +96,15 @@ private const val TAG = "CouchSubsTvInstall"
 /** Ağda görülen Samsung TV ve 8001'den okunan durumu (yoksa null). */
 private data class SamsungCandidate(val host: String, val name: String, val info: SamsungTvInfo?)
 
+/** Kayıtlı/yazılan adres hiç yanıt vermiyor ve TV ağda bulunamadı ([TvRelocation.retarget]). */
+internal class TvNotRespondingException : Exception(com.couchsubs.mobile.tv.TvReach.NOT_RESPONDING_LINE)
+
 private sealed interface InstallState {
     data object Idle : InstallState
     data class Working(val step: InstallStep) : InstallState
     data class Done(val version: String, val installed: Boolean) : InstallState
-    data class Failed(val error: SamsungInstallError?, val detail: String?, val refusal: SamsungRefusal = SamsungRefusal.Unknown) : InstallState
+    data class Failed(val error: SamsungInstallError?, val detail: String?, val refusal: SamsungRefusal = SamsungRefusal.Unknown,
+                      val notResponding: Boolean = false) : InstallState
 }
 
 /**
@@ -194,9 +199,9 @@ private fun SamsungInstallScreen(onBack: () -> Unit, onDone: () -> Unit, brandPi
         val main = Handler(Looper.getMainLooper())
         scope.launch {
             state = try {
-                val result = withContext(Dispatchers.IO) {
-                    val installer = SamsungInstaller(
-                        host = target,
+                val (installedAt, result) = withContext(Dispatchers.IO) {
+                    fun runAt(at: String) = SamsungInstaller(
+                        host = at,
                         profilesDirectory = File(context.noBackupFilesDir, "samsung"),
                         adbKey = { AdbKey.loadOrCreate(File(context.noBackupFilesDir, "sdb/adbkey")) },
                         certificates = SamsungCertificates(log = InstallLog(logFile)::write),
@@ -212,12 +217,27 @@ private fun SamsungInstallScreen(onBack: () -> Unit, onDone: () -> Unit, brandPi
                         },
                         progress = { step -> main.post { if (state is InstallState.Working) state = InstallState.Working(step) } },
                         log = InstallLog(logFile),
-                    )
-                    installer.ensureInstalled({ context.assets.open("tv/couchsubs-samsung.wgt").use { it.readBytes() } },
+                    ).ensureInstalled({ context.assets.open("tv/couchsubs-samsung.wgt").use { it.readBytes() } },
                         BuildConfig.TV_SAMSUNG_VERSION, replaceForeign)
+                    try {
+                        target to runAt(target)
+                    } catch (error: SamsungInstallException) {
+                        // TV'nin adresi değişmiş olabilir: adres hiç yanıt vermiyorsa TV ağda yeniden aranır (LG ile aynı).
+                        if (error.error != SamsungInstallError.UNREACHABLE) throw error
+                        when (val moved = TvRelocation.retarget(target, TvBrand.SAMSUNG, InstallLog(logFile))) {
+                            TvRelocation.Retarget.Responds -> throw error
+                            TvRelocation.Retarget.Silent -> throw TvNotRespondingException()
+                            is TvRelocation.Retarget.Moved -> {
+                                main.post { host = moved.host }
+                                moved.host to runAt(moved.host)
+                            }
+                        }
+                    }
                 }
-                TvAppUpdate.installed(InstalledTv(TvBrand.SAMSUNG, target, version = result.version))
+                TvAppUpdate.installed(InstalledTv(TvBrand.SAMSUNG, installedAt, version = result.version))
                 InstallState.Done(result.version, result.installed)
+            } catch (error: TvNotRespondingException) {
+                InstallState.Failed(SamsungInstallError.UNREACHABLE, null, notResponding = true)
             } catch (error: SamsungInstallException) {
                 // TV'de 26101 kapalıysa 8001'den geliştirici modu yeniden sorulur: neden ayar mı, yeniden başlatma mı (#524).
                 val refusal = if (error.error != SamsungInstallError.UNREACHABLE) SamsungRefusal.Unknown else withContext(Dispatchers.IO) {
@@ -496,6 +516,7 @@ internal fun stepText(step: InstallStep) = stringResource(when (step) {
 @Composable
 private fun failureText(failure: InstallState.Failed, phoneIp: String?): String {
     val context = LocalContext.current
+    if (failure.notResponding) return context.getString(R.string.tv_not_responding)
     val advice = when (failure.error) {
         SamsungInstallError.UNREACHABLE -> when (val refusal = failure.refusal) {
             is SamsungRefusal.DifferentNetworks -> context.getString(R.string.tvinstall_err_other_network, refusal.tv, refusal.phone)

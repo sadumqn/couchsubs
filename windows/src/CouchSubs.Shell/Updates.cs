@@ -39,7 +39,7 @@ public sealed class UpdateAttemptJournal(string path, string currentVersion, Fun
 {
     /// <summary>%LOCALAPPDATA%\CouchSubs\guncelleme-denemesi.json (Velopack'in kurulum klasörünün dışında).</summary>
     public static string DefaultPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "guncelleme-denemesi.json");
+        Path.Combine(global::CouchSubs.Core.AppDataPaths.Root, "guncelleme-denemesi.json");
 
     public string CurrentVersion => currentVersion;
 

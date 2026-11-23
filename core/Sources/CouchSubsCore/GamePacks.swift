@@ -317,7 +317,11 @@ public final class GamePackLibrary: @unchecked Sendable {
 
     /// Satırın paketteki Türkçesi (bkz. `PackLookup`); yoksa nil. Tam anahtar bulunmazsa oynanan oyunun paketinde
     /// OCR hatalarına dayanıklı bulanık arama yapılır. Kullanıcı elle oyun seçtiyse yalnız o oyunun paketinde aranır.
+    /// Türkçe satır (`TurkishText.looksTurkish`) aranmaz: anahtarlar İngilizcedir. PS5'in Türkçe menü satırı ("Yakin zamanda
+    /// olu...") GTA 6 paketindeki bozuk bir parçayla tam eşleşiyor, oyun tanınmamışken "paket:gta-6" diye gösteriliyor ve
+    /// bulanık aramanın kapsamını o pakete kaydırıyordu (beta.89).
     public func match(_ text: String) -> PackMatch? {
+        if TurkishText.looksTurkish(text) { return nil }
         switch resolveLimit() {
         case .missing?: return nil
         case .pack(let index, let pack, let search)?: return match(text, limitedTo: index, pack: pack, search: search)

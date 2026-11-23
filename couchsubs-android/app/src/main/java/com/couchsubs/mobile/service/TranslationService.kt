@@ -964,7 +964,11 @@ class TranslationService : Service() {
                     }
                 }
             }
-            PlayedGame.start(xboxConsole?.name?.ifEmpty { "Xbox" } ?: console!!.name.ifEmpty { console.host }, settings, startedAt)
+            // Xbox çalışan oyunu bildirmez: Xbox için son seçilen oyun kendiliğinden kullanılır; yoksa Oyun satırı vurgulanır
+            // ve günlükte tek satır (Windows, Mac, iPhone ile aynı).
+            PlayedGame.log = { Log.i(TAG, it) }
+            PlayedGame.start(xboxConsole?.name?.ifEmpty { "Xbox" } ?: console!!.name.ifEmpty { console.host }, settings, startedAt,
+                xbox = xboxConsole != null)
             // Oyun iki dakikada tanınmazsa kart açılır (ayar ve ortak havuz açıksa, oturumda bir kez).
             background.scheduleWithFixedDelay({ PlayedGame.checkAsk(System.currentTimeMillis()) }, 15, 15, TimeUnit.SECONDS)
             // Bağlıyken iki dakikada bir PS5'e çalışan oyun sorulur (Xbox'ta bu soru yok; oyun paketten tanınır).
@@ -1331,7 +1335,8 @@ class TranslationService : Service() {
             lastOcrMs = ocrMs
             current.process(result, area.box,
                 com.couchsubs.mobile.core.RegionSignature.of(pixels.nv21, pixels.width, pixels.height),
-                capturedAt, ocrMs, phone, reused = reused)
+                capturedAt, ocrMs, phone, reused = reused,
+                darkInk = com.couchsubs.mobile.core.InkTone.sampler(pixels.gray))
         } catch (error: java.util.concurrent.TimeoutException) {
             pipeline?.noteReadFailure(error)
             // Okuma süresinde bitmedi: takılan tanıyıcı bırakılır, sonraki kare yenisiyle okunur (yoksa yeni okuma da

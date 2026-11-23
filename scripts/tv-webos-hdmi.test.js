@@ -79,7 +79,13 @@ function startTv(options = {}) {
     PalmSystem: { deviceInfo: JSON.stringify({ platformVersion: '7.4.0', modelName: '55NANO756PA' }) },
     addEventListener: (name, fn) => { (windowListeners[name] = windowListeners[name] || []).push(fn); },
     // options.steps: varsayılan kapalı ses adımları (odak, TV sesini açma) açılır.
-    ...(options.steps ? { COUCHSUBS_SOUND_STEPS: options.steps } : {})
+    ...(options.steps ? { COUCHSUBS_SOUND_STEPS: options.steps } : {}),
+    // options.storage: TV'nin localStorage'ı (nesne; oturumlar arasında paylaşılır). Verilmezse localStorage yok.
+    ...(options.storage ? { localStorage: {
+      getItem: (k) => (Object.prototype.hasOwnProperty.call(options.storage, k) ? options.storage[k] : null),
+      setItem: (k, v) => { options.storage[k] = String(v); },
+      removeItem: (k) => { delete options.storage[k]; }
+    } } : {})
   };
   class FakeDate { getTime() { return clock; } }
   // options.luna(uri, params): Luna hizmetinin yanıtı (nesne); verilmezse PalmServiceBridge yok.
@@ -595,7 +601,13 @@ test('webOS HDMI 0.9.73: her yeni <video>\'da stalled gönderen TV\'de sağlam g
   assert.ok(built.length - 1 <= 3, 'stalled yüzünden kurma sayısı ' + (built.length - 1) + ': ' + built.join(','));
   assert.ok(built[built.length - 1] < 60, 'ilk dakikadan sonra dokunulmaz: ' + built.join(','));
   assert.match(tv.platform.diagnostics(), /rebuilt 3 \(ev stalled\) · ev stalled · stall 4 limit/);
-  // Kullanıcı girişi yeniden seçince (siyah ekran) 'stalled' yine kurdurur.
+});
+
+test('webOS HDMI 0.9.73: sınır dolunca kullanıcı girişi yeniden seçerse (siyah ekran) stalled yine kurdurur', () => {
+  const tv = startTv();
+  tv.show(2);
+  stallOnEveryBuild(tv, 60);
+  assert.match(tv.platform.diagnostics(), /stall 4 limit/);
   tv.show(2);
   tv.advance(1000);
   const again = stallOnEveryBuild(tv, 60);
@@ -612,6 +624,105 @@ test('webOS HDMI 0.9.73: sınır dolduktan 10 dk sonra gelen stalled yine kurdur
   tv.video.fire('stalled');
   tv.advance(3000);
   assert.strictEqual(tv.videos.length, before + 1);
+});
+
+const NOISE_KEY = 'couchsubs.hdmiStallNoise';
+
+test('webOS HDMI 0.9.82 (#1055): her kurulumda stalled gönderen TV öğrenilir; sonra çeviri başında ve PS tuşundan dönüşte görüntü üç kez kararmaz', () => {
+  const storage = {};
+  // İlk oturum 0.9.73 gibi: üç kurma, sınır dolar; kullanıcı girişi yeniden seçmez (görüntü sağlam).
+  const first = startTv({ storage });
+  first.show(2);
+  const built = stallOnEveryBuild(first, 5 * 60);
+  assert.strictEqual(built.length - 1, 3, built.join(','));
+  assert.strictEqual(storage[NOISE_KEY], '1', 'TV öğrenildi');
+
+  // Sonraki çeviri: taze stalled görüntüye dokunmaz.
+  const tv = startTv({ storage });
+  tv.show(2);
+  const again = stallOnEveryBuild(tv, 30 * 60);
+  assert.deepStrictEqual(again, [0], 'yalnız ilk kurma: ' + again.join(','));
+  assert.match(tv.platform.diagnostics(), /ev stalled · stall 1 noise/);
+
+  // PS tuşu: TV konsolun girişine geçer, bekçi uygulamayı öne getirir. Sayacı ilerletmeyen TV'de öne gelişin sıkı
+  // denetimi bir kez kurar; yeni <video>'nun taze stalled'ı yeniden kurdurmaz.
+  for (let press = 0; press < 3; press++) {
+    const before = tv.videos.length;
+    tv.hide();
+    tv.advance(8000);
+    tv.unhide();
+    tv.document.fire('webOSRelaunch');
+    tv.focus();
+    stallOnEveryBuild(tv, 3 * 60);
+    assert.strictEqual(tv.videos.length - before, 1, 'PS tuşundan sonra en çok bir kurma (basış ' + (press + 1) + ')');
+    tv.advance(12 * 60000);
+  }
+  assert.match(tv.platform.diagnostics(), /rebuilt 3 \(resume\) · ev stalled · stall \d+ noise/);
+});
+
+test('webOS HDMI 0.9.82: öğrenilmiş TV\'de oturmuş görüntüde gelen stalled yine kurdurur', () => {
+  const storage = { [NOISE_KEY]: '1' };
+  const tv = startTv({ storage });
+  tv.show(2);
+  tv.video.start();
+  tv.advance(3000);
+  tv.video.fire('stalled');
+  tv.advance(5000);
+  assert.strictEqual(tv.videos.length, 1, 'taze stalled');
+  tv.advance(30000);
+  tv.video.fire('stalled');
+  tv.advance(3000);
+  assert.strictEqual(tv.videos.length, 2, 'oyunun ortasındaki stalled (#643) yeniden kurdurur');
+  assert.match(tv.platform.diagnostics(), /rebuilt 1 \(ev stalled\)/);
+});
+
+test('webOS HDMI 0.9.82: dokunulmayan stalled\'dan hemen sonra giriş yeniden seçilirse (siyah ekran) TV unutulur', () => {
+  const storage = { [NOISE_KEY]: '1' };
+  const tv = startTv({ storage });
+  tv.show(2);
+  stallOnEveryBuild(tv, 30);
+  assert.strictEqual(tv.videos.length, 1);
+  assert.match(tv.platform.diagnostics(), /stall 1 noise/);
+  // Kullanıcı kumandada 2'ye basar: ekran siyahtı.
+  tv.show(2);
+  tv.advance(1000);
+  assert.strictEqual(storage[NOISE_KEY], undefined, 'kayıt silindi');
+  const built = stallOnEveryBuild(tv, 5 * 60);
+  assert.strictEqual(built.length - 1, 3, 'taze stalled yine kurdurur: ' + built.join(','));
+  assert.strictEqual(storage[NOISE_KEY], undefined, 'bu oturumda yeniden öğrenilmez');
+});
+
+test('webOS HDMI 0.9.82: sınır dolduktan sonra kullanıcı girişi yeniden seçerse TV öğrenilmez; arka plandayken karar verilmez', () => {
+  const storage = {};
+  const tv = startTv({ storage });
+  tv.show(2);
+  stallOnEveryBuild(tv, 60);
+  tv.show(2);
+  tv.advance(20 * 60000);
+  assert.strictEqual(storage[NOISE_KEY], undefined);
+
+  const other = {};
+  const hidden = startTv({ storage: other });
+  hidden.show(2);
+  stallOnEveryBuild(hidden, 40);
+  hidden.hide();
+  hidden.advance(5 * 60000);
+  assert.strictEqual(other[NOISE_KEY], undefined, 'arka plandayken saklanmaz');
+  hidden.unhide();
+  stallOnEveryBuild(hidden, 3 * 60);
+  assert.strictEqual(other[NOISE_KEY], '1', 'öne gelip görüntü sağlam kalınca saklanır');
+});
+
+test('webOS HDMI 0.9.82: localStorage yoksa ya da hata verirse ilk oturum 0.9.73 gibi', () => {
+  const tv = startTv();
+  tv.show(2);
+  const built = stallOnEveryBuild(tv, 5 * 60);
+  assert.strictEqual(built.length - 1, 3);
+  const broken = { };
+  Object.defineProperty(broken, NOISE_KEY, { get() { throw new Error('quota'); }, set() { throw new Error('quota'); } });
+  const tv2 = startTv({ storage: broken });
+  tv2.show(2);
+  assert.strictEqual(stallOnEveryBuild(tv2, 5 * 60).length - 1, 3);
 });
 
 test('webOS HDMI #643: ses adımları açıkken stalled olursa adımlar kapanır, yeni <video>\'ya dokunulmaz', () => {

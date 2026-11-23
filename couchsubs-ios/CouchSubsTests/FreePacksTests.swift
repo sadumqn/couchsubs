@@ -33,11 +33,11 @@ final class FreePacksTests: XCTestCase {
 
     private func makeApp(analytics: RecordingAnalytics, library: GamePackLibrary) -> AppModel {
         let store = PackStore(baseURL: URL(string: "https://packs.test")!, directory: directory, session: session)
-        return AppModel(analytics: analytics, packStore: store, library: library, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        return AppModel(analytics: analytics, packStore: store, library: library, defaults: scratchDefaults())
     }
 
     func testPacksAreUsedWithoutAnySubscription() {
-        let model = PhoneModel(services: LivePhoneServices(), store: EphemeralStore(), defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let model = PhoneModel(services: LivePhoneServices(), store: EphemeralStore(), defaults: scratchDefaults())
         XCTAssertTrue(model.packsActive)
         model.settings.gamePacks = false
         XCTAssertFalse(model.packsActive)
@@ -92,13 +92,13 @@ final class FreePacksTests: XCTestCase {
 
     func testNoServerConfiguredDoesNothing() async {
         let app = AppModel(analytics: RecordingAnalytics(), packStore: nil, library: GamePackLibrary(bundled: nil, user: nil),
-                           defaults: UserDefaults(suiteName: UUID().uuidString)!)
+                           defaults: scratchDefaults())
         await app.refreshPacks(force: true)
         XCTAssertEqual(app.packStatus, .idle)
     }
 
     func testTourIsShownOnce() {
-        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let defaults = scratchDefaults()
         let app = AppModel(analytics: RecordingAnalytics(), packStore: nil, library: GamePackLibrary(bundled: nil, user: nil), defaults: defaults)
         XCTAssertFalse(app.tourDone)
         app.tourDone = true

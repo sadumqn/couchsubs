@@ -718,6 +718,10 @@ public sealed class AiTranslator : ITextTranslator, IOnlineTranslator
 
     public bool TranslatesTogether => true;
 
+    /// <summary>Önbellekteki çevirisi (<see cref="TranslateAllAsync"/> ile aynı anahtar: oynanan oyunla); istek göndermez.</summary>
+    public string? CachedTranslation(string text) =>
+        _cache.TryGet(CacheKey(text, _game?.Invoke()?.Trim()), out var known) ? known : null;
+
     /// <summary>
     /// "Ekranı çevir": birbirinden bağımsız parçalar (menü satırı, görev yazısı...) tek istekte, aynı sırada çevrilir.
     /// Parça başına istek gitseydi kalabalık bir ekran Gemini'nin dakikalık hakkını (15) ilk saniyelerde bitirir, kalan

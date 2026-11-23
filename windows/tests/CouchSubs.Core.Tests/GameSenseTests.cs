@@ -17,9 +17,56 @@ public class GameSenseTests
     [InlineData("Marvel's Spider-Man 2", "marvels spider man 2")]
     [InlineData("The Witcher 3: Wild Hunt", "witcher 3 wild hunt")]
     [InlineData("Call of Duty: Black Ops 7", "cod black ops 7")]
+    [InlineData("Mega Man X", "mega man x")]
+    [InlineData("Mega Man 10", "mega man 10")]
+    [InlineData("X-Men", "x men")]
+    [InlineData("V-Rally", "v rally")]
+    [InlineData("Mega Man X2", "mega man x 2")]
+    [InlineData("GTA V", "gta 5")]
+    [InlineData("Grand Theft Auto V Enhanced", "gta 5 enhanced")]
+    [InlineData("GTA V Premium Edition", "gta 5 premium edition")]
+    [InlineData("Final Fantasy X HD", "final fantasy 10 hd")]
+    [InlineData("Mega Man X HD", "mega man x hd")]
+    [InlineData("X-Men Origins: Wolverine", "x men origins wolverine")]
+    [InlineData("V-Rally 4", "v rally 4")]
+    [InlineData("Final Fantasy X", "final fantasy 10")]
     [InlineData("Ghost of Yōtei", "ghost of yotei")]
     [InlineData("", "")]
     public void GameNameKeyMatchesTheServer(string name, string key) => Assert.Equal(key, GameName.Key(name));
+
+    /// <summary>
+    /// Xbox çalışan oyunu bildirmez: Xbox için son seçilen oyun kendiliğinden kullanılır (hatırlanan; değiştirilebilir), hiç
+    /// seçim yoksa oyun bilinmez ve günlüğe tek satır yazılır (Mac/iPhone GameSenseTests, Android GameSenseTest ile aynı).
+    /// </summary>
+    [Fact]
+    public void XboxStartUsesTheLastChosenGameOrLogsThatTheGameIsUnknown()
+    {
+        var fresh = new GameSense();
+        fresh.StartSession();
+        Assert.Equal("Xbox: oyun tanınmadı, oyuna özel okumalar (telefon) kapalı", fresh.StartXbox(null));
+        Assert.Null(fresh.Current);
+        fresh.Choose("Grand Theft Auto VI");
+        Assert.Equal("gta 6", GameName.Key(fresh.Current?.Name));
+        Assert.Equal("Xbox: oyun elle seçildi: Grand Theft Auto VI", GameSense.XboxChosenLog("Grand Theft Auto VI"));
+
+        var returning = new GameSense();
+        returning.StartSession();
+        Assert.Equal("Xbox: son seçilen oyun kullanılıyor: Grand Theft Auto VI", returning.StartXbox("Grand Theft Auto VI"));
+        Assert.Equal("Grand Theft Auto VI", returning.Current?.Name);
+        Assert.Equal(GameSense.GameSource.Remembered, returning.Source);
+        Assert.False(returning.ShouldAsk(TimeSpan.FromMinutes(10), true));
+        // Kullanıcı değiştirebilir.
+        returning.Choose("Red Dead Redemption 2");
+        Assert.Equal("Red Dead Redemption 2", returning.Current?.Name);
+        Assert.Equal(GameSense.GameSource.User, returning.Source);
+
+        // Bu çalışmada zaten seçilmiş oyun kayıtlı olanın önüne geçer.
+        var running = new GameSense();
+        running.Choose("Elden Ring");
+        running.StartSession();
+        running.StartXbox("Grand Theft Auto VI");
+        Assert.Equal("Elden Ring", running.Current?.Name);
+    }
 
     [Fact]
     public void FiveOfTwentyLinesFromOnePackRecogniseTheGame()

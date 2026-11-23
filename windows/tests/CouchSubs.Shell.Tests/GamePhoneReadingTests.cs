@@ -92,6 +92,67 @@ public class GamePhoneReadingTests
         finally { controller.Stop(); }
     }
 
+    /// <summary>
+    /// Xbox çalışan oyunu bildirmez (X'te iki kullanıcı: GTA 6 telefonu Xbox'ta otomatik çevrilmiyordu). Xbox için daha önce
+    /// seçilen oyun kendiliğinden kullanılır ve telefon açılır; hiç seçim yoksa Oyun karosu vurgulanır, çeviri sürerken oyun
+    /// seçilince telefon izleyicisi yeniden başlatmadan kurulur ve seçim Xbox'a özel saklanır (Mac, iPhone, Android ile aynı).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task XboxUsesTheLastChosenGameOrOpensThePhoneAsSoonAsTheGameIsChosen(bool remembered)
+    {
+        var store = new MemoryStore();
+        store.Save(StoreKeys.ConsoleKind, GameConsoleKind.Xbox);
+        store.Save(StoreKeys.XboxToken, "{}");
+        store.Save(StoreKeys.XboxConsole, new XboxConsole("F4", "Salon Xbox", "XboxSeriesX", true));
+        // PS5'in kaydı Xbox'ta kullanılmaz.
+        store.Save(StoreKeys.LastGames, remembered
+            ? new Dictionary<string, string> { [GameSense.XboxConsole] = "Grand Theft Auto VI", ["PS5"] = "Elden Ring" }
+            : new Dictionary<string, string> { ["PS5"] = "Grand Theft Auto VI" });
+        var settings = new MemorySettings();
+        settings.Save(new UserSettings { Output = SubtitleOutput.Computer, AutoReadGamePhone = true, AutoScreenText = false, GameAreaPresets = false, ScreenTextExtrasReset = true });
+        var xbox = new FakeXbox([]);
+        var services = new FakeServices { Xbox = xbox, ReaderLines = Reading.FromText("Call me tomorrow.") };
+        var controller = AppControllerTests.Make(services, store, settings);
+        var events = new ConcurrentQueue<SubtitleEvent>();
+        controller.StreamEvent += events.Enqueue;
+        var frame = PhoneFrame();
+        try
+        {
+            await controller.StartAsync();
+            var stream = Assert.Single(xbox.Streams).Stream;
+            if (remembered)
+            {
+                Assert.Equal("Grand Theft Auto VI", controller.PlayedGame);
+                Assert.False(controller.XboxNeedsGame);
+            }
+            else
+            {
+                Assert.Null(controller.PlayedGame);
+                Assert.True(controller.XboxNeedsGame);
+                var mainReaders = services.ReaderLanguages.Count;
+                stream.Emit(frame);
+                await Task.Delay(360);
+                stream.Emit(frame);
+                Assert.Equal(mainReaders, services.ReaderLanguages.Count);
+                controller.ChooseGame("GTA 6");
+                Assert.False(controller.XboxNeedsGame);
+                Assert.Equal("GTA 6", store.Load<Dictionary<string, string>>(StoreKeys.LastGames)?[GameSense.XboxConsole]);
+            }
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(7));
+            while (!events.Any(e => e.Kind == SubtitleEventKind.Region && e.Id == "game-phone" && e.Text?.Length > 0))
+            {
+                stream.Emit(frame);
+                await Task.Delay(120, timeout.Token);
+            }
+            // Telefon için çeviri yeniden başlatılmadı.
+            Assert.Single(xbox.Streams);
+        }
+        finally { controller.Dispose(); }
+        Assert.False(controller.XboxNeedsGame);
+    }
+
     // Kayıt gerektirmeden kasa kenarları, iki hoparlör yarığı ve ön kamerayla gerçek algılayıcıyı çalıştırır.
     private static Frame PhoneFrame()
     {

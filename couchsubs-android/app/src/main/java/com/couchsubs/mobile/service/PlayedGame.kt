@@ -18,6 +18,9 @@ import com.couchsubs.mobile.settings.AppSettings
 object PlayedGame {
     val sense = GameSense()
     @Volatile private var console: String? = null
+    @Volatile private var xbox = false
+    /** Günlük satırı (servis logcat'e bağlar): Xbox'ta oyunun tanınmadığı ya da elle seçildiği. */
+    @Volatile var log: (String) -> Unit = {}
     @Volatile private var settings: AppSettings? = null
     @Volatile private var startedAt = 0L
     @Volatile private var last: RunningGame? = null
@@ -53,11 +56,16 @@ object PlayedGame {
             value?.limitToGame(sense.packLimit)
         }
 
-    /** Çeviri başladı. */
-    fun start(console: String, settings: AppSettings, startedAt: Long) {
+    /**
+     * Çeviri başladı. [xbox]: Xbox oturumu; Xbox çalışan oyunu bildirmez, son oyun [GameSense.XBOX_CONSOLE] adıyla
+     * hatırlanır ve oyun bilinmiyorsa kendiliğinden kullanılır.
+     */
+    fun start(console: String, settings: AppSettings, startedAt: Long, xbox: Boolean = false) {
         sense.startSession()
-        this.console = console
+        this.xbox = xbox
+        this.console = if (xbox) GameSense.XBOX_CONSOLE else console
         this.settings = settings
+        if (xbox) log(sense.startXbox(settings.lastGame(GameSense.XBOX_CONSOLE)))
         this.startedAt = startedAt
         last = null
         LiveState.update { it.copy(askingGame = false) }
@@ -71,8 +79,9 @@ object PlayedGame {
     fun stop() {
         sense.endSession()
         onChange = null
+        xbox = false
         areas.stop()
-        LiveState.update { it.copy(askingGame = false) }
+        LiveState.update { it.copy(askingGame = false, xboxNeedsGame = false) }
     }
 
     /** Servis periyodik olarak sorar (15 saniyede bir): süre doldu ve oyun bilinmiyorsa kart açılır. */
@@ -105,6 +114,7 @@ object PlayedGame {
         val console = console
         val settings = settings
         if (console != null && settings != null) settings.rememberGame(console, clean)
+        if (xbox) log(GameSense.xboxChosenLog(clean))
         LiveState.update { it.copy(askingGame = false) }
         publish()
     }
@@ -129,7 +139,8 @@ object PlayedGame {
     private fun publish() {
         packs?.limitToGame(sense.packLimit)
         val current = sense.current
-        LiveState.update { it.copy(game = current?.name) }
+        val needs = xbox && current == null
+        LiveState.update { it.copy(game = current?.name, xboxNeedsGame = needs) }
         areas.follow(current, sense.source)
         if (current == last) return
         last = current

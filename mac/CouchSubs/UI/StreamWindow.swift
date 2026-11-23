@@ -292,14 +292,14 @@ struct GamePhoneBlocks: View {
 /// (`TextLook`; BÜYÜK HARF çeviriye zaten uygulanmış gelir). Kutu her zeminde tam opak: özgün yazı arasından görünmez
 /// (#827; "Örtsün" kutusu gibi).
 enum StyledScreenText {
-    static func label(_ item: ScreenTranslation.Item, size: CGFloat) -> some View {
+    static func label(_ item: ScreenTranslation.Item, text: String? = nil, size: CGFloat) -> some View {
         let look = item.look
         let alignment: TextAlignment = switch look?.align {
         case .center: .center
         case .right: .trailing
         default: .leading
         }
-        return Text(verbatim: item.translation)
+        return Text(verbatim: text ?? item.translation)
             .font(.system(size: size, weight: look?.bold == true ? .bold : .semibold).width(look?.condensed == true ? .condensed : .standard))
             .foregroundStyle(color(item.style?.foreground, fallback: .white))
             .multilineTextAlignment(alignment)
@@ -323,8 +323,8 @@ enum StyledScreenText {
     }
 }
 
-/// Ekran yazısı blokları oyun karesindeki kendi yerlerinde (yayın penceresi 16:9 karenin kendisidir). Türkçe özgün
-/// bloğun genişliğini aşmaz: satır kırılır, gerekirse yazı en çok %20 küçülür; yine sığmazsa kutu aşağı uzar.
+/// Ekran yazısı blokları oyun karesindeki kendi yerlerinde (yayın penceresi 16:9 karenin kendisidir), TV ile aynı
+/// yerleşimle (`ScreenFit.lines`): yazı boyu sabit, sığmayan yazı yatayda sıkışır ya da simgeye kadar genişler.
 struct ScreenTextBlocks: View {
     let items: [ScreenTranslation.Item]
     /// Altyazı satırlarının yeri (pencere koordinatında); ekran yazısı kutusu onunla çakışmaz.
@@ -360,51 +360,44 @@ struct ScreenTextBlocks: View {
         .allowsHitTesting(false)
     }
 
-    /// Kısa etiket genişleyebilir: en çok özgün genişliğin bu katı (TV #673 gibi, hizasının ters yönüne doğru).
-    static let shortGrowth: CGFloat = 2.5
-
-    /// Bir blok. Yazı boyu ve kutu TV'deki gibi: boy satır yüksekliğinin 0,95'i, kutu en az özgün yazının yüksekliğinde
-    /// (özgün yazı altta görünmesin). Uzun yazı özgün genişlikte satır kırar (en çok %20 küçülür, sığmazsa aşağı uzar).
-    /// Kısa etiket (en çok iki sözcük; menü şeridi, tuş etiketi) tek satırdır: önce hizasının ters yönüne doğru genişler
-    /// (sağa yaslı tuş etiketi sola uzar, simgenin üstüne binmez), yine sığmazsa en çok %40 küçülür.
+    /// Bir blok, TV ile aynı yerleşimle (`ScreenFit.lines`): yazı boyu satır yüksekliğinin 0,95'i ve hiç küçülmez; yazının
+    /// alanı özgün kutu, Türkçe uzunsa önce yalnız yatayda sıkıştırılır, sonra bilgisayarın verdiği alana (`room`: simgelere
+    /// ve komşu yazıya kadar) hizanın tersine genişler; özgün yazı kaç satırsa çeviri o kadar satırdadır. Önceden yazı
+    /// %20-%40 küçülüyor, kısa etiket simgeye doğru uzayabiliyordu.
     @ViewBuilder
     private func block(_ item: ScreenTranslation.Item, size: CGSize) -> some View {
         let line = max(1, item.lineHeight * size.height)
+        let fontSize = line * 0.95
         let pad = line * 0.15
-        let width = max(0, item.box.right - item.box.left) * size.width + 2 * pad
         let boxHeight = max(0, item.box.bottom - item.box.top) * size.height
-        let short = !item.source.contains("\n") && item.source.split(separator: " ").count <= 2
+        let bold = item.look?.bold == true
+        let fit = ScreenFit.lines(item.translation, left: item.box.left * size.width,
+                                  width: max(1, item.box.right - item.box.left) * size.width,
+                                  room: item.room.map { ($0.left * size.width, $0.right * size.width) }, rows: item.rows,
+                                  align: item.look?.align ?? .left) { ScreenFit.textWidth($0, size: fontSize, bold: bold) }
+        let pitch = max(boxHeight / CGFloat(max(1, fit.lines.count)), fontSize * 1.05)
         let alignment = StyledScreenText.frameAlignment(item)
-        let left = item.box.left * size.width - pad
-        let top = Self.top(CGRect(x: left, y: item.box.top * size.height - pad, width: width, height: boxHeight + 2 * pad),
-                           avoiding: avoiding, height: size.height)
-        if short {
-            // Genişleme payı: hizaya göre kutunun soluna/sağına açılan görünmez çerçeve.
-            let room = width * Self.shortGrowth
-            let x: CGFloat = switch item.look?.align {
-            case .right: left + width - room
-            case .center: left + width / 2 - room / 2
-            default: left
-            }
-            StyledScreenText.label(item, size: line * 0.95)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .frame(minWidth: width, maxWidth: room, minHeight: boxHeight, alignment: alignment)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.vertical, pad)
-                .background(StyledScreenText.background(item))
-                .frame(width: room, alignment: alignment)
-                .offset(x: x, y: top)
-        } else {
-            StyledScreenText.label(item, size: line * 0.95)
-                .minimumScaleFactor(0.8)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(width: width, alignment: alignment)
-                .frame(minHeight: boxHeight, alignment: alignment)
-                .padding(.vertical, pad)
-                .background(StyledScreenText.background(item))
-                .offset(x: left, y: top)
+        let anchor: UnitPoint = switch item.look?.align {
+        case .center: .center
+        case .right: .trailing
+        default: .leading
         }
+        let top = Self.top(CGRect(x: fit.left - pad, y: item.box.top * size.height - pad, width: fit.width + 2 * pad,
+                                  height: boxHeight + 2 * pad), avoiding: avoiding, height: size.height)
+        VStack(alignment: alignment.horizontal, spacing: 0) {
+            ForEach(Array(fit.lines.enumerated()), id: \.offset) { _, text in
+                StyledScreenText.label(item, text: text, size: fontSize)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .scaleEffect(x: fit.squeeze, y: 1, anchor: anchor)
+                    .frame(width: fit.width, height: pitch, alignment: alignment)
+            }
+        }
+        .frame(width: fit.width, alignment: alignment)
+        .frame(minHeight: boxHeight, alignment: .center)
+        .padding(pad)
+        .background(StyledScreenText.background(item))
+        .offset(x: fit.left - pad, y: top)
     }
 }
 

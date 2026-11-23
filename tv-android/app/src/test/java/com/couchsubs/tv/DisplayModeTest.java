@@ -137,4 +137,39 @@ public class DisplayModeTest {
         assertFalse(DisplayMode.switchOnNewIntent("", false, "auto", false));
         assertFalse(DisplayMode.switchOnNewIntent("", true, "auto", true));
     }
+
+    /**
+     * X (Samsung S25 Ultra ile, katman penceresinde çöken TV, #1074): kullanıcı bilerek Uygulama içinde seçmişti; görüntü
+     * gelmeyince, TV HDMI'yı kendine alınca ya da geri alma hakkı dolunca uygulama yine katmana geçiyordu. Bilerek seçilen
+     * uygulama içi hiçbir otomatik durumda katmana geçmez; Otomatik ve Katman eskisi gibi geçer.
+     */
+    @Test
+    public void chosenInAppNeverSwitchesToOverlayByItself() {
+        assertFalse(DisplayMode.mayAutoSwitch("inAppOnly", true));
+        assertFalse(DisplayMode.mayAutoSwitch(DisplayMode.IN_APP, true));
+        assertTrue(DisplayMode.keptInApp("inAppOnly", true));
+        // İzin yoksa zaten geçilemez; uygulama içinde kalmak seçim yüzünden değildir, ayrıca söylenmez.
+        assertFalse(DisplayMode.mayAutoSwitch("inAppOnly", false));
+        assertFalse(DisplayMode.keptInApp("inAppOnly", false));
+        // Otomatik (eski "inApp" de) ve Katman: izin varsa eskisi gibi kendiliğinden geçilir.
+        assertTrue(DisplayMode.mayAutoSwitch("auto", true));
+        assertTrue(DisplayMode.mayAutoSwitch("inApp", true));
+        assertTrue(DisplayMode.mayAutoSwitch(null, true));
+        assertTrue(DisplayMode.mayAutoSwitch("overlay", true));
+        assertFalse(DisplayMode.mayAutoSwitch("auto", false));
+        assertFalse(DisplayMode.keptInApp("auto", true));
+        assertFalse(DisplayMode.keptInApp("overlay", true));
+    }
+
+    /** Görüntü 10 sn gelmedi: Uygulama içinde seçiliyse FallbackWatch katmana geçirmez, yalnız giriş seçici gösterilir. */
+    @Test
+    public void noPictureWithChosenInAppShowsThePickerInsteadOfOverlay() {
+        FallbackWatch watch = new FallbackWatch();
+        watch.tuned(0);
+        watch.trouble(0);
+        long late = FallbackWatch.LIMIT_MS + 1;
+        assertTrue(watch.shouldSwitch(late, true, DisplayMode.mayAutoSwitch("auto", true)));
+        assertFalse(watch.shouldSwitch(late, true, DisplayMode.mayAutoSwitch("inAppOnly", true)));
+        assertTrue(watch.noPicture(late));
+    }
 }

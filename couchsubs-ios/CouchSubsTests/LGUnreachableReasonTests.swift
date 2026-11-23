@@ -12,4 +12,11 @@ final class LGUnreachableReasonTests: XCTestCase {
         XCTAssertEqual(LGUnreachableReason.classify(keyServer: false, ssap: true), .devModeOff)
         XCTAssertEqual(LGUnreachableReason.classify(keyServer: false, ssap: false), .tvNotFound)
     }
+
+    /// #200, #1116: Key Server yanıt verip 9922 reddedince yeniden başlatma ve webOS Hub uyarısı söylenir (Mac ve
+    /// Windows'taki devConnectionClosed ile aynı metin).
+    func testClosedDeveloperConnectionSaysToRestartAndMentionsWebOsHub() {
+        XCTAssertTrue(TVText.lgErrRestartNeeded.contains("webOS Hub"))
+        XCTAssertTrue(TVText.lgErrRestartNeeded.contains("RESTART"))
+    }
 }

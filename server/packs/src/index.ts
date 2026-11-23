@@ -170,9 +170,11 @@ async function download(request: Request, env: Env, id: string, rate: RateLimite
   if (sha) headers["x-pack-sha256"] = sha;
   // If-None-Match zayıf ETag, virgülle ayrılmış liste veya mevcut kaynak için * içerebilir.
   const condition = request.headers.get("if-none-match");
+  // If-None-Match uses weak ETag comparison: either side may carry W/.
+  const currentTag = object.httpEtag.replace(/^W\//, "");
   const matches = condition?.split(",").some((value) => {
     const tag = value.trim();
-    return tag === "*" || tag.replace(/^W\//, "") === object.httpEtag;
+    return tag === "*" || tag.replace(/^W\//, "") === currentTag;
   });
   if (matches) return new Response(null, { status: 304, headers });
   // Only a 200 response transfers a pack. Cache validation and missing IDs do not use download quota.

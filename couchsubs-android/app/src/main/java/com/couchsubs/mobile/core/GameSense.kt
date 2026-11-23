@@ -118,6 +118,24 @@ class GameSense {
     /** Kart gösterildi ya da "Sorma"ya basıldı: bu oturumda bir daha sorulmaz. */
     fun markAsked() = synchronized(lock) { asked = true }
 
+    /**
+     * Xbox çevirisi başladı. Xbox çalışan oyunu bildirmez: oyun başka yoldan bilinmiyorsa kullanıcının Xbox için son seçtiği
+     * oyun ([lastChosen]) kendiliğinden kullanılır ([Source.REMEMBERED]; ana ekranda görünür, değiştirilebilir). Hiç seçim
+     * yoksa oyuna özel okumalar (GTA 6 telefonu) kapalı kalır. Günlüğe yazılacak tek satırı döndürür (Windows, Mac, iPhone
+     * ile aynı metin).
+     */
+    fun startXbox(lastChosen: String?): String = synchronized(lock) {
+        val game = RunningGame.named(lastChosen)
+        if (console == null && chosen == null && pack == null && game != null) {
+            chosen = game
+            carried = true
+            chosenWhileRunning = true
+            asked = true
+        }
+        val name = (console ?: chosen ?: pack)?.name
+        if (name == null) XBOX_UNKNOWN_LOG else xboxRecalledLog(name)
+    }
+
     companion object {
         /** Bakılan son satır sayısı ve tanımak için aynı paketten gelmesi gereken satır sayısı. */
         const val WINDOW = 20
@@ -126,6 +144,11 @@ class GameSense {
         const val ASK_AFTER_MS = 120_000L
         /** Oyunu bilinmeyen satırların ortak paketi (server/pool/src/autopack.js GENERAL): bir oyun değildir. */
         const val GENERAL_PACK = "pool-genel"
+        /** Xbox'ta son seçilen oyunun saklandığı ad (Xbox'un adından bağımsız, Xbox'a özel). */
+        const val XBOX_CONSOLE = "Xbox"
+        const val XBOX_UNKNOWN_LOG = "Xbox: oyun tanınmadı, oyuna özel okumalar (telefon) kapalı"
+        fun xboxRecalledLog(name: String) = "Xbox: son seçilen oyun kullanılıyor: $name"
+        fun xboxChosenLog(name: String) = "Xbox: oyun elle seçildi: $name"
 
         /** Kimliğiyle toplanmış otomatik paket ("pool-ppsa01234", "pool-cusa00419-00") oyunun kimliğini taşır. */
         fun titleIdFromPack(id: String): String? =
@@ -174,7 +197,15 @@ object GameName {
             text.appendCodePoint(cp)
             previous = cp
         }
-        var words = text.split(' ').filter { it.isNotEmpty() }.map { ROMAN[it] ?: it }
+        val rawWords = text.split(' ').filter { it.isNotEmpty() }
+        // Preserve literal franchise letters but keep established Roman sequel keys.
+        val megaManX = rawWords.take(3) == listOf("mega", "man", "x")
+        var words = rawWords.mapIndexed { i, w ->
+            val next = rawWords.getOrNull(i + 1)
+            val literal = (w == "x" && ((megaManX && i == 2) || next == "men")) ||
+                (w == "v" && next == "rally")
+            if (literal) w else ROMAN[w] ?: w
+        }
         if (words.size > 1 && words.first() == "the") words = words.drop(1)
         var joined = " " + words.joinToString(" ") + " "
         for ((long, short) in ALIASES) joined = joined.replace(" $long ", if (short.isEmpty()) " " else " $short ")

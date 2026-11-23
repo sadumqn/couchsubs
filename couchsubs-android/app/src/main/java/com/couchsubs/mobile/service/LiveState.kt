@@ -60,6 +60,11 @@ data class LiveStatus(
     val game: String? = null,
     /** "Hangi oyunu oynuyorsunuz?" kartı açık. */
     val askingGame: Boolean = false,
+    /**
+     * Xbox'ta çeviri sürüyor ve oyun bilinmiyor: Xbox oynanan oyunu bildirmez; Oyun satırı vurgulanır ve "oyunu seçin" notu
+     * görünür (zorlayıcı kart açılmaz). Oyun seçilince kalkar (Mac/iPhone GameChoice.xboxNeedsGame, Windows ile aynı).
+     */
+    val xboxNeedsGame: Boolean = false,
     /** Uygulanan alan profilinin oyunu (bkz. [PlayedGame.areas]); genel alanlarda null. */
     val areaProfileGame: String? = null,
     /** Paketten tanınan oyunun kayıtlı alanları önerildi: "X için kayıtlı alanlar var. Kullanılsın mı?". */

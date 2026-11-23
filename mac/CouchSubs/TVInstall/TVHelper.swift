@@ -29,11 +29,23 @@ enum TVInstallLog {
 
     /// Yazılan günlük. Testler (sahte TV'lerle kurulum) kullanıcının gerçek günlüğüne yazmaz: önceden "paket 0.6.1" gibi
     /// sahte satırlar gerçek tvinstall.log'a karışıyordu.
+    /// Test sürecinde her test kendi geçici günlüğünü verir (`AppModelTests.setUp`); verilmezse süreç başına geçici klasör.
+    /// Test ortamı yalnız XCTest değişkenlerinden değil, test paketinin yüklü olmasından da anlaşılır: Xcode'un yeni
+    /// sürümlerinde XCTestConfigurationFilePath her zaman konmuyor, 21–22 Kas'ta test satırları gerçek günlüğe düşüyordu.
+    nonisolated(unsafe) static var testFile: URL?
+
+    static var isTesting: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil || environment["XCTestBundlePath"] != nil
+            || environment["XCTestSessionIdentifier"] != nil || NSClassFromString("XCTestCase") != nil
+    }
+
+    private static let processTestFile = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CouchSubsTests-\(UUID().uuidString)/tvinstall.log")
+
     static var file: URL {
-        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
-            return FileManager.default.temporaryDirectory.appendingPathComponent("CouchSubsTests/tvinstall.log")
-        }
-        return userFile
+        guard isTesting else { return userFile }
+        return testFile ?? processTestFile
     }
 
     private static let lock = NSLock()

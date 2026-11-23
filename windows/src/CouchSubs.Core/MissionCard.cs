@@ -201,7 +201,7 @@ internal static class MissionCard
                 : ScreenTranslation.Paragraphs(own);
             IReadOnlyList<IReadOnlyList<IconSlot>> slots = joined ? [icons.SelectMany(list => list).ToList()] : icons;
             return new ScreenTranslation.Group(paragraphs, boxes.Skip(1).Aggregate(boxes[0], (a, b) => a.Union(b)),
-                heights[heights.Count / 2], slots.Any(list => list.Count > 0) ? slots : null);
+                heights[heights.Count / 2], slots.Any(list => list.Count > 0) ? slots : null) { Rows = ScreenTranslation.Rows(own) };
         }
         return [Make(card.Title, true), .. card.Subtitles.Select(i => Make([i], true)), Make(card.Body, false),
                 .. card.Details.Select(i => Make([i], true))];

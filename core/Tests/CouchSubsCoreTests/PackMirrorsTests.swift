@@ -104,7 +104,7 @@ final class PackMirrorsTests: XCTestCase {
     }
 
     func testFallbackAddressComesFromConfiguration() {
-        let defaults = UserDefaults(suiteName: "packs-fallback-\(UUID().uuidString)")!
+        let defaults = TestDefaults.make("packs-fallback")
         let bundle = Bundle(for: Self.self)
         XCTAssertNil(PackUpdater.configuredFallbackURL(environment: [:], defaults: defaults, bundle: bundle))
         XCTAssertNil(PackUpdater.configuredFallbackURL(environment: ["COUCHSUBS_PACKS_FALLBACK_URL": "$(PACKS_API_FALLBACK_URL)"],

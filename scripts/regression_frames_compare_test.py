@@ -48,6 +48,37 @@ class RegressionFrameGateTests(unittest.TestCase):
         result = self.compare(summary("old", True, False), summary("new", True, False))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_omitted_baseline_frame_fails_the_release_gate(self):
+        base = summary("old", True, True)
+        base["capture"] = {"passed": 2, "total": 2}
+        head = summary("new", True, True)
+        head["frames"] = [frame("first", True)]
+        head["capture"] = {"passed": 1, "total": 1}
+        result = self.compare(base, head)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("second", result.stdout)
+
+    def test_omitted_baseline_scenario_fails_the_release_gate(self):
+        base = summary("old", True, True)
+        base["capture"] = {"passed": 2, "total": 2}
+        base["scenarios"] = [{"name": "phone subtitle", "passed": True, "detail": "OK"}]
+        head = summary("new", True, True)
+        head["capture"] = {"passed": 2, "total": 2}
+        result = self.compare(base, head)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("phone subtitle", result.stdout)
+
+    def test_new_failure_reason_on_already_failing_frame_is_regression(self):
+        # Overall capture rates tie. The same frame already failed before,
+        # but a newly introduced false acceptance must still fail the gate.
+        base = summary("old", False, True)
+        head = summary("new", False, True)
+        head["frames"][0]["falseAccept"] = False
+        result = self.compare(base, head)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("first: yanlış kabul", result.stdout)
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,9 +15,15 @@ namespace CouchSubs.Translation;
 /// </summary>
 public static class PackLookup
 {
-    /// <summary>Kütüphanedeki paketlerde arar (bulanık arama oynanan oyunun paketinde).</summary>
+    /// <summary>
+    /// Kütüphanedeki paketlerde arar (bulanık arama oynanan oyunun paketinde). Türkçe satır (<see cref="TurkishText.LooksTurkish"/>)
+    /// aranmaz: anahtarlar İngilizcedir. PS5'in Türkçe menü satırı ("Yakin zamanda olu...") GTA 6 paketindeki bozuk bir
+    /// parçayla tam eşleşiyor, oyun tanınmamışken "paket:gta-6" diye gösteriliyor ve bulanık aramanın kapsamını o pakete
+    /// kaydırıyordu (beta.89; Mac ve Android: GamePackLibrary.match).
+    /// </summary>
     public static PackMatch? Match(GamePackLibrary library, string text)
     {
+        if (TurkishText.LooksTurkish(text)) return null;
         // Aynı parça bir aramada birkaç yoldan sorulabilir (etiketli/etiketsiz gövde aynı); bulanık sonuç bir kez hesaplanır.
         var asked = new Dictionary<string, string?>();
         return Match(text, library.Find, line => asked.TryGetValue(line, out var known) ? known : asked[line] = library.Nearest(line));
@@ -26,6 +32,7 @@ public static class PackLookup
     /// <summary>Kütüphanedeki paketlerde kısmi eşleşme (<see cref="MatchPartial(string, Func{string, string?}, Func{string, string?}?)"/>).</summary>
     public static PackPartial? MatchPartial(GamePackLibrary library, string text)
     {
+        if (TurkishText.LooksTurkish(text)) return null;
         var asked = new Dictionary<string, string?>();
         return MatchPartial(text, library.Find, line => asked.TryGetValue(line, out var known) ? known : asked[line] = library.Nearest(line));
     }

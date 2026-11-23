@@ -576,6 +576,7 @@ enum TVErrorTitle {
     static func title(_ error: DevModeError) -> LocalizedStringKey {
         switch error {
         case .unreachable: "The TV Didn't Respond"
+        case .devConnectionClosed: "The TV Refused the Connection"
         case .keyServerOff: "Key Server Is Off"
         case .wrongPassphrase: "Wrong Passphrase"
         case .keyRefused: "The TV Refused the Key"
@@ -591,6 +592,7 @@ enum TVErrorTitle {
         case .packageBlocked: "The TV Blocks CouchSubs"
         case .connectionLost: "The Connection Dropped"
         case .foreignApp: "Another App Is Installed"
+        case .tvNotResponding: "The TV Isn't Responding"
         }
     }
 }

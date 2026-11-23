@@ -648,17 +648,23 @@ private fun OutputsPage(onTarget: () -> Unit, onTvInstall: () -> Unit) {
         }
         if (target.showsOnTv) {
             // TV satırı: ad, TV uygulamasının durumu, "Eşli" rozeti; Deneme Altyazısı Gönder ve TV'yi Eşleştir / TV Bağla.
-            val hasTv = settings.installedTv != null || settings.tvName != null
+            // Kayıt değişince (TV yeni adreste bulundu, IP girildi, eşleşme kaldırıldı) kart yeniden okunur.
+            var tvRevision by remember { mutableStateOf(0) }
+            val pairedTv = remember(tvRevision) { settings.installedTv }
+            val pairedName = remember(tvRevision) { settings.tvName }
+            val hasTv = pairedTv != null || pairedName != null
+            val waitingText = pairedTvWaitingText()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Tokens.Space.gap)) {
                 TileIcon(CouchIcons.Tv)
                 Column(Modifier.weight(1f)) {
-                    Text(settings.tvName ?: "TV", style = Tokens.Type.headline, color = Tokens.Color.text)
-                    val version = settings.installedTv?.version?.takeIf { it.isNotEmpty() }
+                    Text(pairedName ?: "TV", style = Tokens.Type.headline, color = Tokens.Color.text)
+                    pairedTv?.let { Text(pairedTvDetail(it), style = Tokens.Type.caption, color = Tokens.Color.tertiary) }
+                    val version = pairedTv?.version?.takeIf { it.isNotEmpty() }
                     Text(when {
                         !hasTv -> stringResource(R.string.set_not_set_up)
                         live.connectedTvs > 0 && version != null -> stringResource(R.string.set_tv_app_connected, version)
                         live.connectedTvs > 0 -> stringResource(R.string.set_connected)
-                        else -> stringResource(R.string.profile_psn_missing)
+                        else -> waitingText
                     }, style = Tokens.Type.caption, color = Tokens.Color.secondary)
                 }
                 if (hasTv) StatusLabel(stringResource(R.string.set_linked), ok = live.connectedTvs > 0)
@@ -666,11 +672,23 @@ private fun OutputsPage(onTarget: () -> Unit, onTvInstall: () -> Unit) {
             var sent by remember { mutableStateOf(false) }
             var testNote by remember { mutableStateOf<String?>(null) }
             var pairingOpened by remember { mutableStateOf(false) }
+            // "TV'yi Eşleştir" / "Deneme Altyazısı Gönder" eşli TV'ye ulaşamadı: kart açık hata gösterir.
+            var unreachableHost by remember { mutableStateOf<String?>(null) }
+            val cardScope = rememberCoroutineScope()
+            // Eylemden önce eşli TV yoklanır; ulaşılamazsa hata gösterilir, eylem yapılmaz (TV yeni adreste bulunursa sürer).
+            fun whenReachable(action: () -> Unit) {
+                if (pairedTv == null) { action(); return }
+                cardScope.launch {
+                    unreachableHost = unreachablePairedTv(context)
+                    tvRevision++
+                    if (unreachableHost == null) action()
+                }
+            }
             LaunchedEffect(sent) { if (sent) { kotlinx.coroutines.delay(1500); sent = false } }
             Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.gap)) {
                 if (sent) Box(Modifier.weight(1f).heightIn(min = Tokens.Control.button), contentAlignment = Alignment.Center) {
                     StatusLabel(stringResource(R.string.set_sent))
-                } else SecondaryButton(stringResource(R.string.set_send_test), Modifier.weight(1f)) {
+                } else SecondaryButton(stringResource(R.string.set_send_test), Modifier.weight(1f)) { whenReachable {
                     // Çeviri sürmüyorsa bekleme sunucusu açılır, TV uygulaması bağlanınca altyazı gider (iPhone ile aynı).
                     val waiting = TranslationService.connectedTvs() == 0
                     testNote = if (!TranslationService.testSubtitle(context, context.getString(R.string.test_subtitle_text)))
@@ -679,11 +697,13 @@ private fun OutputsPage(onTarget: () -> Unit, onTvInstall: () -> Unit) {
                     else if (waiting) context.getString(R.string.settings_test_tv_not_connected)
                     else null
                     sent = testNote == null
-                }
+                } }
                 SecondaryButton(stringResource(if (hasTv) R.string.set_pair_the_tv else R.string.set_connect_tv), Modifier.weight(1f)) {
-                    if (hasTv) pairingOpened = TranslationService.openPairing(context) else onTarget()
+                    if (hasTv) whenReachable { pairingOpened = TranslationService.openPairing(context) } else onTarget()
                 }
             }
+            PairedTvActions(pairedTv, connected = live.connectedTvs > 0, unreachableHost = unreachableHost,
+                onChanged = { unreachableHost = null; tvRevision++ }, onChangeTv = onTarget)
             AnimatedNote(testNote, Tokens.Color.secondary)
             if (pairingOpened && live.connectedTvs == 0)
                 Text(stringResource(R.string.settings_pair_tv_note), style = Tokens.Type.caption, color = Tokens.Color.secondary)

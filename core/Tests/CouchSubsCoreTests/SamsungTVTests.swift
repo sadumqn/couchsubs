@@ -173,9 +173,7 @@ final class SamsungTVTests: XCTestCase {
     }
 
     func testConnectedTVIsRememberedAsInstalled() throws {
-        let suite = "samsung-knowledge-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = TestDefaults.make("samsung-knowledge")
         let knowledge = SamsungAppKnowledge(defaults: defaults)
         XCTAssertFalse(knowledge.isKnown(host: "192.168.1.40"))
         knowledge.mark(host: " 192.168.1.40 ")
@@ -209,9 +207,7 @@ final class SamsungTVTests: XCTestCase {
     /// Modem TV'ye yeni adres verince (TVLocator) kurulu olduğu bilgisi yeni adrese geçer: yoksa bekçi yeni adreste listeye
     /// bakıyor, liste geliştirici moduyla kurulan uygulamayı içermiyorsa uygulamayı hiç açmıyordu.
     func testKnowledgeFollowsTheTVToItsNewAddress() throws {
-        let suite = "samsung-knowledge-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = TestDefaults.make("samsung-knowledge")
         let knowledge = SamsungAppKnowledge(defaults: defaults)
         knowledge.mark(host: "192.168.1.40")
         XCTAssertTrue(SamsungAppKnowledge.checksList(knownInstalled: knowledge.isKnown(host: "192.168.1.57")))

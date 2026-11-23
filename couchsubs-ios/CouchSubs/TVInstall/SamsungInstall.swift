@@ -43,8 +43,18 @@ final class InstallLog: @unchecked Sendable {
 }
 
 enum TVPaths {
-    static let root: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    /// Uygulamanın gerçek TV klasörü (kurulum günlüğü tvinstall.log, LG anahtarları, Samsung sertifikaları).
+    static let userRoot: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("CouchSubs", isDirectory: true).appendingPathComponent("tv", isDirectory: true)
+
+    /// Testler (sahte TV'lerle kurulum) gerçek günlüğe ve anahtarlara yazmaz: test süreci kendi geçici klasörünü kullanır
+    /// (Mac'te sahte "paket 0.6.1" satırları kullanıcının tvinstall.log'una karışıyordu).
+    static let root: URL = isTesting
+        ? FileManager.default.temporaryDirectory.appendingPathComponent("CouchSubsTests-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("tv", isDirectory: true)
+        : userRoot
+
+    static var isTesting: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || NSClassFromString("XCTestCase") != nil }
     static func directory(_ name: String) -> URL { root.appendingPathComponent(name, isDirectory: true) }
 }
 

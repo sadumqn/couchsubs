@@ -375,6 +375,24 @@ test("oyun adı anahtarı aynı oyunun farklı yazımlarını birleştirir", () 
   assert.equal(gameSlug("gta 6"), "gta-6");
 });
 
+test("literal X and V in game titles do not collide with numbered sequels", () => {
+  assert.equal(gameKey("Mega Man X"), "mega man x");
+  assert.notEqual(gameKey("Mega Man X"), gameKey("Mega Man 10"));
+  assert.equal(gameKey("X-Men"), "x men");
+  assert.equal(gameKey("V-Rally"), "v rally");
+  assert.equal(gameKey("Mega Man X2"), "mega man x 2");
+  assert.equal(gameKey("GTA V"), "gta 5");
+  assert.equal(gameKey("Final Fantasy X"), "final fantasy 10");
+});
+
+test("distinct literal-X game titles keep separate pool jobs and package IDs", () => {
+  const rows = [{ game: "Mega Man X", lines: 250 }, { game: "Mega Man 10", lines: 300 }];
+  const votes = new Map(rows.map(({ game }) => [gameKey(game), 3]));
+  const jobs = nameJobs(rows, votes);
+  assert.deepEqual(new Set(jobs.map((job) => job.gameKey)), new Set(["mega man x", "mega man 10"]));
+  assert.equal(new Set(jobs.map(jobPackId)).size, 2);
+});
+
 test("kimliksiz oyun adları anahtara göre birleşir; tek kurulumun adı ayrı paket açmaz", () => {
   const rows = [{ game: "GTA 6", lines: 200 }, { game: "Grand Theft Auto VI", lines: 300 }, { game: "Yanlış Oyun", lines: 900 }];
   const jobs = nameJobs(rows, new Map([["gta 6", 3], ["yanlis oyun", 1]]));

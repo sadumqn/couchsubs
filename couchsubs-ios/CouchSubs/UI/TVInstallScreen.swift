@@ -227,8 +227,8 @@ struct SamsungInstallSection: View {
     private func install(replaceForeign: Bool = false) {
         // Virgüllü yazım ("192,168,1,5"), "http://…" ya da port temizlenir (LG ve Mac'teki gibi).
         let typed = host.trimmingCharacters(in: .whitespaces)
-        let target = ManualAddress.normalize(typed) ?? typed.replacingOccurrences(of: ",", with: ".")
-        guard !target.isEmpty else { return }
+        let typedTarget = ManualAddress.normalize(typed) ?? typed.replacingOccurrences(of: ",", with: ".")
+        guard !typedTarget.isEmpty else { return }
         phase = .working(.connecting)
         working = true
         UIApplication.shared.isIdleTimerDisabled = true
@@ -237,6 +237,12 @@ struct SamsungInstallSection: View {
                 working = false
                 UIApplication.shared.isIdleTimerDisabled = false
             }
+            // Kayıtlı TV'nin adresi hiç yanıt vermiyorsa TV ağda yeniden aranır; bulunursa kurulum yeni adresle sürer (LG ile aynı).
+            guard let target = await model.relocateForInstall(host: typedTarget, brand: .samsung) else {
+                phase = .failed(text: TVText.tvNotResponding + "\n\n" + TVText.tvNotRespondingHint)
+                return
+            }
+            if target != typedTarget { host = target }
             do {
                 let result = try await runInstall({ progress in
                     try SamsungInstaller(host: target, signIn: {
@@ -451,7 +457,7 @@ struct AndroidTVInstallSection: View {
     }
 
     private func install(allowReplace: Bool = false, replaceForeign: Bool = false) {
-        guard let target = AndroidTvInstaller.parseAddress(address, defaultPort: wireless ? 0 : AdbConnection.defaultPort), target.1 > 0 else {
+        guard let initial = AndroidTvInstaller.parseAddress(address, defaultPort: wireless ? 0 : AdbConnection.defaultPort), initial.1 > 0 else {
             phase = .failed(text: TVText.androidNeedPort)
             return
         }
@@ -476,6 +482,23 @@ struct AndroidTVInstallSection: View {
                 working = false
                 UIApplication.shared.isIdleTimerDisabled = false
             }
+            // Kayıtlı Android TV'nin adresi hiç yanıt vermiyorsa ağda hata ayıklaması açık TV aranır (LG ve Samsung ile aynı).
+            // Kablosuz hata ayıklamada port TV'den yazıldığı için adres değiştirilmez.
+            var resolved = initial
+            if !usedWireless, initial.1 == AdbConnection.defaultPort {
+                let near = initial.0
+                guard let host = await model.relocateForInstall(host: initial.0, brand: .androidTV, search: {
+                    await scanSubnet(port: AdbConnection.defaultPort, near: near).map { LGTV(name: "Android TV", host: $0, brand: .androidTV) }
+                }) else {
+                    phase = .failed(text: TVText.tvNotResponding + "\n\n" + TVText.tvNotRespondingHint)
+                    return
+                }
+                if host != initial.0 {
+                    resolved = (host, initial.1)
+                    address = host
+                }
+            }
+            let target = resolved
             do {
                 guard TVPackages.androidVersion != nil else { throw AndroidInstallFailure(error: .packageMissing) }
                 // Uygulama telefonun adresiyle açılır: TV telefonu ağda aramadan bağlanır.

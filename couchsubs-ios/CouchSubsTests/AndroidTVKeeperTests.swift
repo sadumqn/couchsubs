@@ -138,8 +138,7 @@ final class AndroidTVKeeperTests: XCTestCase {
     }
 
     func testSavedWirelessPortIsUsedForTheSameTV() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "android-tv-keeper-tests"))
-        defaults.removePersistentDomain(forName: "android-tv-keeper-tests")
+        let defaults = scratchDefaults("android-tv-keeper-tests")
         XCTAssertEqual(InstalledTVApp.adbPort(for: "192.168.1.120", defaults: defaults), 5555)
         let saved = InstalledTVApp(brand: .androidTV, host: "192.168.1.120", port: 41235, version: "0.9.43")
         defaults.set(try JSONEncoder().encode(saved), forKey: "tvAppInstalled")

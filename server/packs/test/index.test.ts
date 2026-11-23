@@ -112,6 +112,29 @@ describe("GET /v1/packs/:id", () => {
     expect(response.status).toBe(304);
   });
 
+  it.each(['W/"etag-1"', '"etag-1"'])(
+    "accepts an existing weak R2 ETag with If-None-Match %s without charging download quota",
+    async (condition) => {
+      const original = bucket();
+      const weak: R2BucketLike = {
+        async get(key) {
+          const item = await original.get(key);
+          if (!item || key !== "packs/gta-v.json.gz") return item;
+          return { ...item, httpEtag: 'W/"etag-1"' };
+        },
+      };
+      const rate = new RateLimiter(1);
+      const reply = await call(
+        get("/v1/packs/gta-v", { "if-none-match": condition }),
+        { PACKS: weak }, rate);
+      expect(reply.status).toBe(304);
+      expect(reply.headers.get("etag")).toBe('W/"etag-1"');
+      // A conditional hit should not consume the sole 200-download allowance.
+      const download = await call(get("/v1/packs/gta-v"), { PACKS: weak }, rate);
+      expect(download.status).toBe(200);
+    },
+  );
+
   it("rejects unknown packs and odd ids", async () => {
     expect((await call(get("/v1/packs/yok"), env(), new RateLimiter())).status).toBe(404);
     expect((await call(get("/v1/packs/..%2Findex.json"), env(), new RateLimiter())).status).toBe(404);

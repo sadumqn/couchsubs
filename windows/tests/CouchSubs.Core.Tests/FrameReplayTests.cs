@@ -33,6 +33,13 @@ public class FrameReplayTests
             ? [.. words.EnumerateArray().Select(word => new TextWord(word.GetProperty("text").GetString()!, Box(word.GetProperty("box"))))]
             : null)).ToList());
 
+    /// <summary>Satır (birleşmişse satır parçası) kutusu koyu yazılı bir okumanın ortasını taşıyor mu (Mac ve Android aynı).</summary>
+    private static bool HoldsDark(TextBox box, List<TextBox> dark) => dark.Any(line =>
+    {
+        double x = (line.Left + line.Right) / 2, y = (line.Top + line.Bottom) / 2;
+        return x >= box.Left && x <= box.Right && y >= box.Top && y <= box.Bottom;
+    });
+
     [Fact]
     public void SelectionMatchesMacOnRealFrames()
     {
@@ -43,6 +50,7 @@ public class FrameReplayTests
         Assert.True(frames.Count >= 40);
         Assert.Equal(frames.Count, golden.RootElement.EnumerateObject().Count());
         var bands = new Dictionary<string, SubtitleBand>();
+        var styles = new Dictionary<string, DarkInkStyle>();
         foreach (var frame in frames)
         {
             var id = frame.GetProperty("id").GetString()!;
@@ -50,6 +58,12 @@ public class FrameReplayTests
             var area = Box(fixture.RootElement.GetProperty("region"));
             var key = frame.TryGetProperty("session", out var session) ? session.GetString()! : id;
             if (!bands.TryGetValue(key, out var band)) bands[key] = band = new SubtitleBand();
+            if (!styles.TryGetValue(key, out var style)) styles[key] = style = new DarkInkStyle();
+            // Açık zemindeki koyu yazı (InkTone): okumadaki "dark" işareti (Mac'te karenin pikselleriyle denetlenir).
+            var dark = fixture.RootElement.GetProperty("lines").EnumerateArray()
+                .Where(line => line.TryGetProperty("dark", out var d) && d.GetBoolean() && line.TryGetProperty("box", out _))
+                .Select(line => Box(line.GetProperty("box"))).ToList();
+            var darkBlocks = new List<Reading>();
             var reading = Lines(fixture.RootElement.GetProperty("lines"));
             if (fixture.RootElement.TryGetProperty("phone", out var phone))
             {
@@ -58,7 +72,10 @@ public class FrameReplayTests
                 var handset = new ScreenPhoneCard.Handset(new GamePhoneGeometry.Pose(p[0], p[1], p[2], p[3]), p[4]);
                 reading = new Reading(reading.Lines.Where(line => line.Box is not { } b || !ScreenPhoneCard.Holds(b.PlacedIn(area), handset)));
             }
-            var block = reading.WithoutButtonPrompts().WithoutOcrNoise().JoiningRows().SubtitleBlock(area, band);
+            var block = reading.WithoutButtonPrompts().WithoutOcrNoise().JoiningRows().SubtitleBlock(area, band,
+                (skipped, reason) => { if (reason == InkTone.Reason) darkBlocks.Add(skipped); },
+                darkInk: style.IsGameStyle ? null : (TextBox lineBox) => HoldsDark(lineBox, dark));
+            foreach (var skipped in darkBlocks) style.Observe(skipped, area);
             band.Record(block, area);
             var expected = golden.RootElement.GetProperty(id).GetString();
             Assert.True(expected == block.Text, $"{id}: Mac \"{expected}\", Windows \"{block.Text}\"");

@@ -183,9 +183,11 @@ enum MissionCard {
             let paragraphs = joined ? [own.map { $0.text.trimmingCharacters(in: .whitespaces) }.joined(separator: " ")]
                 : ScreenTranslation.paragraphs(own)
             let slots = joined ? [icons.flatMap { $0 }] : icons
-            return ScreenTranslation.Group(paragraphs: paragraphs, box: boxes.dropFirst().reduce(boxes[0]) { $0.union($1) },
-                                           lineHeight: heights[heights.count / 2],
-                                           icons: slots.contains { !$0.isEmpty } ? slots : nil)
+            var made = ScreenTranslation.Group(paragraphs: paragraphs, box: boxes.dropFirst().reduce(boxes[0]) { $0.union($1) },
+                                               lineHeight: heights[heights.count / 2],
+                                               icons: slots.contains { !$0.isEmpty } ? slots : nil)
+            made.rows = ScreenTranslation.rows(own)
+            return made
         }
         return [group(card.title, joined: true)] + card.subtitles.map { group([$0], joined: true) }
             + [group(card.body, joined: false)] + card.details.map { group([$0], joined: true) }

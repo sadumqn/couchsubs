@@ -11,8 +11,7 @@ public static class GameCoverStore
     /// <summary>Each 128px PNG thumbnail is capped at 2 MiB.</summary>
     public const int MaxCoverBytes = 2 * 1024 * 1024;
 
-    public static string DefaultDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "covers");
+    public static string DefaultDirectory { get; } = Path.Combine(AppDataPaths.Root, "covers");
 
     /// <summary>An unsafe or missing pack ID never becomes a file-system path.</summary>
     public static string? PathFor(string? packId, string? directory = null)

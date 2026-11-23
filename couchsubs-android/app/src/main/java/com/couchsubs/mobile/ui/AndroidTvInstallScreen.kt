@@ -33,6 +33,7 @@ import com.couchsubs.mobile.tv.TvAppUpdate
 import com.couchsubs.mobile.tv.TvBrand
 import com.couchsubs.mobile.tv.TvDiscovery
 import com.couchsubs.mobile.tv.TvPackages
+import com.couchsubs.mobile.tv.TvRelocation
 import com.couchsubs.mobile.tv.android.AdbConnection
 import com.couchsubs.mobile.tv.android.AdbMode
 import com.couchsubs.mobile.tv.android.AndroidInstallError
@@ -59,7 +60,7 @@ private sealed interface AndroidState {
     data object Idle : AndroidState
     data class Working(val step: InstallStep) : AndroidState
     data class Done(val version: String, val installed: Boolean) : AndroidState
-    data class Failed(val error: AndroidInstallError?, val detail: String?, val fromPlay: Boolean = false) : AndroidState
+    data class Failed(val error: AndroidInstallError?, val detail: String?, val fromPlay: Boolean = false, val notResponding: Boolean = false) : AndroidState
 }
 
 @Composable
@@ -122,11 +123,11 @@ internal fun AndroidTvInstallScreen(onBack: () -> Unit, onDone: () -> Unit, bran
         val main = Handler(Looper.getMainLooper())
         scope.launch {
             state = try {
-                val result = withContext(Dispatchers.IO) {
+                val (installedAt, result) = withContext(Dispatchers.IO) {
                     val (apk, version) = TvPackages.androidTv(context)
                         ?: throw AndroidInstallException(AndroidInstallError.PACKAGE_MISSING)
-                    AndroidTvInstaller(
-                        host = target.first,
+                    fun runAt(at: String) = AndroidTvInstaller(
+                        host = at,
                         port = target.second,
                         adbKey = { AdbKey.loadOrCreate(File(context.noBackupFilesDir, "adb/adbkey")) },
                         pairing = pairing,
@@ -135,9 +136,27 @@ internal fun AndroidTvInstallScreen(onBack: () -> Unit, onDone: () -> Unit, bran
                         // Play'de herkese açıksa ve TV'de Play Store varsa TV'de Play sayfası açılır.
                         playListed = { AndroidTvInstaller.isListedOnPlay() },
                     ).ensureInstalled({ apk.readBytes() }, version, allowReplace)
+                    try {
+                        target.first to runAt(target.first)
+                    } catch (error: AndroidInstallException) {
+                        // TV'nin adresi değişmiş olabilir: adres hiç yanıt vermiyorsa TV ağda yeniden aranır (LG, Samsung ile
+                        // aynı). Kablosuz hata ayıklamada kapı her açılışta değiştiği için yeni adreste kapı TV'den yazılır.
+                        if (error.error != AndroidInstallError.UNREACHABLE) throw error
+                        when (val moved = TvRelocation.retarget(target.first, TvBrand.ANDROID_TV, InstallLog(logFile))) {
+                            TvRelocation.Retarget.Responds -> throw error
+                            TvRelocation.Retarget.Silent -> throw TvNotRespondingException()
+                            is TvRelocation.Retarget.Moved -> {
+                                main.post { address = moved.host }
+                                if (wireless) throw error
+                                moved.host to runAt(moved.host)
+                            }
+                        }
+                    }
                 }
-                TvAppUpdate.installed(InstalledTv(TvBrand.ANDROID_TV, target.first, target.second, result.version))
+                TvAppUpdate.installed(InstalledTv(TvBrand.ANDROID_TV, installedAt, target.second, result.version))
                 AndroidState.Done(result.version, result.installed)
+            } catch (error: TvNotRespondingException) {
+                AndroidState.Failed(AndroidInstallError.UNREACHABLE, null, notResponding = true)
             } catch (error: AndroidInstallException) {
                 AndroidState.Failed(error.error, error.detail, error.installedFromPlay)
             } catch (error: Exception) {
@@ -208,7 +227,7 @@ internal fun AndroidTvInstallScreen(onBack: () -> Unit, onDone: () -> Unit, bran
             is AndroidState.Done -> InstallDone(stringResource(if (current.installed) R.string.tvinstall_done else R.string.tvinstall_up_to_date, current.version))
             is AndroidState.Failed -> {
                 // Eskiden yalnız genel "TV yanıt vermedi" yazısı vardı; 5555 kapalı TV'de çözüm kablosuz hata ayıklamadır.
-                val wirelessFix = AdbMode.offersWireless(wireless, current.error)
+                val wirelessFix = !current.notResponding && AdbMode.offersWireless(wireless, current.error)
                 InstallErrorBox(if (wirelessFix) stringResource(R.string.tvinstall_android_err_legacy_closed) else androidFailureText(current),
                     onShareLog = { shareLog(context, logFile) }) {
                     if (wirelessFix) SecondaryButton(stringResource(R.string.tvinstall_android_try_wireless), Modifier.fillMaxWidth()) { switchToWireless() }
@@ -225,6 +244,7 @@ internal fun AndroidTvInstallScreen(onBack: () -> Unit, onDone: () -> Unit, bran
 @Composable
 private fun androidFailureText(failure: AndroidState.Failed): String {
     val context = LocalContext.current
+    if (failure.notResponding) return context.getString(R.string.tv_not_responding)
     val advice = when (failure.error) {
         AndroidInstallError.UNREACHABLE -> context.getString(R.string.tvinstall_android_err_unreachable)
         AndroidInstallError.NOT_APPROVED -> context.getString(R.string.tvinstall_android_err_not_approved)

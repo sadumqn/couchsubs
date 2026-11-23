@@ -101,6 +101,10 @@ public class MainActivity extends Activity implements TvPage.Host {
     private static final String STATE_LEFT_OVERLAY = "leftOverlay";
     private boolean outageWatching;
     private final Runnable outageTick = this::checkOutage;
+    /** Uygulama içi bilerek seçiliyken katmana geçilmedi: ekran öne gelince söylenecek durum (0: yok). */
+    private int keptInAppNotice;
+    /** Uygulama içi bilerek seçiliyken görüntü gelmedi: giriş seçiciden önce giriş bir kez yeniden açıldı. */
+    private boolean inAppRetuned;
     /** Bilgi panelindeki TvView durumu; sayfanın iş parçacığından okunur. */
     private volatile String tvState = "idle";
     /**
@@ -182,6 +186,19 @@ public class MainActivity extends Activity implements TvPage.Host {
     /** Katman açılabilir mi: bu derlemede var (Play paketinde yok) ve "Diğer uygulamaların üzerinde göster" izni verilmiş. */
     private boolean overlayAllowed() {
         return BuildConfig.OVERLAY_MODE && OverlayService.canDrawOverlays(this);
+    }
+
+    /**
+     * Kendiliğinden (görüntü gelmedi, TV HDMI'yı kendine aldı, geri alma hakkı doldu) katmana geçilebilir mi: izin var ve
+     * kullanıcı bilerek Uygulama içinde seçmedi (bkz. DisplayMode.mayAutoSwitch).
+     */
+    private boolean autoOverlayAllowed() {
+        return DisplayMode.mayAutoSwitch(TvPage.storedDisplayMode(this), overlayAllowed());
+    }
+
+    /** Katmana geçilebilecekken yalnız kullanıcının Uygulama içinde seçimi yüzünden uygulama içinde kalınıyor. */
+    private boolean keptInApp() {
+        return DisplayMode.keptInApp(TvPage.storedDisplayMode(this), overlayAllowed());
     }
 
     private void showInApp() {
@@ -446,6 +463,15 @@ public class MainActivity extends Activity implements TvPage.Host {
         Toast.makeText(this, manualInput ? R.string.overlay_started_manual_input : message, Toast.LENGTH_LONG).show();
     }
 
+    /**
+     * Uygulama içi seçili olduğu için katmana geçilmedi ve CouchSubs arkada kaldı: hemen kısa yazı (ekran arkadayken de
+     * görünür), CouchSubs yeniden açılınca panelde aynı durum.
+     */
+    private void keepInAppNotice(int message) {
+        keptInAppNotice = message;
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
     /** Katman açılamadı (TV pencereye ya da arka plan servisine izin vermedi): uygulama içinde kalınır, neden gösterilir. */
     private void showOverlayFailed() {
         showOverlayFailed(R.string.overlay_failed);
@@ -484,9 +510,19 @@ public class MainActivity extends Activity implements TvPage.Host {
         if (isFinishing() || tvView == null || watch.played()) return;
         long now = SystemClock.elapsedRealtime();
         boolean source = HdmiInputs.hasSource(this, session.input());
-        boolean permitted = overlayAllowed();
+        boolean permitted = autoOverlayAllowed();
         if (watch.shouldSwitch(now, source, permitted)) {
             switchToOverlay(R.string.overlay_fallback);
+            return;
+        }
+        // Uygulama içi bilerek seçildi: katmana geçilmez (katman penceresinde çöken TV'ler, #1074). Seçiciden önce giriş bir
+        // kez bırakılıp yeniden açılır; görüntü saati de yeniden başlar.
+        String id = session.input();
+        if (watch.noPicture(now) && keptInApp() && !inAppRetuned && id != null && !pickerShown && !pickerClosed) {
+            inAppRetuned = true;
+            watch.pause();
+            resetQuietly(tvView);
+            tune(id);
             return;
         }
         // Katmana geçilemiyor (Play paketi, izin yok ya da girişte cihaz görünmüyor): ekran siyah kalmasın, giriş seçici ve
@@ -547,8 +583,10 @@ public class MainActivity extends Activity implements TvPage.Host {
             }
         }
         if (overlayAllowed()) {
-            // Giriş boş göründüğü için kendiliğinden geçilmedi (FallbackWatch.shouldSwitch); PS5 başka girişteyse ya da
-            // TV görüntüyü uygulamaya vermiyorsa kullanıcı katmanı buradan seçer.
+            // Giriş boş göründüğü için ya da kullanıcı Uygulama içinde seçtiği için kendiliğinden geçilmedi
+            // (FallbackWatch.shouldSwitch, DisplayMode.mayAutoSwitch); PS5 başka girişteyse ya da TV görüntüyü uygulamaya
+            // vermiyorsa kullanıcı katmanı buradan kendisi seçer.
+            if (keptInApp()) text.append("\n\n").append(getString(R.string.in_app_kept_no_picture));
             text.append("\n\n").append(getString(R.string.overlay_offer));
             Button overlay = choiceButton(getString(R.string.overlay_switch));
             overlay.setOnClickListener(v -> switchToOverlay(R.string.overlay_selected));
@@ -814,6 +852,10 @@ public class MainActivity extends Activity implements TvPage.Host {
         lostWhilePaused = false;
         String id = session.toForeground();
         if (tvView != null && id != null && !held) tune(id);
+        if (keptInAppNotice != 0) {
+            showOverlayFailed(keptInAppNotice);
+            keptInAppNotice = 0;
+        }
     }
 
     @Override
@@ -844,17 +886,37 @@ public class MainActivity extends Activity implements TvPage.Host {
             handler.postDelayed(this::reclaimScreen, ScreenReclaim.DELAY_MS);
             return;
         }
-        if (taken == ScreenReclaim.Action.GIVE_UP && overlayAllowed()) {
-            switchToOverlay(R.string.overlay_fallback);
-            if (isFinishing()) return;
+        // Kullanıcı bilerek Uygulama içinde seçtiyse hiçbir otomatik durumda katmana geçilmez (DisplayMode.mayAutoSwitch):
+        // katman penceresinde çöken TV'lerde (#1074) bu seçim tek güvenli yoldu, kendiliğinden geçiş onu boşa çıkarıyordu.
+        boolean autoOverlay = autoOverlayAllowed();
+        boolean keepInApp = keptInApp();
+        if (taken == ScreenReclaim.Action.GIVE_UP) {
+            if (autoOverlay) {
+                switchToOverlay(R.string.overlay_fallback);
+                if (isFinishing()) return;
+            } else if (keepInApp) {
+                keepInAppNotice(R.string.in_app_kept_taken);
+            }
         }
         // Kullanıcı tuşa basıp ekranı kendisi değiştirdiyse (Ayarlar, Giriş) TV'nin devralması sayılmaz, katmana geçilmez.
         boolean byKey = reclaim.userActedBefore(pausedAt);
-        if (!byKey && !isFinishing() && tvView != null
-                && watch.takenOver(SystemClock.elapsedRealtime(), overlayAllowed(), leftByUser)) {
+        long now = SystemClock.elapsedRealtime();
+        boolean takeover = !byKey && !isFinishing() && tvView != null && watch.takenOver(now, true, leftByUser);
+        if (takeover && autoOverlay) {
             switchToOverlay(R.string.overlay_fallback);
             // Arka plandan ön plan servisi başlatılamadıysa (Android 12+ kısıtı) ekran açık kalır, normal yoldan devam.
             if (isFinishing()) return;
+        } else if (takeover && keepInApp && taken != ScreenReclaim.Action.GIVE_UP) {
+            // Uygulama içi seçili: katman yerine CouchSubs ekranı geri öne getirilir, giriş öne gelince yeniden açılır
+            // (dakikada en çok ScreenReclaim.MAX_PER_MINUTE kez). Hak dolduysa CouchSubs arkada kalır, durum söylenir.
+            if (reclaim.retake(now)) {
+                keptInAppNotice = R.string.in_app_kept_reclaimed;
+                releaseForBackground("taken over");
+                if (page != null) page.background(true);
+                handler.postDelayed(this::reclaimScreen, ScreenReclaim.DELAY_MS);
+                return;
+            }
+            keepInAppNotice(R.string.in_app_kept_taken);
         }
         if (page != null) page.background(true);
         // Ekran artık görünmüyor: giriş onPause'da bırakılmadıysa (bildirimle duraklatılmıştı) şimdi bırakılır; arada

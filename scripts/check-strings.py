@@ -22,6 +22,8 @@ def keys():
     found = set()
     for path in (p for d in SOURCE_DIRS for p in d.rglob("*.swift")):
         source = path.read_text()
+        # Text(verbatim: a ? "x" : "y") ve badge: a ? "XB" : "PS5" çevrilmez; üçlü desen bunları ekran metni sanmasın.
+        source = re.sub(r'\b(?:verbatim|badge):\s*[^,)\n]*', "", source)
         for pattern in PATTERNS:
             for match in re.findall(pattern, source):
                 for key in (match if isinstance(match, tuple) else (match,)):

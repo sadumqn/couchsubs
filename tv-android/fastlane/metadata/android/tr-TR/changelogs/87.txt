@@ -1,0 +1,1 @@
+0.9.84: Görüntü modu Uygulama içinde seçiliyse TV uygulaması hiçbir durumda (görüntü gelmedi, TV HDMI görüntüsünü kendi ekranına aldı) kendiliğinden katmana geçmiyor; uygulama içinde kalıp HDMI girişini yeniden açıyor ve ne olduğunu söylüyor.

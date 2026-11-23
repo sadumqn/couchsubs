@@ -66,7 +66,7 @@ final class PerdeTests: XCTestCase {
         store.save(LGTV(name: "Salon TV", host: "192.168.1.50", brand: .lg), for: StoreKey.tv)
         store.save("demo", for: StoreKey.tvKey)
         store.save(true, for: StoreKey.setupComplete)
-        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let defaults = scratchDefaults()
         let model = PhoneModel(services: LivePhoneServices(), store: store, defaults: defaults)
         let app = AppModel(analytics: SilentAnalytics(), packStore: nil, library: GamePackLibrary(bundled: nil, user: nil), defaults: defaults)
         let phone = CGSize(width: 393, height: 852)
@@ -97,7 +97,7 @@ final class PerdeTests: XCTestCase {
         store.save(LGTV(name: "Salon TV", host: "192.168.1.50", brand: .lg), for: StoreKey.tv)
         store.save("demo", for: StoreKey.tvKey)
         store.save(true, for: StoreKey.setupComplete)
-        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let defaults = scratchDefaults()
         let library = GamePackLibrary(bundled: GamePackLibrary.bundledDirectory, user: nil)
         let model = PhoneModel(services: LivePhoneServices(), store: store, defaults: defaults, packs: library)
         model.reloadPackList()

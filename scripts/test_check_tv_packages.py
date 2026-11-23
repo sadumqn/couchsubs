@@ -4,6 +4,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -73,6 +74,42 @@ class TVPackageVersionTests(unittest.TestCase):
                 issues = mod.problems(folder)
             self.assertEqual(len(issues), 1, issues)
             self.assertIn("boş", issues[0])
+
+    def test_nonzip_samsung_or_android_installer_is_rejected(self):
+        for kind, filename in (
+            ("wgt", "couchsubs-samsung_0.9.77.wgt"),
+            ("apk", "couchsubs-androidtv_0.9.77.apk"),
+        ):
+            with self.subTest(platform=kind), tempfile.TemporaryDirectory() as temp:
+                folder = Path(temp)
+                (folder / filename).write_bytes(b"nonempty, but not a valid ZIP archive")
+                with patch.object(mod, "source_versions", return_value={kind: "0.9.77"}):
+                    issues = mod.problems(folder)
+                self.assertEqual(len(issues), 1, issues)
+                self.assertIn("bozuk", issues[0])
+
+    def test_iphone_metadata_does_not_hide_corrupt_samsung_archive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            (folder / "couchsubs-samsung.wgt").write_bytes(b"broken signed widget data")
+            (folder / "tv-packages.properties").write_text(
+                "couchsubs-samsung.wgt.version=0.9.77\n", encoding="utf-8")
+            with patch.object(mod, "source_versions", return_value={"wgt": "0.9.77"}):
+                issues = mod.problems(folder)
+            self.assertEqual(len(issues), 1, issues)
+            self.assertIn("bozuk", issues[0])
+
+    def test_valid_samsung_and_android_zip_installers_still_pass(self):
+        for kind, filename in (
+            ("wgt", "couchsubs-samsung_0.9.77.wgt"),
+            ("apk", "couchsubs-androidtv_0.9.77.apk"),
+        ):
+            with self.subTest(platform=kind), tempfile.TemporaryDirectory() as temp:
+                folder = Path(temp)
+                with zipfile.ZipFile(folder / filename, "w") as archive:
+                    archive.writestr("sample-content", "a valid ZIP payload")
+                with patch.object(mod, "source_versions", return_value={kind: "0.9.77"}):
+                    self.assertEqual(mod.problems(folder), [])
 
     def test_current_single_release_package_still_passes(self):
         with tempfile.TemporaryDirectory() as temp:

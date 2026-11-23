@@ -169,6 +169,9 @@
                                         <TextBlock x:Name="PlayedGameText" Style="{StaticResource HeadlineText}" Margin="{t:Sp '0,xxs,0,0'}" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                 </DockPanel>
+                                <!-- Xbox oynanan oyunu bildirmez: oyun seçilmediyse kısa not (Oyun karosu da vurgulanır; zorlayıcı kart açılmaz) -->
+                                <TextBlock x:Name="XboxGameNote" Style="{StaticResource HintText}" Margin="{t:Sp '0,xs,0,0'}" Visibility="Collapsed"
+                                           Text="{t:T 'Xbox doesn\'t report the game being played; choose the game to turn on game-specific translation and the GTA 6 phone.'}" />
                                 <!-- Oyunun kayıtlı alanları: uygulandı ("Geri al") ya da paketten tanınan oyunda soru ("Kullan" / "Hayır") -->
                                 <StackPanel x:Name="AreaProfileRow" Margin="{t:Sp '0,m,0,0'}" Visibility="Collapsed">
                                     <TextBlock x:Name="AreaProfileText" Style="{StaticResource HintText}" />

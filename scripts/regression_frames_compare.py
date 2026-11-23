@@ -89,12 +89,28 @@ def main():
         state = "🔴 geriledi" if worse else ("🟢 iyileşti" if better else "🟢 aynı")
         lines.append(f"| {name} | {shown(b, lower)} | {shown(h, lower)} | {state} |")
     before, after = frame_failures(base), frame_failures(head)
-    regressed = {k: v for k, v in after.items() if k not in before}
-    # An aggregate tie can hide a newly failing frame while another frame improves.
-    red |= bool(regressed)
+    # Compare failure reasons too: an already failing frame may gain another
+    # fault, which aggregate rates and case-level presence checks can miss.
+    regressed = {}
+    for case, reasons in after.items():
+        introduced = [reason for reason in reasons if reason not in before.get(case, [])]
+        if introduced:
+            regressed[case] = introduced
+    # A missing baseline case must not be reported as a passing release: fewer
+    # cases can make unchanged aggregate rates look green.
+    missing = ["kare " + name for name in sorted(
+        {f["id"] for f in base["frames"]} - {f["id"] for f in head["frames"]})]
+    for field, label in (("scenarios", "telefon"), ("speakerScenarios", "konuşan adı"),
+                         ("slowReaderScenarios", "yavaş okuyucu")):
+        names = {s["name"] for s in base.get(field, [])} - {s["name"] for s in head.get(field, [])}
+        missing += [label + " senaryosu " + name for name in sorted(names)]
+    red |= bool(regressed or missing)
+    if missing:
+        lines += ["", "**Yeni koşuda eksik olan temel testler:**"]
+        lines += ["- " + name for name in missing]
     fixed = [k for k in before if k not in after]
     if regressed:
-        lines += ["", f"**{base['core']} sürümünde geçip {head['core']} sürümünde kalan kareler:**"]
+        lines += ["", f"**{base['core']} sürümüne göre yeni hata içeren kareler ve senaryolar:**"]
         lines += [f"- {k}: {', '.join(v)}" for k, v in sorted(regressed.items())]
     if fixed:
         lines += ["", f"{head['core']} sürümünde düzelen: " + ", ".join(sorted(fixed))]

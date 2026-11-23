@@ -1,0 +1,97 @@
+{
+  "about": "PS5'in Türkçe ana ekranı (beta.89, Mac altyazi.log): Türkçe harfleri düz okunan menü satırı, onun bozuk okunmuş parçaları ve değişmeyen ekranda yinelenen okumalar. Mac/iPhone SettledTextTests.swift, Windows SettledTextTests.cs ve Android SettledTextTest.kt bu dosyayı okur. turkish: TurkishText.looksTurkish; bracket: OcrNoise.looksBracketGarbled; fragment: hedef dilde blok SettledText'e yazılır, parça isTargetFragment (kutu [sol, üst, sağ, alt], null: bilinmiyor); settle: adımlar sırayla (observe: karenin satırları, settle: karara bağlanan satır (loose: altyazı adayı sayılmadan atıldı, yazı tanıma farkı kadar değişmiş okuması da sayılır), ask: isSettled beklenen); pipeline: okumalar sırayla (her biri 100 ms), paket yalnız 'pack' satırını bilir (paketteki bozuk parça), beklenen: çevirmene giden ve TV'ye giden yok, her satır günlüğe en çok bir kez.",
+  "turkish": [
+    { "text": "Yakin zamanda olu...", "turkish": true },
+    { "text": "e [Ikan Ipuflari Yakin zamanda olu...", "turkish": true },
+    { "text": "e [Ikan Ipuflari Yakin zamanda olu...\nullanmayi ogrenin", "turkish": true },
+    { "text": "Oyunlarinizdan 7 hikaye\nResmi haberler", "turkish": true },
+    { "text": "Daha Sonra Güncelle", "turkish": true },
+    { "text": "One [Ikan Ipufl", "turkish": false },
+    { "text": "Get in the car, Jason.", "turkish": false },
+    { "text": "Atatürk said we must defend the city.", "turkish": false },
+    { "text": "Yeah, we got a new one.", "turkish": false },
+    { "text": "Grand Theft Auto Vl", "turkish": false }
+  ],
+  "bracket": [
+    { "text": "One [Ikan Ipufl", "garbled": true },
+    { "text": "ne [Ikan Ipufla", "garbled": true },
+    { "text": "ne (Ikan IpuEI.", "garbled": true },
+    { "text": "[Laughs] Come here.", "garbled": false },
+    { "text": "(Sighs) Fine, let's go.", "garbled": false },
+    { "text": "[Shouting\nin the distance]", "garbled": false },
+    { "text": "Get in the car, Jason.", "garbled": false },
+    { "text": "e [Ikan Ipuflari Yakin zamanda olu...", "garbled": false }
+  ],
+  "fragment": [
+    {
+      "target": "e [Ikan Ipuflari Yakin zamanda olu...\nullanmayi ogrenin",
+      "box": [0.05, 0.30, 0.45, 0.42],
+      "cases": [
+        { "text": "One [Ikan Ipufl", "box": [0.05, 0.30, 0.30, 0.35], "fragment": true },
+        { "text": "ne [Ikan Ipufla", "box": null, "fragment": true },
+        { "text": "One [Ikan Ipufl", "box": [0.05, 0.80, 0.30, 0.86], "fragment": false },
+        { "text": "Get in the car, Jason.", "box": [0.05, 0.30, 0.45, 0.35], "fragment": false },
+        { "text": "Go!", "box": null, "fragment": false }
+      ]
+    }
+  ],
+  "settle": [
+    {
+      "name": "Atılan satır ekranda durdukça sessiz, ekrandan kalkınca unutulur",
+      "steps": [
+        { "time": 0, "observe": ["One [Ikan IpuEI", "Yakin zamanda olu...", "Grand Theft Auto Vl"] },
+        { "time": 0, "settle": "Yakin zamanda olu...", "target": true, "shown": false, "loose": true },
+        { "time": 100, "ask": "Yakin zamanda olu...", "settled": true },
+        { "time": 2500, "observe": ["ne [Ikan Ipufla", "Yakin zamanda olu...", "Grand Theft Auto Vl"] },
+        { "time": 2500, "ask": "Yakin zamanda olu...", "settled": true },
+        { "time": 3000, "observe": [] },
+        { "time": 3500, "ask": "Yakin zamanda olu...", "settled": true },
+        { "time": 4100, "observe": ["Grand Theft Auto Vl"] },
+        { "time": 4100, "ask": "Yakin zamanda olu...", "settled": false }
+      ]
+    },
+    {
+      "name": "Bozuk okunmuş parçanın yeniden okuması da sessiz",
+      "steps": [
+        { "time": 0, "observe": ["One [Ikan Ipufl", "Yakin zamanda olu..."] },
+        { "time": 0, "settle": "One [Ikan Ipufl", "target": false, "shown": false, "loose": true },
+        { "time": 300, "observe": ["ne [Ikan Ipufla", "Yakin zamanda olu..."] },
+        { "time": 300, "ask": "ne [Ikan Ipufla", "settled": true }
+      ]
+    },
+    {
+      "name": "Gösterilen satır yalnız aynı metinle ve ekranda kesintisiz durdukça sessiz",
+      "steps": [
+        { "time": 0, "observe": ["Where are you going?", "Resmi haberler"] },
+        { "time": 0, "settle": "Where are you going?", "target": false, "shown": true, "loose": false },
+        { "time": 100, "observe": ["Where are you going?", "Resmi haberler"] },
+        { "time": 100, "ask": "Where are you going?", "settled": true },
+        { "time": 100, "ask": "Where are you going, son?", "settled": false },
+        { "time": 200, "observe": ["Resmi haberler"] },
+        { "time": 300, "observe": ["Where are you going?", "Resmi haberler"] },
+        { "time": 300, "ask": "Where are you going?", "settled": false }
+      ]
+    },
+    {
+      "name": "Çevirisi aslıyla aynı çıkan satırın düzelen okuması yeniden çevrilir",
+      "steps": [
+        { "time": 0, "observe": ["I can do that for you right now."] },
+        { "time": 0, "settle": "I can do that for you right now.", "target": true, "shown": false, "loose": false },
+        { "time": 100, "observe": ["I can't do that for you right now."] },
+        { "time": 100, "ask": "I can't do that for you right now.", "settled": false },
+        { "time": 100, "ask": "I can do that for you right now.", "settled": true }
+      ]
+    }
+  ],
+  "pipeline": {
+    "pack": "Yakin zamanda olu...",
+    "packText": "Yakın zamanda öldü.",
+    "cycles": 4,
+    "frames": [
+      { "text": "Oyunlarinizdan 7 hikaye\nResmi haberler", "count": 4 },
+      { "text": "e [Ikan Ipuflari Yakin zamanda olu...", "count": 4 },
+      { "text": "Yakin zamanda olu...", "count": 4 },
+      { "text": "One [Ikan Ipufl", "count": 4 }
+    ]
+  }
+}

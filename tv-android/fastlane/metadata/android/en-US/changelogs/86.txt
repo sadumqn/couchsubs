@@ -1,0 +1,1 @@
+0.9.83: On some Android TVs (Philips) overlay mode no longer crashes; if drawing the overlay with the graphics chip fails, the next start draws it in software.

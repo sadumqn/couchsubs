@@ -158,9 +158,13 @@ object SubtitleSegmenter {
 object PackLookup {
     /**
      * Kütüphanedeki (açık) paketlerde arar (bulanık arama oynanan oyunun paketinde); sonuçta satırın son bulunan parçasının
-     * paketi yazılır.
+     * paketi yazılır. Türkçe satır ([TurkishText.looksTurkish]) aranmaz: anahtarlar İngilizcedir. PS5'in Türkçe menü satırı
+     * ("Yakin zamanda olu...") GTA 6 paketindeki bozuk bir parçayla tam eşleşiyor, oyun tanınmamışken "paket:gta-6" diye
+     * gösteriliyor ve bulanık aramanın kapsamını o pakete kaydırıyordu (beta.89; Mac: GamePackLibrary.match, Windows:
+     * PackLookup.Match).
      */
     fun match(library: GamePackLibrary, text: String): PackMatch? {
+        if (TurkishText.looksTurkish(text)) return null
         var lastPack: String? = null
         // Aynı parça bir aramada birkaç yoldan sorulabilir (etiketli/etiketsiz gövde aynı); bulanık sonuç bir kez hesaplanır.
         val asked = HashMap<String, PackMatch?>()

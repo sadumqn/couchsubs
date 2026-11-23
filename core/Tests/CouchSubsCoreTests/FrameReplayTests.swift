@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 @testable import CouchSubsCore
+import CoreGraphics
 import Foundation
+import ImageIO
 import XCTest
 
 /// Gerçek kare gerileme setinin (testdata/frames, scripts/regression-frames.sh) altyazı seçimi, kayıtlı Vision
@@ -11,13 +13,14 @@ import XCTest
 /// vermeli. Seçim bilerek değişince yeniden yazmak için: RECORD_FRAME_SELECTION=1 swift test --filter FrameReplayTests
 final class FrameReplayTests: XCTestCase {
     private struct Manifest: Decodable {
-        struct Frame: Decodable { let id: String; let session: String? }
+        struct Frame: Decodable { let id: String; let file: String; let session: String? }
         let frames: [Frame]
     }
 
     private struct Fixture: Decodable {
         struct Word: Decodable { let text: String; let box: [Double] }
-        struct Line: Decodable { let text: String; let box: [Double]?; let confidence: Double?; let words: [Word]? }
+        /// `dark`: satır açık zeminde koyu yazı (`InkTone`; kaydı karenin pikselleriyle denetlenir, `testDarkInkMatchesPixels`).
+        struct Line: Decodable { let text: String; let box: [Double]?; let confidence: Double?; let words: [Word]?; let dark: Bool? }
         let id: String
         let region: [Double]
         let lines: [Line]
@@ -37,6 +40,7 @@ final class FrameReplayTests: XCTestCase {
     static func selections() throws -> [(id: String, text: String)] {
         let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: directory.appendingPathComponent("frames.json")))
         var bands: [String: SubtitleBand] = [:]
+        var styles: [String: DarkInkStyle] = [:]
         var result: [(id: String, text: String)] = []
         for frame in manifest.frames {
             let url = directory.appendingPathComponent("ocr/\(frame.id).json")
@@ -55,12 +59,52 @@ final class FrameReplayTests: XCTestCase {
             }
             let key = frame.session ?? frame.id
             var band = bands[key] ?? SubtitleBand()
-            let block = reading.withoutButtonPrompts().withoutOcrNoise().joiningRows().subtitleBlock(in: area, band: band)
+            var style = styles[key] ?? DarkInkStyle()
+            let dark = fixture.lines.filter { $0.dark == true }.compactMap { $0.box.map(box) }
+            var darkBlocks: [Reading] = []
+            let block = reading.withoutButtonPrompts().withoutOcrNoise().joiningRows().subtitleBlock(
+                in: area, band: band, darkInk: style.isGameStyle ? nil : { Self.holdsDark($0, dark) },
+                dropped: { block, reason in if reason == InkTone.reason { darkBlocks.append(block) } })
+            for dropped in darkBlocks { style.observe(dropped, in: area) }
             band.record(block, in: area)
             bands[key] = band
+            styles[key] = style
             result.append((frame.id, block.text))
         }
         return result
+    }
+
+    /// Satır (birleşmişse satır parçası) kutusu koyu yazılı bir okumanın ortasını taşıyor mu: kayıtlı `dark` okumalarla
+    /// `InkTone` denetimi (Windows ve Android aynı yolla).
+    static func holdsDark(_ box: TextBox, _ dark: [TextBox]) -> Bool {
+        dark.contains { line in
+            let x = (line.left + line.right) / 2, y = (line.top + line.bottom) / 2
+            return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
+        }
+    }
+
+    /// Kayıtlı okumalardaki `dark` işareti karenin gerçek pikselleriyle aynı (`InkTone.sampler`, altyazı hattının yolu):
+    /// gerçek oyun karelerindeki altyazı satırlarının hiçbiri koyu yazı sayılmıyor (GTA 6, GTA V, RDR2, Elden Ring, AC
+    /// Shadows, pencere varyantları); yalnız açık zemindeki koyu yazı işaretli (GitHub #1124). Kayıt aracı (frame-regression
+    /// record) önceki etiketlerin çekirdeğiyle de derlendiği için işareti yazmaz: okumalar yeniden kaydedilince bu test
+    /// eksik işaretli satırları listeler, `"dark": true` elle geri konur.
+    func testDarkInkMatchesPixels() throws {
+        let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: Self.directory.appendingPathComponent("frames.json")))
+        var mismatches: [String] = []
+        for frame in manifest.frames {
+            let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: Self.directory.appendingPathComponent("ocr/\(frame.id).json")))
+            let url = Self.directory.appendingPathComponent(frame.file)
+            let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil), frame.file)
+            let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil), frame.file)
+            let r = fixture.region
+            let area = RegionCropper.crop(image, to: CropRegion(top: r[1], bottom: r[3], left: r[0], right: r[2]))
+            let dark = InkTone.sampler(area)
+            for line in fixture.lines {
+                guard let values = line.box else { continue }
+                if dark(Self.box(values)) != (line.dark ?? false) { mismatches.append("\(frame.id): \(line.text) → \(!(line.dark ?? false))") }
+            }
+        }
+        XCTAssertEqual(mismatches, [])
     }
 
     func testSelectionMatchesRecordedRealFrames() throws {

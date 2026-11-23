@@ -649,7 +649,7 @@ struct LGInstallSection: View {
 
     private func install(replaceForeign: Bool = false) {
         // Elle yazılan adres temizlenir ("192.168.1.5:3000", "http://…", virgüllü yazım); adres değilse söylenir.
-        guard let target = ManualAddress.normalize(host) else {
+        guard let typedTarget = ManualAddress.normalize(host) else {
             addressError = true
             return
         }
@@ -663,6 +663,16 @@ struct LGInstallSection: View {
                 working = false
                 UIApplication.shared.isIdleTimerDisabled = false
             }
+            // Kayıtlı TV'nin adresi hiç yanıt vermiyorsa TV ağda yeniden aranır (beta.89: modem TV'ye yeni adres vermişti,
+            // eski adrese gidilip "Key Server kapalı" deniyordu). Bulunursa kurulum yeni adresle sürer.
+            guard let target = await model.relocateForInstall(host: typedTarget, brand: .lg) else {
+                phase = .failed(text: TVText.lgErrTvNotFound)
+                candidates = nil
+                manual = false
+                await search()
+                return
+            }
+            if target != typedTarget { host = target }
             do {
                 let result = try await runInstall({ progress in
                     let package = try LGPhoneInstall.package()

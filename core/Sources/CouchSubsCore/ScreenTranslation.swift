@@ -19,6 +19,8 @@ public enum ScreenTranslation {
         public var icons: [[IconSlot]]? = nil
         /// GTA 6 telefonunun ekranındaki grubun rolü ve düz ekrandaki yeri (`PhoneChat`); telefon dışındaysa nil.
         var phone: ScreenPhoneCard.Placement? = nil
+        /// Özgün yazının satır sayısı; çeviri de bu kadar satıra sığdırılır (TV satır aralığını buna göre seçer).
+        public var rows = 1
     }
 
     public struct Item: Equatable, Sendable {
@@ -42,6 +44,10 @@ public enum ScreenTranslation {
         /// Telefonun yanındaki sohbet panelinin parçası (zemin, kişi adı, karşı tarafın ya da oyuncunun mesajı, not);
         /// yeni çiziciler paneli bunlarla akışta çizer (`ScreenPhoneCard.PanelPart`), eski TV kutuları yerinde çizer.
         public var panel: ScreenPhoneCard.PanelPart?
+        /// Kutunun genişleyebileceği yatay alan (simgelere ve komşu yazıya kadar; `ScreenFit`); nil ise bilinmiyor.
+        public var room: TextBox?
+        /// Özgün yazının satır sayısı (`Group.rows`).
+        public var rows = 1
 
         public init(source: String, translation: String, box: TextBox, lineHeight: Double, icons: [IconPlacement]? = nil) {
             self.source = source
@@ -73,14 +79,29 @@ public enum ScreenTranslation {
                                  phoneCard: Bool = true, panelScale: Double = 1,
                                  progress: ([Item]) -> Void = { _ in }) async throws -> [Item] {
         let phone = handset ?? frame.flatMap(ScreenPhoneCard.phone(in:))
-        var items: [Item] = []
         let all = withImages(groups(reading, frame: frame, wholeScreen: true, handset: phone), from: frame)
         let chat = chatTitle(all)
-        for group in all {
+        var made: [Int: Item] = [:]
+        func shown() -> [Item] {
+            ScreenFit.fitted(present(made.keys.sorted().map { made[$0]! }, phone: phone, card: phoneCard, textScale: panelScale), frame: frame)
+        }
+        // Önce çevirmene gitmeyecek gruplar (sözlük, bu ekranda daha önce çevrilmiş yazı): çeviri beklemeden hemen çizilir.
+        let prepared = all.map { $0.paragraphs.map(IconText.protect) }
+        var waiting: [Int] = []
+        for (g, group) in all.enumerated() {
+            let ready = group.paragraphs.map { known($0, in: group) ?? remembered($0, in: group, chat: chat, memory: memory) }
+            guard ready.allSatisfy({ $0 != nil }) else { waiting.append(g); continue }
+            if let item = item(group, prepared[g], ready.map { $0! }, keepUnchanged: phone != nil) { made[g] = styled(item, frame: frame) }
+        }
+        if !made.isEmpty, !waiting.isEmpty {
+            let early = shown()
+            if !early.isEmpty { progress(early) }
+        }
+        for g in waiting {
+            let group = all[g]
             try Task.checkCancellation()
-            let prepared = group.paragraphs.map(IconText.protect)
             var translated: [String] = []
-            for (index, paragraph) in prepared.enumerated() {
+            for (index, paragraph) in prepared[g].enumerated() {
                 let source = group.paragraphs[index]
                 if let known = known(source, in: group) ?? remembered(source, in: group, chat: chat, memory: memory) {
                     translated.append(known)
@@ -91,12 +112,12 @@ public enum ScreenTranslation {
                 memory?.remember(chat: memoryChat(group, chat), source: source, translation: result)
                 translated.append(result)
             }
-            guard let item = item(group, prepared, translated, keepUnchanged: phone != nil) else { continue }
-            items.append(styled(item, frame: frame))
-            let shown = present(items, phone: phone, card: phoneCard, textScale: panelScale)
-            if !shown.isEmpty { progress(shown) }
+            guard let item = item(group, prepared[g], translated, keepUnchanged: phone != nil) else { continue }
+            made[g] = styled(item, frame: frame)
+            let now = shown()
+            if !now.isEmpty { progress(now) }
         }
-        return present(items, phone: phone, card: phoneCard, textScale: panelScale)
+        return shown()
     }
 
     /// Çevirmen parçaları tek istekte çevirebiliyorsa (yapay zekâ) ekranın bütün parçaları birlikte gider ve sonuç bir
@@ -117,28 +138,41 @@ public enum ScreenTranslation {
         // daha önce görülen sohbetin mesajları da (`memory`); fiyatlar adla korunur.
         let sources = groups.flatMap(\.paragraphs)
         let owners = groups.flatMap { group in group.paragraphs.map { _ in group } }
-        let knowns = sources.indices.map { known(sources[$0], in: owners[$0]) ?? remembered(sources[$0], in: owners[$0], chat: chat, memory: memory) }
         let prices = prepared.flatMap { list in list.map { PriceText.protect($0.text) } }
+        // Diskteki çeviri önbelleğinde duran yazı (menü satırları oturumdan oturuma tekrar eder) da çevirmene gitmez.
+        var knowns: [String?] = sources.indices.map { i in
+            known(sources[i], in: owners[i]) ?? remembered(sources[i], in: owners[i], chat: chat, memory: memory)
+                ?? translator.cachedTranslation(prices[i].text).map { PriceText.restore($0, prices[i].values) }
+        }
         let asked = prices.indices.filter { knowns[$0] == nil }
         guard !sources.isEmpty else { return [] }
+        // Gruplar: hazır olanlar (bütün parçaları biliniyor) çeviri isteğini beklemeden hemen çizilir.
+        func laid(_ translations: [String?]) -> [Item] {
+            var items: [Item] = []
+            var next = 0
+            for (index, group) in groups.enumerated() {
+                let count = group.paragraphs.count
+                let part = (next..<next + count).map { $0 < translations.count ? translations[$0] : nil }
+                next += count
+                guard part.allSatisfy({ $0 != nil }) else { continue }
+                if let item = item(group, prepared[index], part.map { $0! }, keepUnchanged: phone != nil) {
+                    items.append(styled(item, frame: frame))
+                }
+            }
+            return ScreenFit.fitted(present(items, phone: phone, card: phoneCard, textScale: panelScale), frame: frame)
+        }
+        if !asked.isEmpty {
+            let early = laid(knowns)
+            if !early.isEmpty { progress(early) }
+        }
         let answers = asked.isEmpty ? [] : try await translator.translateAll(asked.map { prices[$0].text })
         try Task.checkCancellation()
-        var translations = knowns.map { $0 ?? "" }
         for (k, index) in asked.enumerated() where k < answers.count {
-            translations[index] = PriceText.restore(answers[k], prices[index].values)
-            memory?.remember(chat: memoryChat(owners[index], chat), source: sources[index], translation: translations[index])
+            knowns[index] = PriceText.restore(answers[k], prices[index].values)
+            memory?.remember(chat: memoryChat(owners[index], chat), source: sources[index], translation: knowns[index]!)
         }
-        var items: [Item] = []
-        var next = 0
-        for (index, group) in groups.enumerated() {
-            let count = group.paragraphs.count
-            let translated = (next..<next + count).map { $0 < translations.count ? translations[$0] : "" }
-            next += count
-            if let item = item(group, prepared[index], translated, keepUnchanged: phone != nil) {
-                items.append(styled(item, frame: frame))
-            }
-        }
-        let shown = present(items, phone: phone, card: phoneCard, textScale: panelScale)
+        // Gelmeyen çeviri boş kalır: parça aslıyla gösterilir.
+        let shown = laid(knowns.map { $0 ?? "" })
         if !shown.isEmpty { progress(shown) }
         return shown
     }
@@ -353,6 +387,7 @@ public enum ScreenTranslation {
                         box: group.box, lineHeight: group.lineHeight, icons: rendered.icons.isEmpty ? nil : rendered.icons)
         item.unchanged = !changed
         item.phone = group.phone
+        item.rows = group.rows
         return item
     }
 
@@ -717,9 +752,20 @@ public enum ScreenTranslation {
             let heights = group.map { $0.box!.bottom - $0.box!.top }.sorted()
             let box = group.dropFirst().reduce(group[0].box!) { $0.union($1.box!) }
             let icons = paragraphIcons(group)
-            return Group(paragraphs: paragraphs(group), box: box, lineHeight: heights[heights.count / 2],
-                         icons: icons.contains(where: { !$0.isEmpty }) ? icons : nil)
+            var made = Group(paragraphs: paragraphs(group), box: box, lineHeight: heights[heights.count / 2],
+                             icons: icons.contains(where: { !$0.isEmpty }) ? icons : nil)
+            made.rows = rows(group)
+            return made
         }
+    }
+
+    /// Satırların kaç ayrı satır olduğu: yazı tanıma aynı satırı iki parça okuyabilir (yan yana duran parçalar tek satırdır).
+    static func rows(_ lines: [TextLine]) -> Int {
+        var tops: [TextBox] = []
+        for box in lines.compactMap(\.box) where !tops.contains(where: { other in
+            min(other.bottom, box.bottom) - max(other.top, box.top) >= 0.5 * min(other.bottom - other.top, box.bottom - box.top)
+        }) { tops.append(box) }
+        return max(1, tops.count)
     }
 
     /// Kalabalık ekranda en çok yazısı olan `maxGroups` grup, yukarıdan aşağı sırasıyla. Önceden en üstteki gruplar

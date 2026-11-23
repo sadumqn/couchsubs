@@ -594,6 +594,26 @@
                                     <Button Content="{t:T 'Pair TV'}" Margin="{t:Sp '0,0,xs,xs'}" Click="OnOpenTvPairing" />
                                     <Button Content="{t:T 'Renew access key'}" Margin="{t:Sp '0,0,0,xs'}" Click="OnRenewAccessKey" />
                                 </WrapPanel>
+                                <!-- Eşli TV her zaman değiştirilebilir ve kaldırılabilir (Mac/iPhone/Android ile aynı); önceden eşli TV'nin
+                                     adresi değişince kart "TV uygulaması bekleniyor"da kalıyor, TV ne değiştirilebiliyor ne kaldırılabiliyordu. -->
+                                <WrapPanel x:Name="PairedTvActions" Visibility="{Binding HasTv, Converter={StaticResource VisibleIf}}">
+                                    <Button Content="{t:T 'Change the TV'}" Margin="{t:Sp '0,0,xs,xs'}" Click="OnChangeTv" />
+                                    <Button Content="{t:T 'Remove Pairing'}" Margin="{t:Sp '0,0,0,xs'}" Click="OnRemoveTvPairing" />
+                                </WrapPanel>
+                                <!-- "TV'yi Eşleştir" ya da "Deneme Altyazısı Gönder" TV'ye ulaşamadı: ne olduğu ve iki çözüm. -->
+                                <c:SpacedStack x:Name="TvUnreachablePanel" Gap="xs" Visibility="Collapsed">
+                                    <c:Callout x:Name="TvUnreachableBox" Tone="Attention" />
+                                    <WrapPanel>
+                                        <Button Content="{t:T 'Search for the TV Again'}" Margin="{t:Sp '0,0,xs,xs'}" Click="OnSearchTvAgain" />
+                                        <Button Content="{t:T 'Enter IP Address'}" Margin="{t:Sp '0,0,0,xs'}" Click="OnEnterTvAddress" />
+                                    </WrapPanel>
+                                    <Grid x:Name="TvAddressPanel" Visibility="Collapsed">
+                                        <TextBox x:Name="TvAddress" FontFamily="{StaticResource MonoFont}" Padding="{t:Sp 'm,0,xxl,0'}" KeyDown="OnTvAddressKey"
+                                                 ToolTip="{t:T 'IP address, e.g. 192.168.1.20'}" />
+                                        <Button Content="{t:T 'Add'}" Style="{StaticResource CompactButton}" HorizontalAlignment="Right"
+                                                VerticalAlignment="Center" Margin="{t:Sp '0,0,xs,0'}" Click="OnUseTvAddress" />
+                                    </Grid>
+                                </c:SpacedStack>
                                 <c:Callout x:Name="LegacyTvWarning" Text="{t:T 'The TV app is old. Update it.'}" Visibility="Collapsed" />
                             </c:SpacedStack>
                         </c:Card>
@@ -671,7 +691,7 @@
                                 </c:Unit>
                                 <!-- Yalnız Android TV: bazı TV'lerde (ör. TCL) uygulama içindeki PS5 görüntüsü siyah kalıyor. -->
                                 <c:Unit x:Name="DisplayModePanel" Title="{t:T 'Picture mode'}" Visibility="Collapsed"
-                                        Hint="{t:T 'Automatic uses Overlay whenever the TV app allows it: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. On some TVs the picture stays black inside the CouchSubs TV app. To show the PS5 inside the CouchSubs TV app instead, choose Inside the app; if no picture arrives there, the TV app switches to Overlay by itself. With Overlay the TV also keeps its picture mode, Game mode and HDR: inside the app the TV handles the PS5 picture as an app, not as its HDMI input.'}">
+                                        Hint="{t:T 'Automatic uses Overlay whenever the TV app allows it: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. On some TVs the picture stays black inside the CouchSubs TV app. To show the PS5 inside the CouchSubs TV app instead, choose Inside the app; the TV app then never switches to Overlay by itself: if no picture arrives, it reopens the HDMI input and lists the inputs, and you can choose Overlay there. With Overlay the TV also keeps its picture mode, Game mode and HDR. The TV app from Google Play has no Overlay mode: there Automatic stays inside the app, and the TV says so on screen if Overlay is chosen.'}">
                                     <ComboBox x:Name="DisplayMode" SelectionChanged="OnDisplayMode">
                                         <ComboBoxItem Content="{t:T 'Automatic (recommended)'}" Tag="Auto" />
                                         <ComboBoxItem Content="{t:T 'Inside the app'}" Tag="InAppOnly" />

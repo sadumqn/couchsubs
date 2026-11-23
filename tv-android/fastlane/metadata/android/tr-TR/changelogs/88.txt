@@ -1,0 +1,1 @@
+0.9.85: Ekran çevirileri özgün yazının birebir yerinde ve boyunda: küçülme yok, kutu kumanda tuşu simgelerini ve fotoğrafları örtmüyor, menü sekmeleri aynı boyda.

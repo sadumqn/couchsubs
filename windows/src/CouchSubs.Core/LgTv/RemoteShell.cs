@@ -22,6 +22,8 @@ public sealed class SshNetShell(string host, int port, string keyFile, string us
 {
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(6);
     public TimeSpan CommandTimeout { get; init; } = TimeSpan.FromMinutes(2);
+    /// <summary>SSH bağlanmayınca bakılan Key Server portu (denemelerde başka port).</summary>
+    public int KeyServerPort { get; init; } = DevModeInstaller.KeyServerPort;
 
     public async Task<CommandResult> RunAsync(string command, string? inputFile = null)
     {
@@ -50,7 +52,9 @@ public sealed class SshNetShell(string host, int port, string keyFile, string us
             }
             catch (Exception error) when (error is SocketException or SshException or OperationCanceledException or TimeoutException)
             {
-                throw new DevModeException(DevModeError.Unreachable, error.Message);
+                // SSH kapalı ama Key Server açıksa sorun ağ değil: "TV yanıt vermedi" yerine ne yapılacağı söylenir (#1116).
+                var keyServer = await DevModeInstaller.IsPortOpenAsync(host, KeyServerPort, TimeSpan.FromMilliseconds(1500));
+                throw new DevModeException(keyServer ? DevModeError.DevConnectionClosed : DevModeError.Unreachable, error.Message);
             }
 
             try

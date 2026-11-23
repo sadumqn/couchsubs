@@ -837,6 +837,11 @@ public interface IAppServices
     /// <summary>TV kurulum günlüğüne (tvinstall.log) bir satır; kurulum başlamadıysa nedeni buraya yazılır.</summary>
     void WriteTvInstallLog(string line) { }
     Task<bool> IsDevModeOnAsync(string host);
+    /// <summary>
+    /// Kayıtlı TV adresinde bir şey yanıt veriyor mu (TvReach.RespondsAsync: kapılardan biri bağlanır ya da reddeder). Hayırsa
+    /// TV ağda yeniden aranır; adresi değişmiş TV'de "geliştirici modu kapalı" ya da "Key Server kapalı" denmez.
+    /// </summary>
+    Task<bool> TvRespondsAsync(string host, TvBrand brand) => Task.FromResult(true);
     Task<string> FetchDevKeyAsync(string host, string passphrase);
     /// <summary>TV'deki sürüm; TV'de CouchSubs'ın kimliğiyle başka bir uygulama varsa DevModeError.ForeignApp fırlatır.</summary>
     Task<string?> InstalledTvAppVersionAsync(string host, string devKey);

@@ -28,4 +28,7 @@
     <string name="overlay_failed">Overlay could not start: this TV did not let CouchSubs show subtitles over other apps. CouchSubs stays open; you can read the subtitles on your phone.</string>
     <string name="overlay_renderer_failed">Subtitle overlay stopped: this TV\'s web view (Android System WebView) closed the subtitle page several times in a row. The game picture is not affected. Restart the TV and open CouchSubs again; until then you can read the subtitles on your phone.</string>
     <string name="page_renderer_failed">The subtitle page was closed by this TV\'s web view (Android System WebView) several times in a row. Restart the TV and try again; until then you can read the subtitles on your phone.</string>
+    <string name="in_app_kept_no_picture">Picture mode is set to Inside the app, so CouchSubs did not switch to overlay by itself.</string>
+    <string name="in_app_kept_reclaimed">The TV moved the PS5 picture to its own HDMI screen. Picture mode is set to Inside the app, so CouchSubs did not switch to overlay: it came back to the front and reopened the HDMI input.</string>
+    <string name="in_app_kept_taken">The TV keeps moving the PS5 picture to its own HDMI screen. Picture mode is set to Inside the app, so CouchSubs did not switch to overlay and subtitles do not show on the TV\'s HDMI screen. Open CouchSubs again or read the subtitles on your phone. If overlay works on this TV, choose Picture mode › Automatic in CouchSubs settings on your computer or phone.</string>
 </resources>

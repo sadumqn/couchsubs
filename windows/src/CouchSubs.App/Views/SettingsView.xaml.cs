@@ -87,6 +87,12 @@ public partial class SettingsView : UserControl
         ShowStyleTitle();
         controller.PropertyChanged += OnControllerChanged;
         Unloaded += (_, _) => controller.PropertyChanged -= OnControllerChanged;
+        // Eşli TV kartı görünürken TV uygulaması bağlı değilse ~10 sn'de bir adres yoklanır: sessizse kart "Yanıt vermiyor —
+        // yeniden aranıyor…" der, TV ağda aranır (en çok 30 sn'de bir) ve bulunursa yeni adres kartta görünür.
+        tvReachWatch.Tick += async (_, _) => { if (IsVisible && controller.ShowsOnTv) await controller.CheckTvReachableAsync(); };
+        Loaded += (_, _) => { tvReachWatch.Start(); _ = controller.CheckTvReachableAsync(); };
+        Unloaded += (_, _) => tvReachWatch.Stop();
+        ShowTvUnreachable();
         Engine.SelectedItem = Engine.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.Engine.ToString());
         TranslationDeviceChoice.SelectedItem = TranslationDeviceChoice.Items.Cast<ComboBoxItem>()
             .First(item => (string)item.Tag == settings.TranslationDevice.ToString());
@@ -371,8 +377,11 @@ public partial class SettingsView : UserControl
 
     private void OnControllerChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(AppController.TvStatusText) or nameof(AppController.TvClients) or nameof(AppController.TvReconnecting))
+        if (e.PropertyName is nameof(AppController.TvStatusText) or nameof(AppController.TvClients) or nameof(AppController.TvReconnecting)
+            or nameof(AppController.Tv) or nameof(AppController.HasTv) or nameof(AppController.TvNotResponding))
             Dispatcher.BeginInvoke(ShowTvStatus);
+        if (e.PropertyName is nameof(AppController.TvUnreachableProblem) or nameof(AppController.Tv))
+            Dispatcher.BeginInvoke(ShowTvUnreachable);
         // Menü arkasındaki renk geçişi çeviri sürerken durur (işlemci oyuna kalsın).
         if (e.PropertyName == nameof(AppController.IsRunning)) Dispatcher.BeginInvoke(() => Glow.Paused = controller.IsRunning);
         if (e.PropertyName is nameof(AppController.ObsAddress) or nameof(AppController.NetworkObsAddress) or nameof(AppController.LegacyTvWarning))
@@ -1344,7 +1353,7 @@ public partial class SettingsView : UserControl
     private void ShowTvStatus()
     {
         TvStatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
-            controller.TvClients > 0 ? "successBrush" : controller.TvReconnecting ? "accentBrush" : "textTertiaryBrush");
+            controller.TvClients > 0 ? "successBrush" : controller.TvReconnecting || controller.TvNotResponding ? "accentBrush" : "textTertiaryBrush");
         TvCardHost.Content = TvCard(controller.Tv, controller.HasTv, controller.TvClients > 0);
     }
 
@@ -1882,7 +1891,56 @@ public partial class SettingsView : UserControl
         Update(s => s.WithExtraArea(extra.Id, a => a with { Region = region }));
     }
 
-    private void OnTest(object sender, RoutedEventArgs e) => controller.SendTestSubtitle();
+    private async void OnTest(object sender, RoutedEventArgs e)
+    {
+        controller.SendTestSubtitle();
+        // Eşli TV'ye ulaşılamıyorsa deneme altyazısı gitmez; kart bunu söyler (adres değişmiş olabilir).
+        await controller.EnsureTvReachableAsync();
+    }
+
+    /// <summary>~10 sn'de bir eşli TV'nin adresine bakar (kart görünürken).</summary>
+    private readonly System.Windows.Threading.DispatcherTimer tvReachWatch = new() { Interval = TimeSpan.FromSeconds(10) };
+
+    /// <summary>"TV'yi Eşleştir" / "Deneme Altyazısı Gönder" TV'ye ulaşamadıysa hata ve "TV'yi Yeniden Ara", "IP Adresi Gir".</summary>
+    private void ShowTvUnreachable()
+    {
+        TvUnreachableBox.Text = controller.TvUnreachableProblem;
+        TvUnreachablePanel.Visibility = controller.HasTvUnreachableProblem ? Visibility.Visible : Visibility.Collapsed;
+        if (!controller.HasTvUnreachableProblem) TvAddressPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnChangeTv(object sender, RoutedEventArgs e)
+    {
+        controller.ChangeTv();
+        Leave();
+    }
+
+    private void OnRemoveTvPairing(object sender, RoutedEventArgs e)
+    {
+        var text = Localizer.Current;
+        var answer = MessageBox.Show(Host, text["The paired TV will be removed. You can choose a TV again with Change the TV."], text["Remove Pairing?"],
+            MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.OK) return;
+        controller.RemoveTvPairing();
+    }
+
+    private async void OnSearchTvAgain(object sender, RoutedEventArgs e) => await controller.SearchTvAgainAsync();
+
+    private void OnEnterTvAddress(object sender, RoutedEventArgs e)
+    {
+        TvAddressPanel.Visibility = Visibility.Visible;
+        TvAddress.Focus();
+    }
+
+    private async void OnUseTvAddress(object sender, RoutedEventArgs e)
+    {
+        if (await controller.UseTvAddressAsync(TvAddress.Text)) TvAddress.Text = "";
+    }
+
+    private void OnTvAddressKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) OnUseTvAddress(sender, e);
+    }
 
     private void OnAbout(object sender, RoutedEventArgs e) => AboutWindow.Open(Host);
 

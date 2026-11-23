@@ -39,7 +39,9 @@ fun GameSection(status: LiveStatus) {
     // Kart açılıp kapanırken satırla solarak yer değiştirir; yükseklik farkı yumuşakça kapanır.
     AnimatedContent(status.askingGame, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "gameAsk") { asking ->
         if (asking) GameAskCard() else Column(verticalArrangement = Arrangement.spacedBy(Tokens.Space.gap)) {
-            PlayedGameRow(status.game)
+            PlayedGameRow(status.game, highlighted = status.xboxNeedsGame)
+            // Xbox oynanan oyunu bildirmez: oyun seçilmediyse satır vurgulanır ve kısa not görünür (zorlayıcı kart açılmaz).
+            if (status.xboxNeedsGame) NoticeBox(stringResource(R.string.game_xbox_unknown_note), NoticeTone.INFO)
             GameAreasRow(status)
         }
     }
@@ -107,8 +109,8 @@ private fun GameAskCard() {
 
 /** "Oynanan oyun" satırı; "Değiştir" kartı açar. */
 @Composable
-private fun PlayedGameRow(game: String?) {
-    Tile(Modifier.fillMaxWidth()) {
+private fun PlayedGameRow(game: String?, highlighted: Boolean = false) {
+    Tile(Modifier.fillMaxWidth(), style = if (highlighted) TileStyle.WARNING else TileStyle.NORMAL) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Tokens.Space.hair)) {
                 TileLabel(stringResource(R.string.game_played))

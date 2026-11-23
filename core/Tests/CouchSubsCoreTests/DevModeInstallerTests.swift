@@ -15,9 +15,10 @@ final class DevModeInstallerTests: XCTestCase {
         }
     }
 
-    private func installer(_ runner: FakeRunner) -> DevModeInstaller {
+    private func installer(_ runner: FakeRunner, keyServerOpen: Bool = false) -> DevModeInstaller {
         DevModeInstaller(host: "192.168.1.230", keyFile: URL(fileURLWithPath: "/tmp/key"), runner: runner,
-                         pollInterval: .milliseconds(1), installTimeout: .milliseconds(200), verifyTimeout: .milliseconds(200))
+                         pollInterval: .milliseconds(1), installTimeout: .milliseconds(200), verifyTimeout: .milliseconds(200),
+                         keyServerOpen: { _ in keyServerOpen })
     }
 
     private func isInstall(_ line: String) -> Bool { line.contains("appInstallService") }
@@ -92,6 +93,30 @@ final class DevModeInstallerTests: XCTestCase {
             XCTFail("Hata bekleniyordu")
         } catch {
             XCTAssertEqual(error as? DevModeError, .keyRefused)
+        }
+    }
+
+    /// #200, #1116: Key Server anahtarı verdi ama 9922 "Connection refused" (webOS Hub'lı TV). "TV yanıt vermedi" denmez.
+    func testRefusedSshWhileKeyServerAnswersIsReportedAsClosedDeveloperConnection() async {
+        let runner = FakeRunner()
+        let reply = "ssh: connect to host 192.168.1.230 port 9922: Connection refused"
+        runner.answers = [{ _ in CommandResult(status: 255, output: reply) }]
+        do {
+            _ = try await installer(runner, keyServerOpen: true).installedVersion()
+            XCTFail("Hata bekleniyordu")
+        } catch {
+            XCTAssertEqual(error as? DevModeFailure, DevModeFailure(.devConnectionClosed, detail: reply))
+        }
+    }
+
+    func testRefusedSshWithKeyServerClosedIsStillUnreachable() async {
+        let runner = FakeRunner()
+        runner.answers = [{ _ in CommandResult(status: 255, output: "ssh: connect to host 192.168.1.230 port 9922: Connection refused") }]
+        do {
+            _ = try await installer(runner, keyServerOpen: false).installedVersion()
+            XCTFail("Hata bekleniyordu")
+        } catch {
+            XCTAssertEqual(error as? DevModeError, .unreachable)
         }
     }
 

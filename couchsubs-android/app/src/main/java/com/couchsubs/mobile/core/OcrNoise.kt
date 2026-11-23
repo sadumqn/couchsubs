@@ -88,6 +88,31 @@ object OcrNoise {
         return bad * 6 > good + bad
     }
 
+    /**
+     * Kapanmayan köşeli ya da normal parantezle bölünmüş okuma ("One [Ikan Ipufl", "ne [Ikan Ipufla"): yazı tanıma Türkçe
+     * "Ç"yi "[" ya da "(" okuyor (PS5'in Türkçe menüsü "Öne Çıkan İpuçları"). Satırda karşılığı olmayan, büyük harfle
+     * başlayan sözcüğe yapışık açılış parantezi taşıyan sözcük bozuk sayılır; eşik [looksGarbled] ile aynıdır (harflerin
+     * altıda birinden çoğu bozuk sözcüklerde). Kapanan parantez ("[Laughs] Come here.") etkilenmez. Yalnız çevirmene
+     * gidecek kararlı satırda kullanılır (Mac: OcrNoise.looksBracketGarbled, Windows: LooksBracketGarbled).
+     */
+    fun looksBracketGarbled(text: String): Boolean {
+        val trimmed = text.trim()
+        var good = 0
+        var bad = 0
+        var bracketed = false
+        for (token in trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }) {
+            val core = split(token).second
+            val letters = core.filter { it.isLetter() }
+            if (letters.isEmpty()) continue
+            val open = token.length > 1 && (token[0] == '[' || token[0] == '(') && token[1].isLetter() && token[1].isUpperCase() &&
+                !trimmed.contains(if (token[0] == '[') ']' else ')')
+            if (open) bracketed = true
+            val clean = !open && cleanCore(core) == core && normalCase(core) && core.none { it in "[]()" } && !vowelless(letters)
+            if (clean) good += letters.length else bad += letters.length
+        }
+        return bracketed && bad * 6 > good + bad
+    }
+
     /** Parça yalnız simgelerden mi oluşuyor (harf ve rakam yok, en az bir [SYMBOLS] imi). */
     private fun isSymbolOnly(core: String) =
         core.isNotEmpty() && core.none { it.isLetter() || TextMatch.isNumber(it) } && core.any { it in SYMBOLS }

@@ -22,11 +22,31 @@ public enum TurkishText {
         "gibi", "kadar", "belki", "hemen", "benim", "senin",
     ].map { PoolFilter.fold($0).joined() }
 
-    private static let known = PoolFilter.turkishWords + commonWords
+    /// PS5'in Türkçe ana ekranı ve oyun kartı menüsünün sözcükleri ("Öne Çıkan İpuçları", "Yakın zamanda oluşturulanlar",
+    /// "Oyunlarınızdan 7 hikâye", "Resmi haberler"). Yazı tanıma Türkçe harfleri düz harfe çevirince ("Yakin zamanda olu...")
+    /// satır İngilizce sanılıp paketle eşleşiyor ya da çevriliyordu (beta.89, Mac).
+    static let menuWords: [String] = [
+        "yakin", "zamanda", "olusturulanlar", "ipuclari", "cikan", "ogrenin", "kullanmayi", "hikaye", "haberler",
+        "oyunlarinizdan", "secenekler", "resmi", "yeni",
+    ].map { PoolFilter.fold($0).joined() }
+
+    private static let known = PoolFilter.turkishWords + commonWords + menuWords
 
     /// Satır yüksek güvenle Türkçe mi: en az bir Türkçe harf ve en az bir bilinen Türkçe sözcük.
     public static func isSure(_ text: String) -> Bool {
         guard text.contains(where: letters.contains) else { return false }
         return PoolFilter.fold(text).contains { word in known.contains { PoolFilter.isClose(word, $0) } }
     }
+
+    /// Türkçe harfleri yazı tanımada düz harfe dönmüş Türkçe satır mı ("Yakin zamanda olu...", "e [Ikan Ipuflari Yakin
+    /// zamanda olu..."): en az iki bilinen Türkçe sözcük, ve iki ya da daha çok harfli sözcüklerin en az yarısı bilinen
+    /// Türkçe sözcük. İçinde tek Türkçe sözcük geçen İngilizce satır çevrilir.
+    public static func isFolded(_ text: String) -> Bool {
+        let words = PoolFilter.fold(text).filter { $0.count >= 2 && $0.contains(where: \.isLetter) }
+        let hits = words.filter { word in known.contains { PoolFilter.isClose(word, $0) } }.count
+        return hits >= 2 && hits * 2 >= words.count
+    }
+
+    /// Satır Türkçe mi (`isSure` ya da `isFolded`).
+    public static func looksTurkish(_ text: String) -> Bool { isSure(text) || isFolded(text) }
 }

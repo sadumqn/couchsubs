@@ -202,7 +202,7 @@
     <string name="settings_display_mode_auto">Automatic</string>
     <string name="settings_display_mode_in_app">Inside the app</string>
     <string name="settings_display_mode_overlay">Overlay</string>
-    <string name="settings_display_mode_note">Automatic uses Overlay whenever the TV app allows it: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. On some TVs the picture stays black inside the CouchSubs TV app. To show the PS5 inside the CouchSubs TV app instead, choose Inside the app; if no picture arrives there, the TV app first lists its HDMI inputs and switches to Overlay where it can. With Overlay the TV also keeps its picture mode, Game mode and HDR. The TV app from Google Play has no Overlay mode: there Automatic stays inside the app, and the TV says so on screen if Overlay is chosen.</string>
+    <string name="settings_display_mode_note">Automatic uses Overlay whenever the TV app allows it: the TV shows the PS5 on its own HDMI input and the subtitles appear on top. On some TVs the picture stays black inside the CouchSubs TV app. To show the PS5 inside the CouchSubs TV app instead, choose Inside the app; the TV app then never switches to Overlay by itself: if no picture arrives, it reopens the HDMI input and lists the inputs, and you can choose Overlay there. With Overlay the TV also keeps its picture mode, Game mode and HDR. The TV app from Google Play has no Overlay mode: there Automatic stays inside the app, and the TV says so on screen if Overlay is chosen.</string>
     <string name="settings_screen_on">Keep screen on</string>
     <string name="settings_screen_on_note">Translation to the TV keeps going when the phone is locked or the screen turns off. While the screen is off, though, Wi-Fi switches to power saving, and on some phones the connection can slow down or drop. The most reliable way is to leave the screen on and turn the brightness down.</string>
     <string name="background_limit_title">Translation may stop when the phone locks</string>
@@ -292,6 +292,7 @@
     <string name="game_ask_dont_ask">Don\'t ask</string>
     <string name="game_played">Played game</string>
     <string name="game_unknown">Not known</string>
+    <string name="game_xbox_unknown_note">Xbox doesn\'t report the game being played; choose the game to turn on game-specific translation and the GTA 6 phone.</string>
     <string name="game_change">Change</string>
     <string name="area_profile_title">Areas for this game</string>
     <string name="area_profile_saved">These areas are saved for %1$s.</string>
@@ -494,9 +495,9 @@
     <string name="tvinstall_lg_session_note">Developer mode stays on for at most 1000 hours. CouchSubs extends it by itself once a day while the phone can reach the TV.</string>
     <string name="tvinstall_lg_tv_says">TV says: %1$s</string>
     <string name="tvinstall_lg_err_unreachable">The TV did not respond. Make sure the TV is on and on the same Wi-Fi as this phone, and that Dev Mode Status is on in the Developer Mode app.</string>
-    <string name="tvinstall_lg_err_restart_needed">The TV\'s Key Server is on, but its developer connection is closed. After Dev Mode Status is turned on the TV has to restart: press RESTART in the Developer Mode app (or unplug the TV and plug it back in), then open the app again, turn on Key Server and try again.</string>
+    <string name="tvinstall_lg_err_restart_needed">Developer mode looks on (the TV\'s Key Server answers), but the TV refuses the install connection. Unplug the TV for 30 seconds and plug it back in (or press RESTART in the Developer Mode app), then open the Developer Mode app, check that Dev Mode Status is on, turn on Key Server and try again. On some TVs that use webOS Hub this connection may be closed in the TV\'s software; the TV app then cannot be installed this way.</string>
     <string name="tvinstall_lg_err_dev_mode_off">The TV is on at this address, but developer mode is off. Open the Developer Mode app on the TV: Dev Mode Status must be on (it turns off by itself when its time runs out; turn it on again and the TV restarts). Then turn on Key Server and try again.</string>
-    <string name="tvinstall_lg_err_tv_not_found">No TV responds at this address. The TV may be off, on another Wi-Fi, or its address may have changed. Turn the TV on, check its IP address in the TV\'s Settings › Network, and pick the right TV from the list above.</string>
+    <string name="tvinstall_lg_err_tv_not_found">The TV isn\'t responding at this address (is it on and on the same network?) It wasn\'t found on the network either. Turn the TV on, check its IP address in the TV\'s Settings › Network, and pick the right TV from the list above.</string>
     <string name="tvinstall_lg_err_key_server">Key Server is off. Turn it on in the Developer Mode app and keep the app on screen.</string>
     <string name="tvinstall_lg_err_passphrase">The passphrase is not correct. Check it on the TV screen.</string>
     <string name="tvinstall_lg_err_key_refused">The TV refused the key. Open Key Server and type the passphrase again.</string>
@@ -890,4 +891,15 @@
     <string name="perde_not_set_up">Not set up</string>
     <string name="perde_on_this_screen">On this screen</string>
     <string name="perde_ready_translation">Ready translation</string>
+    <string name="tv_not_responding">The TV isn\'t responding at this address (is it on and on the same network?)</string>
+    <string name="tv_not_responding_at">The TV isn\'t responding at %1$s. Its address may have changed.</string>
+    <string name="tv_searching_again">Not responding — searching again…</string>
+    <string name="tv_search_again">Search for the TV Again</string>
+    <string name="tv_enter_ip">Enter IP Address</string>
+    <string name="tv_use_address">Add</string>
+    <string name="tv_ip_not_recognised">No TV was recognised at this address.</string>
+    <string name="tv_change">Change the TV</string>
+    <string name="tv_remove_pairing">Remove Pairing</string>
+    <string name="tv_remove_pairing_title">Remove Pairing?</string>
+    <string name="tv_remove_pairing_confirm">The paired TV will be removed. You can choose a TV again with Change the TV.</string>
 </resources>

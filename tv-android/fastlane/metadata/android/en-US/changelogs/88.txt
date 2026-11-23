@@ -1,0 +1,1 @@
+0.9.85: Screen translations sit exactly on the original text at its own size: no shrinking, the box no longer covers controller button icons or photos, menu tabs share one size.

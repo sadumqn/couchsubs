@@ -9,6 +9,7 @@
         0.07337
       ],
       "confidence" : 1,
+      "dark" : true,
       "text" : "won li stasi over",
       "words" : [
         {
@@ -57,6 +58,7 @@
         0.0993
       ],
       "confidence" : 1,
+      "dark" : true,
       "text" : "there to",
       "words" : [
         {
@@ -87,6 +89,7 @@
         0.31706
       ],
       "confidence" : 1,
+      "dark" : true,
       "text" : "Go get em",
       "words" : [
         {
@@ -126,6 +129,7 @@
         0.50368
       ],
       "confidence" : 1,
+      "dark" : true,
       "text" : "Locating...",
       "words" : [
         {

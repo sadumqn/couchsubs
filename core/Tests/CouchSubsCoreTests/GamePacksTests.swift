@@ -136,7 +136,7 @@ final class GamePackTests: XCTestCase {
     @MainActor
     func testGameChoiceLimitsPacksToTheChosenGame() throws {
         let library = try eldenAndRdr()
-        let choice = GameChoice(defaults: try XCTUnwrap(UserDefaults(suiteName: "game-choice-\(UUID().uuidString)")))
+        let choice = GameChoice(defaults: TestDefaults.make("game-choice"))
         choice.packs = library
         choice.start(console: nil) { false }
         choice.choose("Marvel's Wolverine")
@@ -146,6 +146,45 @@ final class GamePackTests: XCTestCase {
         choice.consoleReported(RunningGame(titleId: "PPSA01234", name: "Red Dead Redemption 2"))
         XCTAssertEqual(library.match("Let's go.")?.text, "Hadi gidelim.")
         choice.stop()
+    }
+
+    /// Xbox: son seçilen oyun Xbox'a özel saklanır ve sonraki oturumda kendiliğinden kullanılır; seçim yokken Oyun karosu
+    /// vurgulanır (`xboxNeedsGame`) ve günlüğe tek satır gider; seçilince vurgu kalkar, "elle seçildi" yazılır.
+    @MainActor
+    func testXboxRemembersTheLastChosenGameAndFlagsAnUnknownGame() throws {
+        let defaults = TestDefaults.make("game-choice")
+        var log: [String] = []
+        let first = GameChoice(defaults: defaults)
+        first.onLog = { log.append($0) }
+        var changes: [String?] = []
+        first.onChange = { changes.append($0?.name) }
+        first.start(console: "Salon Xbox", xbox: true) { false }
+        XCTAssertNil(first.game)
+        XCTAssertTrue(first.xboxNeedsGame)
+        XCTAssertEqual(log, ["Xbox: oyun tanınmadı, oyuna özel okumalar (telefon) kapalı"])
+        // Çeviri sürerken seçilen oyun hemen yayımlanır (uygulama telefon izleyicisini `onChange`te kurar).
+        first.choose("GTA 6")
+        XCTAssertEqual(changes, ["GTA 6"])
+        XCTAssertFalse(first.xboxNeedsGame)
+        XCTAssertEqual(log.last, "Xbox: oyun elle seçildi: GTA 6")
+        first.stop()
+        XCTAssertFalse(first.xboxNeedsGame)
+
+        // Uygulama yeniden açıldı: Xbox için son seçilen oyun kendiliğinden kullanılır.
+        let second = GameChoice(defaults: defaults)
+        second.start(console: nil, xbox: true) { false }
+        XCTAssertEqual(second.game?.name, "GTA 6")
+        XCTAssertEqual(second.source, .remembered)
+        XCTAssertFalse(second.xboxNeedsGame)
+        XCTAssertEqual(second.lastPlayed, "GTA 6")
+        second.stop()
+
+        // PS5 oturumu Xbox kaydını kullanmaz.
+        let ps5 = GameChoice(defaults: defaults)
+        ps5.start(console: "PS5") { false }
+        XCTAssertNil(ps5.game)
+        XCTAssertFalse(ps5.xboxNeedsGame)
+        ps5.stop()
     }
 
     func testMissingDirectoriesGiveAnEmptyLibrary() {

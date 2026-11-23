@@ -82,6 +82,9 @@ protocol PhoneServices: AnyObject {
     func pairTV(_ tv: LGTV, key: String?, server: String, accessKey: String) async throws -> TVPairing
     /// Eşleşme isteği gönderen TV: marka ve ad adresten yoklanır (bkz. `PairedTV.identify`); tanınmazsa nil.
     func identifyTV(host: String) async -> LGTV?
+    /// Kayıtlı TV adresinde bir şey yanıt veriyor mu (kapı açık ya da bağlantıyı reddediyor; bkz. `TVReach`). Zaman aşımı
+    /// ve adreste cihaz yoksa false: TV'nin adresi değişmiş olabilir, ağda yeniden aranır.
+    func tvResponds(host: String, brand: TVBrand) async -> Bool
     /// `loginPasscode`: PS5 bu hesap için giriş şifresi isterse gönderilecek 4 hane (Ayarlar'da kayıtlıysa).
     func makeStream(console: RegisteredConsole, accountId: Data, loginPasscode: String?) -> StreamControlling
     /// `onKey`: TV bağlantıda yeni jeton verdi (Samsung); saklanır.
@@ -97,6 +100,7 @@ protocol PhoneServices: AnyObject {
 
 extension PhoneServices {
     func identifyTV(host: String) async -> LGTV? { await PairedTV.identify(host: host) }
+    func tvResponds(host: String, brand: TVBrand) async -> Bool { await TVReach.responds(host: host, brand: brand) }
 
     /// PS5'te o an çalışan oyun: yalnız bağlı PS5'in adresine keşif sorusu gider (ortak havuz için; bkz. `RunningGame`).
     func runningGame(host: String) async -> RunningGame? {

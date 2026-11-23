@@ -128,6 +128,31 @@ public final class GameSense: @unchecked Sendable {
         lock.withLock { asked = true }
     }
 
+    /// Xbox'ta son seçilen oyunun saklandığı ad (`lastGames` kaydında; Xbox'un adından bağımsız, Xbox'a özel).
+    public static let xboxConsole = "Xbox"
+
+    /// Xbox çevirisi başladı. Xbox çalışan oyunu bildirmez: oyun başka yoldan bilinmiyorsa kullanıcının Xbox için son
+    /// seçtiği oyun (`lastChosen`) kendiliğinden kullanılır (`remembered`; ana ekranda görünür, değiştirilebilir). Hiç
+    /// seçim yoksa oyuna özel okumalar (GTA 6 telefonu) kapalı kalır. Günlüğe yazılacak tek satırı döndürür (Windows,
+    /// Android ile aynı metin).
+    @discardableResult
+    public func startXbox(lastChosen: String?) -> String {
+        lock.withLock {
+            if console == nil, chosen == nil, pack == nil, let game = RunningGame(name: lastChosen) {
+                chosen = game
+                carried = true
+                chosenWhileRunning = true
+                asked = true
+            }
+            guard let name = (console ?? chosen ?? pack)?.name else { return Self.xboxUnknownLog }
+            return Self.xboxRecalledLog(name)
+        }
+    }
+
+    public static let xboxUnknownLog = "Xbox: oyun tanınmadı, oyuna özel okumalar (telefon) kapalı"
+    public static func xboxRecalledLog(_ name: String) -> String { "Xbox: son seçilen oyun kullanılıyor: \(name)" }
+    public static func xboxChosenLog(_ name: String) -> String { "Xbox: oyun elle seçildi: \(name)" }
+
     /// Kimliğiyle toplanmış otomatik paket ("pool-ppsa01234", "pool-cusa00419-00") oyunun kimliğini taşır.
     static func titleId(fromPack id: String) -> String? {
         guard id.hasPrefix("pool-") else { return nil }
@@ -172,7 +197,15 @@ public enum GameName {
             text.append(character)
             previous = character
         }
-        var words = text.split(separator: " ").map { roman[String($0)] ?? String($0) }
+        let rawWords = text.split(separator: " ").map(String.init)
+        // Preserve literal franchise letters but keep established Roman sequel keys.
+        let megaManX = rawWords.count >= 3 && Array(rawWords.prefix(3)) == ["mega", "man", "x"]
+        var words = rawWords.enumerated().map { index, word in
+            let next = index + 1 < rawWords.count ? rawWords[index + 1] : ""
+            let literal = (word == "x" && ((megaManX && index == 2) || next == "men"))
+                || (word == "v" && next == "rally")
+            return literal ? word : (roman[word] ?? word)
+        }
         if words.first == "the", words.count > 1 { words.removeFirst() }
         var joined = " " + words.joined(separator: " ") + " "
         for (long, short) in aliases {

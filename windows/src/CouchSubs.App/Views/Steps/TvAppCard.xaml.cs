@@ -174,6 +174,8 @@ public partial class TvAppCard : UserControl
     private static string ErrorTitle(DevModeError error) => error switch
     {
         DevModeError.Unreachable or DevModeError.HostPcMismatch => "The TV Didn't Respond",
+        DevModeError.DevConnectionClosed => "The TV Refused the Connection",
+        DevModeError.TvNotResponding => "The TV Isn't Responding",
         DevModeError.KeyServerOff => "Key Server Is Off",
         DevModeError.WrongPassphrase => "Wrong Passphrase",
         DevModeError.KeyRefused => "The TV Refused the Key",

@@ -50,6 +50,8 @@ public final class AITranslator: TextTranslator, OnlineTranslating {
 
     public var translatesTogether: Bool { true }
 
+    public func cachedTranslation(_ text: String) -> String? { core.cached(text) }
+
     /// Son hata; çeviri düzgün gidiyorsa nil.
     public var lastFailure: OnlineKeyState? { core.lastFailure.map(OnlineKeyState.init) }
     /// Son istek dakikalık sınır yüzünden gönderilmedi ya da hizmet dakikalık sınırı bildirdi.

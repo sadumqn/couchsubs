@@ -27,4 +27,7 @@
     <string name="overlay_failed">Katman açılamadı: bu TV, CouchSubs\'ın altyazıyı başka uygulamaların üstünde göstermesine izin vermedi. CouchSubs açık kalıyor; altyazıyı telefon ekranından izleyebilirsiniz.</string>
     <string name="overlay_renderer_failed">Altyazı katmanı kapandı: bu TV\'nin web görünümü (Android System WebView) altyazı sayfasını art arda kapattı. Oyun görüntüsü etkilenmez. TV\'yi yeniden başlatıp CouchSubs\'ı yeniden açın; o zamana kadar altyazıyı telefon ekranından izleyebilirsiniz.</string>
     <string name="page_renderer_failed">Bu TV\'nin web görünümü (Android System WebView) altyazı sayfasını art arda kapattı. TV\'yi yeniden başlatıp yeniden deneyin; o zamana kadar altyazıyı telefon ekranından izleyebilirsiniz.</string>
+    <string name="in_app_kept_no_picture">Görüntü modu Uygulama içinde seçili olduğu için CouchSubs Katman\'a kendiliğinden geçmedi.</string>
+    <string name="in_app_kept_reclaimed">TV, PS5 görüntüsünü kendi HDMI ekranına aldı. Görüntü modu Uygulama içinde seçili olduğu için Katman\'a geçilmedi: CouchSubs öne döndü ve HDMI girişini yeniden açtı.</string>
+    <string name="in_app_kept_taken">TV, PS5 görüntüsünü art arda kendi HDMI ekranına alıyor. Görüntü modu Uygulama içinde seçili olduğu için Katman\'a geçilmedi; altyazı TV\'nin HDMI ekranında görünmez. CouchSubs\'ı yeniden açın ya da altyazıyı telefon ekranından izleyin. Bu TV\'de katman çalışıyorsa bilgisayardaki ya da telefondaki CouchSubs ayarlarında Görüntü modu › Otomatik\'i seçebilirsiniz.</string>
 </resources>

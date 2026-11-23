@@ -27,7 +27,7 @@ def wiki_inline(t):
 
 if game == "ds":
     scene = ""
-    for raw in open(f"{src}/lines.txt", encoding="utf-8"):
+    for raw in open(f"{src}/lines.txt", encoding="utf-8-sig"):
         raw = raw.strip()
         if raw.startswith("=="):
             scene = raw.strip("= ")
@@ -41,7 +41,7 @@ if game == "ds":
         rows.append({"speaker": speaker, "text": text, "scene": scene})
 elif game == "sm2":
     for name in ("script", "menu"):
-        w = json.load(open(f"{src}/{name}.json", encoding="utf-8"))["parse"]["wikitext"]["*"]
+        w = json.load(open(f"{src}/{name}.json", encoding="utf-8-sig"))["parse"]["wikitext"]["*"]
         scene = ""
         for raw in w.split("\n"):
             raw = raw.strip()

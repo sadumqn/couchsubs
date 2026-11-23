@@ -109,6 +109,32 @@ public static partial class OcrNoise
         return bad * 6 > good + bad;
     }
 
+    /// <summary>
+    /// Kapanmayan köşeli ya da normal parantezle bölünmüş okuma ("One [Ikan Ipufl", "ne [Ikan Ipufla"): yazı tanıma Türkçe
+    /// "Ç"yi "[" ya da "(" okuyor (PS5'in Türkçe menüsü "Öne Çıkan İpuçları"). Satırda karşılığı olmayan, büyük harfle
+    /// başlayan sözcüğe yapışık açılış parantezi taşıyan sözcük bozuk sayılır; eşik <see cref="LooksGarbled"/> ile aynıdır
+    /// (harflerin altıda birinden çoğu bozuk sözcüklerde). Kapanan parantez ("[Laughs] Come here.") etkilenmez. Yalnız
+    /// çevirmene gidecek kararlı satırda kullanılır (Mac: OcrNoise.looksBracketGarbled, Android: looksBracketGarbled).
+    /// </summary>
+    public static bool LooksBracketGarbled(string text)
+    {
+        var trimmed = text.Trim();
+        int good = 0, bad = 0;
+        var bracketed = false;
+        foreach (var token in trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var core = Split(token).Core;
+            var letters = new string(core.Where(char.IsLetter).ToArray());
+            if (letters.Length == 0) continue;
+            var open = token.Length > 1 && (token[0] == '[' || token[0] == '(') && char.IsLetter(token[1]) && char.IsUpper(token[1])
+                && !trimmed.Contains(token[0] == '[' ? ']' : ')');
+            if (open) bracketed = true;
+            var clean = !open && CleanCore(core) == core && NormalCase(core) && core.IndexOfAny(['[', ']', '(', ')']) < 0 && !Vowelless(letters);
+            if (clean) good += letters.Length; else bad += letters.Length;
+        }
+        return bracketed && bad * 6 > good + bad;
+    }
+
     /// <summary>Parça yalnız simgelerden mi oluşuyor (harf ve rakam yok, en az bir <see cref="Symbols"/> imi).</summary>
     private static bool IsSymbolOnly(string core) =>
         core.Length > 0 && !core.Any(c => char.IsLetter(c) || char.IsNumber(c)) && core.Any(c => Symbols.Contains(c));

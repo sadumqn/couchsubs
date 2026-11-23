@@ -18,7 +18,7 @@ final class MemoryStore: AppStore {
 
 extension UserDefaults {
     /// Testler gerçek uygulamanın tercihlerine yazmasın diye her model ayrı bir alan kullanır.
-    static func isolated() -> UserDefaults { UserDefaults(suiteName: "couchsubs-test-\(UUID())")! }
+    static func isolated() -> UserDefaults { TestDefaults.make("couchsubs-test") }
 }
 
 /// Testler gerçek Microsoft ve Xbox hizmetlerine gitmez: sahte verilmemişse her istek ağ hatasıdır.
@@ -134,9 +134,18 @@ final class FakeServices: AppServices {
         return keeper
     }
     var bundledTVAppVersion: String? = "0.6.1"
-    func isDevModeOn(host: String) async -> Bool { devMode }
+    func isDevModeOn(host: String) async -> Bool { devMode && !silentHosts.contains(host) }
+    /// Yanıt vermeyen (adresi değişmiş ya da kapalı) TV adresleri; varsayılan: her adres yanıt verir.
+    var silentHosts: Set<String> = []
+    var reachChecks: [String] = []
+    func tvResponds(host: String, brand: TVBrand) async -> Bool {
+        reachChecks.append(host)
+        return !silentHosts.contains(host)
+    }
+    var keyHosts: [String] = []
     func fetchDevKey(host: String, passphrase: String) async throws -> String {
-        guard keyServer else { throw DevModeError.keyServerOff }
+        keyHosts.append(host)
+        guard keyServer, !silentHosts.contains(host) else { throw DevModeError.keyServerOff }
         guard passphrase == "ABC123" else { throw DevModeError.wrongPassphrase }
         return "dev-key"
     }
@@ -220,6 +229,29 @@ final class FakeKeeper: KeeperControlling {
 @MainActor
 final class AppModelTests: XCTestCase {
     private let console = RegisteredConsole(host: "192.168.1.253", name: "PS5", registKey: Data(repeating: 0x31, count: 16), morning: Data(repeating: 2, count: 16))
+
+    /// Her test kendi geçici kurulum günlüğüne yazar; kullanıcının ~/Library/Logs/CouchSubs/tvinstall.log'una asla.
+    override func setUp() {
+        super.setUp()
+        TVInstallLog.testFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CouchSubsTests-\(UUID().uuidString)/tvinstall.log")
+    }
+
+    override func tearDown() {
+        if let file = TVInstallLog.testFile { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        TVInstallLog.testFile = nil
+        super.tearDown()
+    }
+
+    /// Güvence: test sürecinde kurulum günlüğü gerçek kullanıcı günlüğü değil (21–22 Kas'ta test satırları oraya düşüyordu).
+    func testInstallLogNeverPointsAtTheRealUserLog() {
+        XCTAssertTrue(TVInstallLog.isTesting)
+        XCTAssertNotEqual(TVInstallLog.file.standardizedFileURL, TVInstallLog.userFile.standardizedFileURL)
+        XCTAssertFalse(TVInstallLog.file.path.contains("Library/Logs"))
+        TVInstallLog.testFile = nil
+        XCTAssertNotEqual(TVInstallLog.file.standardizedFileURL, TVInstallLog.userFile.standardizedFileURL)
+        XCTAssertFalse(TVInstallLog.file.path.contains("Library/Logs"))
+    }
 
     func testFreshInstallStartsAtWelcome() {
         let model = AppModel(services: FakeServices(), store: MemoryStore(), defaults: .isolated())
@@ -840,6 +872,18 @@ final class AppModelTests: XCTestCase {
 
 @MainActor
 final class AppModelRunTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        TVInstallLog.testFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CouchSubsTests-\(UUID().uuidString)/tvinstall.log")
+    }
+
+    override func tearDown() {
+        if let file = TVInstallLog.testFile { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        TVInstallLog.testFile = nil
+        super.tearDown()
+    }
+
     private func readyModel(_ services: FakeServices) -> AppModel {
         let store = MemoryStore()
         store.save(Data(repeating: 1, count: 8), for: StoreKey.accountId)
@@ -1039,7 +1083,7 @@ final class AppModelRunTests: XCTestCase {
 
     func testSettingsGoToPreferencesNotKeychain() {
         let store = MemoryStore()
-        let defaults = UserDefaults(suiteName: "couchsubs-test-\(UUID())")!
+        let defaults = TestDefaults.make("couchsubs-test")
         let model = AppModel(services: FakeServices(), store: store, defaults: defaults)
         model.settings.style.fontSize = 58
         XCTAssertNil(store.values[StoreKey.settings])
@@ -1163,6 +1207,18 @@ final class LocalizationTests: XCTestCase {
 
 @MainActor
 final class TVAppInstallTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        TVInstallLog.testFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CouchSubsTests-\(UUID().uuidString)/tvinstall.log")
+    }
+
+    override func tearDown() {
+        if let file = TVInstallLog.testFile { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        TVInstallLog.testFile = nil
+        super.tearDown()
+    }
+
     private let tv = LGTV(name: "LG TV", host: "192.168.1.153")
 
     private func model(_ services: FakeServices, store: MemoryStore = MemoryStore()) -> AppModel {
@@ -1223,6 +1279,142 @@ final class TVAppInstallTests: XCTestCase {
         try await model.pair(tv)
         await model.installTVApp(passphrase: "ABC123")
         XCTAssertEqual(model.tvApp, .needsPassphrase(error: .keyServerOff))
+    }
+
+    // MARK: TV'nin adresi değişince (beta.89: 192.168.1.238 → .156; "Key Server kapalı" deniyordu)
+
+    private func movedTVServices() -> FakeServices {
+        let services = FakeServices()
+        services.appOnTV = nil
+        services.devMode = true
+        services.silentHosts = ["192.168.1.153"]
+        services.tvs = [LGTV(name: "LG TV", host: "192.168.1.156")]
+        return services
+    }
+
+    func testPassphraseFollowsTheTVToItsNewAddress() async throws {
+        let services = movedTVServices()
+        // Eşleşirken TV eski adresteydi; parola yazılırken adresi değişmiş.
+        services.silentHosts = []
+        let model = model(services)
+        try await model.pair(tv)
+        services.silentHosts = ["192.168.1.153"]
+        await model.installTVApp(passphrase: "ABC123")
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+        XCTAssertEqual(model.tv?.host, "192.168.1.156")
+        XCTAssertEqual(services.keyHosts, ["192.168.1.153", "192.168.1.156"])
+        XCTAssertTrue(TVInstallLog.tail().contains("TV'nin adresi değişmiş: 192.168.1.153 → 192.168.1.156"), TVInstallLog.tail())
+    }
+
+    func testSilentTVThatIsNotFoundIsNotCalledKeyServerOff() async throws {
+        let services = movedTVServices()
+        services.tvs = []
+        let model = model(services)
+        try await model.pair(tv)
+        await model.installTVApp(passphrase: "ABC123")
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: .tvNotResponding))
+        XCTAssertEqual(model.tv?.host, "192.168.1.153")
+        XCTAssertTrue(TVInstallLog.tail().contains(TVReach.notRespondingLine), TVInstallLog.tail())
+    }
+
+    func testAnsweringTVWithClosedKeyServerIsStillKeyServerOff() async throws {
+        let services = FakeServices()
+        services.appOnTV = nil
+        services.devMode = true
+        services.keyServer = false
+        services.tvs = [LGTV(name: "LG TV", host: "192.168.1.156")]
+        let model = model(services)
+        try await model.pair(tv)
+        await model.installTVApp(passphrase: "ABC123")
+        XCTAssertEqual(model.tvApp, .needsPassphrase(error: .keyServerOff))
+        XCTAssertEqual(model.tv?.host, "192.168.1.153", "Yanıt veren TV'nin adresi değiştirilmez")
+    }
+
+    /// Ana ekrandaki "TV uygulamasını güncelle" de aynı yeniden bulma adımından geçer.
+    func testUpdateFromHomeFollowsTheTVToItsNewAddress() async throws {
+        let services = movedTVServices()
+        let store = MemoryStore()
+        let model = model(services, store: store)
+        try await model.pair(tv)
+        store.save("dev-key", for: StoreKey.tvDevKey)
+        await model.updateTVApp()
+        XCTAssertEqual(model.tv?.host, "192.168.1.156")
+        XCTAssertEqual(store.load(LGTV.self, for: StoreKey.tv)?.host, "192.168.1.156")
+        XCTAssertEqual(model.tvApp, .upToDate("0.6.1"))
+        XCTAssertEqual(services.installs, 1)
+    }
+
+    func testUpdateFromHomeWithSilentTVSaysItIsNotResponding() async throws {
+        let services = movedTVServices()
+        services.tvs = []
+        let model = model(services)
+        try await model.pair(tv)
+        await model.updateTVApp()
+        XCTAssertEqual(model.tvApp, .failed(.tvNotResponding))
+        XCTAssertTrue(TVInstallLog.tail().contains(TVReach.notRespondingLine), TVInstallLog.tail())
+    }
+
+    /// Eşli TV kartı: "TV'yi Eşleştir" / "Deneme Altyazısı Gönder" ulaşamazsa açık hata; "TV'yi Yeniden Ara" düzeltir.
+    func testCardShowsUnreachableErrorAndSearchAgainFindsTheTV() async throws {
+        let services = movedTVServices()
+        let found = services.tvs
+        services.tvs = []
+        let model = model(services)
+        try await model.pair(tv)
+        let reachable = await model.ensureTVReachable()
+        XCTAssertFalse(reachable)
+        XCTAssertEqual(model.tvUnreachableHost, "192.168.1.153")
+        XCTAssertEqual(model.tvStatusText, String(localized: "Not responding — searching again…"))
+        services.tvs = found
+        let again = await model.searchTVAgain()
+        XCTAssertTrue(again)
+        XCTAssertNil(model.tvUnreachableHost)
+        XCTAssertEqual(model.tv?.host, "192.168.1.156")
+        XCTAssertFalse(model.tvNotResponding)
+    }
+
+    /// Kendiliğinden yeniden bulma ağı en çok 30 sn'de bir arar; bulunca adresi günceller.
+    func testCardCheckFindsMovedTVAndThrottlesSearches() async throws {
+        let services = movedTVServices()
+        let found = services.tvs
+        services.tvs = []
+        let model = model(services)
+        try await model.pair(tv)
+        await model.checkTVReachable()
+        XCTAssertTrue(model.tvNotResponding)
+        services.tvs = found
+        await model.checkTVReachable()
+        XCTAssertEqual(model.tv?.host, "192.168.1.153", "30 sn dolmadan ağ yeniden aranmaz")
+        _ = await model.searchTVAgain()
+        XCTAssertEqual(model.tv?.host, "192.168.1.156")
+    }
+
+    func testEnteredAddressMovesThePairedTVAndKeepsItsKey() async throws {
+        let services = movedTVServices()
+        let store = MemoryStore()
+        let model = model(services, store: store)
+        try await model.pair(tv)
+        let rejected = await model.useTVAddress("http://")
+        XCTAssertFalse(rejected)
+        XCTAssertTrue(model.tvAddressRejected)
+        let used = await model.useTVAddress("192.168.1.156")
+        XCTAssertTrue(used)
+        XCTAssertEqual(model.tv, LGTV(name: "LG TV", host: "192.168.1.156"))
+        XCTAssertEqual(store.load(String.self, for: StoreKey.tvKey), "tv-key")
+        XCTAssertTrue(model.hasTV)
+    }
+
+    func testRemovePairingForgetsTheTV() async throws {
+        let services = FakeServices()
+        let store = MemoryStore()
+        let model = model(services, store: store)
+        try await model.pair(tv)
+        model.removeTVPairing()
+        XCTAssertNil(model.tv)
+        XCTAssertFalse(model.hasTV)
+        XCTAssertNil(store.load(LGTV.self, for: StoreKey.tv))
+        XCTAssertNil(store.load(String.self, for: StoreKey.tvKey))
+        XCTAssertFalse(model.settings.output.showsOnTV)
     }
 
     func testFailedInstallShowsTheTVsReason() async throws {

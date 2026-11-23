@@ -19,6 +19,8 @@ public static class ScreenTranslation
     {
         /// <summary>GTA 6 telefonunun ekranındaki grubun rolü ve düz ekrandaki yeri (<see cref="PhoneChat"/>); telefon dışındaysa null.</summary>
         internal ScreenPhoneCard.Placement? Phone { get; init; }
+        /// <summary>Özgün yazının satır sayısı; çeviri de bu kadar satıra sığdırılır (TV satır aralığını buna göre seçer).</summary>
+        public int Rows { get; init; } = 1;
     }
 
     /// <param name="Translation">Parçaların çevirisi, her parça ayrı satırda.</param>
@@ -43,6 +45,10 @@ public static class ScreenTranslation
         /// çizer, eski TV kutuları yerinde çizer (Mac ile aynı).
         /// </summary>
         public ScreenPhoneCard.PanelPart? Panel { get; init; }
+        /// <summary>Kutunun genişleyebileceği yatay alan (simgelere ve komşu yazıya kadar; <see cref="ScreenFit"/>); null ise bilinmiyor.</summary>
+        public TextBox? Room { get; init; }
+        /// <summary>Özgün yazının satır sayısı (<see cref="Group.Rows"/>).</summary>
+        public int Rows { get; init; } = 1;
         /// <summary>Birden çok parça var: TV satır satır, sola yaslı gösterir.</summary>
         public bool Paragraphs => Translation.Contains('\n');
     }
@@ -122,33 +128,63 @@ public static class ScreenTranslation
             if (sources.Count == 0) return items;
             // Daha önce görülen sohbetin mesajları da (memory) gitmez.
             var owners = groups.SelectMany(group => group.Paragraphs.Select(_ => group)).ToList();
-            var knowns = Enumerable.Range(0, sources.Count)
-                .Select(i => Known(sources[i], owners[i]) ?? Remembered(sources[i], owners[i], chat, memory)).ToList();
             var prices = protectedGroups.SelectMany(group => group.Select(p => PriceText.Protect(p.Text))).ToList();
+            // Diskteki çeviri önbelleğinde duran yazı (menü satırları oturumdan oturuma tekrar eder) da çevirmene gitmez.
+            var knowns = Enumerable.Range(0, sources.Count)
+                .Select(i => Known(sources[i], owners[i]) ?? Remembered(sources[i], owners[i], chat, memory)
+                    ?? (translator.CachedTranslation(prices[i].Text) is { } cached ? PriceText.Restore(cached, prices[i].Values) : null))
+                .ToList();
             var asked = Enumerable.Range(0, sources.Count).Where(i => knowns[i] is null).ToList();
+            // Gruplar: hazır olanlar (bütün parçaları biliniyor) çeviri isteğini beklemeden hemen çizilir.
+            IReadOnlyList<Item> Laid(IReadOnlyList<string?> translations)
+            {
+                var laid = new List<Item>();
+                var next = 0;
+                for (var g = 0; g < groups.Count; g++)
+                {
+                    var group = groups[g];
+                    var part = Enumerable.Range(next, group.Paragraphs.Count).Select(i => i < translations.Count ? translations[i] : null).ToList();
+                    next += group.Paragraphs.Count;
+                    if (part.Any(text => text is null)) continue;
+                    if (Build(group, protectedGroups[g], [.. part.Select(text => text!)], keep) is { } item) laid.Add(Styled(item, frame));
+                }
+                return ScreenFit.Fitted(Present(laid, phone, phoneCard, panelScale), frame);
+            }
+            if (asked.Count > 0)
+            {
+                var early = Laid(knowns);
+                if (early.Count > 0) progress?.Invoke(early);
+            }
             var answers = asked.Count == 0 ? []
                 : await translator.TranslateAllAsync([.. asked.Select(i => prices[i].Text)], cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            var translations = knowns.Select(known => known ?? "").ToList();
             for (var k = 0; k < asked.Count && k < answers.Count; k++)
             {
-                translations[asked[k]] = PriceText.Restore(answers[k], prices[asked[k]].Values);
-                memory?.Remember(MemoryChat(owners[asked[k]], chat), sources[asked[k]], translations[asked[k]]);
+                knowns[asked[k]] = PriceText.Restore(answers[k], prices[asked[k]].Values);
+                memory?.Remember(MemoryChat(owners[asked[k]], chat), sources[asked[k]], knowns[asked[k]]!);
             }
-            var next = 0;
-            for (var g = 0; g < groups.Count; g++)
-            {
-                var group = groups[g];
-                var translated = Enumerable.Range(next, group.Paragraphs.Count)
-                    .Select(i => i < translations.Count ? translations[i] : "").ToList();
-                next += group.Paragraphs.Count;
-                if (Build(group, protectedGroups[g], translated, keep) is { } item) items.Add(Styled(item, frame));
-            }
-            var all = Present(items, phone, phoneCard, panelScale);
+            // Gelmeyen çeviri boş kalır: parça aslıyla gösterilir.
+            var all = Laid([.. knowns.Select(known => known ?? "")]);
             if (all.Count > 0) progress?.Invoke(all);
             return all;
         }
+        var made = new SortedDictionary<int, Item>();
+        IReadOnlyList<Item> Shown() => ScreenFit.Fitted(Present([.. made.Values], phone, phoneCard, panelScale), frame);
+        // Önce çevirmene gitmeyecek gruplar (sözlük, bu ekranda daha önce çevrilmiş yazı): çeviri beklemeden hemen çizilir.
+        var waiting = new List<int>();
         for (var g = 0; g < groups.Count; g++)
+        {
+            var group = groups[g];
+            var ready = group.Paragraphs.Select(source => Known(source, group) ?? Remembered(source, group, chat, memory)).ToList();
+            if (ready.Any(text => text is null)) { waiting.Add(g); continue; }
+            if (Build(group, protectedGroups[g], [.. ready.Select(text => text!)], keep) is { } item) made[g] = Styled(item, frame);
+        }
+        if (made.Count > 0 && waiting.Count > 0)
+        {
+            var early = Shown();
+            if (early.Count > 0) progress?.Invoke(early);
+        }
+        foreach (var g in waiting)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var group = groups[g];
@@ -168,11 +204,11 @@ public static class ScreenTranslation
                 translated.Add(result);
             }
             if (Build(group, protectedGroups[g], translated, keep) is not { } item) continue;
-            items.Add(Styled(item, frame));
-            var shown = Present(items, phone, phoneCard, panelScale);
+            made[g] = Styled(item, frame);
+            var shown = Shown();
             if (shown.Count > 0) progress?.Invoke(shown);
         }
-        return Present(items, phone, phoneCard, panelScale);
+        return Shown();
     }
 
     /// <summary>
@@ -376,7 +412,7 @@ public static class ScreenTranslation
         if (!changed && !keepUnchanged) return null;
         var (translation, placements) = IconText.Render(string.Join('\n', texts), slots);
         return new Item(string.Join('\n', group.Paragraphs.Select(IconText.Plain)), translation, group.Box, group.LineHeight,
-                        placements.Count > 0 ? placements : null) { Unchanged = !changed, Phone = group.Phone };
+                        placements.Count > 0 ? placements : null) { Unchanged = !changed, Phone = group.Phone, Rows = group.Rows };
     }
 
     /// <summary>
@@ -811,8 +847,22 @@ public static class ScreenTranslation
             var heights = group.Select(line => line.Box!.Value.Bottom - line.Box!.Value.Top).OrderBy(value => value).ToList();
             var box = group.Select(line => line.Box!.Value).Aggregate((a, b) => a.Union(b));
             var icons = ParagraphIcons(group);
-            return new Group(Paragraphs(group), box, heights[heights.Count / 2], icons.Any(list => list.Count > 0) ? icons : null);
+            return new Group(Paragraphs(group), box, heights[heights.Count / 2], icons.Any(list => list.Count > 0) ? icons : null)
+            {
+                Rows = Rows(group),
+            };
         })];
+    }
+
+    /// <summary>Satırların kaç ayrı satır olduğu: yazı tanıma aynı satırı iki parça okuyabilir (yan yana parçalar tek satırdır).</summary>
+    internal static int Rows(IReadOnlyList<TextLine> lines)
+    {
+        var rows = new List<TextBox>();
+        foreach (var box in lines.Where(line => line.Box is not null).Select(line => line.Box!.Value))
+            if (!rows.Any(other => Math.Min(other.Bottom, box.Bottom) - Math.Max(other.Top, box.Top)
+                    >= 0.5 * Math.Min(other.Bottom - other.Top, box.Bottom - box.Top)))
+                rows.Add(box);
+        return Math.Max(1, rows.Count);
     }
 
     /// <summary>

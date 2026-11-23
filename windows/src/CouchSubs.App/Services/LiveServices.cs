@@ -219,6 +219,8 @@ public sealed class LiveServices : IAppServices
 
     public Task<bool> IsDevModeOnAsync(string host) => DevModeInstaller.IsDevModeOnAsync(host);
 
+    public Task<bool> TvRespondsAsync(string host, TvBrand brand) => TvReach.RespondsAsync(host, brand);
+
     // LG kurulumunun adımları da tvinstall.log'a telefonlardaki satırlarla yazılır (LgInstallLog); önceden yalnız Samsung
     // ve Android TV kurulumu günlük tutuyordu.
     private static LgInstallLog LgLog => new(new TvInstall.InstallLog(TvInstallLogPath).Write);
@@ -272,7 +274,7 @@ public sealed class LiveServices : IAppServices
 
     /// <summary>Kalıcı dosyalar: ADB anahtarı ve Samsung sertifikaları.</summary>
     private static string DataDirectory(string name) =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", name);
+        Path.Combine(AppDataPaths.Root, name);
 
     public BundledTvApp? BundledApp(TvBrand brand)
     {

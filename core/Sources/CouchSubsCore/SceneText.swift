@@ -12,7 +12,8 @@ import Foundation
 /// - düşük güvenli kısa blok (en çok `lowConfidenceWords` sözcük, ortalama güven `lowConfidence`'tan az),
 /// - karenin ortasındaki kısa, noktalamasız tek satır (en çok üç sözcük; altyazı ve görev satırı karenin alt ya da üst
 ///   kenarına yakındır, `edgeBand`),
-/// - plaka/tabela: alt alta kısa, büyük harfli satırlar (`isSign`) ve harfsiz sayı (`isNumber`); altyazının yerinde de.
+/// - plaka/tabela: alt alta kısa, büyük harfli satırlar (`isSign`) ve harfsiz sayı (`isNumber`); altyazının yerinde de,
+/// - açık zemin üzerinde koyu yazı (kâğıt ilan, `InkTone`; görüntü verilince, `darkInk`); altyazının yerinde de.
 ///
 /// Gerçek altyazı asla atılmaz (GitHub #822, beta.75 → beta.76: "çoğu zaman altyazı çevrilmiyor"): altyazısı karenin
 /// alttan %22'lik şeridinin biraz üstünde duran oyunlarda (karenin %72–78'i) "Let's go", "Over here", "Yeah" gibi kısa
@@ -41,11 +42,15 @@ public enum SceneText {
         reason(block, in: area, band: band) != nil
     }
 
-    /// Blok sahne yazısıysa atılma nedeni (altyazı günlüğü için), değilse nil.
-    public static func reason(_ block: Reading, in area: TextBox, band: SubtitleBand = SubtitleBand()) -> String? {
+    /// Blok sahne yazısıysa atılma nedeni (altyazı günlüğü için), değilse nil. `darkInk`: satır kutusu (okunan alanın
+    /// görüntüsüne oranla) açık zeminde koyu yazı mı (`InkTone.sampler`); verilmezse renge bakılmaz.
+    public static func reason(_ block: Reading, in area: TextBox, band: SubtitleBand = SubtitleBand(),
+                              darkInk: ((TextBox) -> Bool)? = nil) -> String? {
         guard let first = block.lines.first, SpeakerPrefix.split(first.text) == nil else { return nil }
         let placed = block.lines.compactMap { $0.box?.placed(in: area) }
         guard placed.count == block.lines.count, let box = block.box?.placed(in: area) else { return nil }
+        // Kâğıt ilan altyazının yerinde de atılır (GitHub #1124).
+        if let darkInk, InkTone.isDarkBlock(block, dark: darkInk) { return InkTone.reason }
         let words = wordCount(block.text)
         let middle = (box.top + box.bottom) / 2
         // Plaka ve tabela altyazının yerinde de atılır (GitHub #1052).

@@ -289,6 +289,9 @@ class SubtitleServer(
                 "text" to item.translation,
             )
             if (item.paragraphs) json["paragraphs"] = true
+            // Yerleşim ([ScreenFit]): kutunun genişleyebileceği alan ve özgün satır sayısı (eski TV yok sayar).
+            item.room?.let { json["room"] = boxJson(it) }
+            if (item.rows > 1) json["rows"] = item.rows
             item.icons?.takeIf { it.isNotEmpty() }?.let { json["icons"] = iconsJson(it) }
             // Otomatik ekran yazısının özgün görünüşü; eski TV uygulamaları bu alanları yok sayar.
             // Oyun telefonunun balonu yalnız zemin ve yazı rengini taşır (Mac/iPhone ve Windows ile aynı; `flat` yok).

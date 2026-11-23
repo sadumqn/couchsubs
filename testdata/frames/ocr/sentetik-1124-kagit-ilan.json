@@ -1,0 +1,44 @@
+{
+  "id" : "sentetik-1124-kagit-ilan",
+  "lines" : [
+    {
+      "box" : [
+        0.38672,
+        0.2216,
+        0.61328,
+        0.33143
+      ],
+      "confidence" : 1,
+      "dark" : true,
+      "text" : "PLEASE NOTE"
+    },
+    {
+      "box" : [
+        0.27006,
+        0.45286,
+        0.72994,
+        0.55598
+      ],
+      "confidence" : 1,
+      "dark" : true,
+      "text" : "SOILED SHEETS, TOWELS OR LINENS"
+    },
+    {
+      "box" : [
+        0.29587,
+        0.61159,
+        0.70413,
+        0.70127
+      ],
+      "confidence" : 1,
+      "dark" : true,
+      "text" : "WILL BE BILLED TO YOUR ROOM."
+    }
+  ],
+  "region" : [
+    0.14,
+    0.62,
+    0.86,
+    0.97
+  ]
+}

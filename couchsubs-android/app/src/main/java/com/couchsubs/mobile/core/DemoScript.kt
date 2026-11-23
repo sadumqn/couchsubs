@@ -84,6 +84,8 @@ class DemoTranslator(private val base: TextTranslator?) : TextTranslator {
 
     override val translatesTogether: Boolean get() = base?.translatesTogether ?: false
 
+    override fun cachedTranslation(text: String): String? = base?.cachedTranslation(text)
+
     override fun noteSpeaker(name: String) {
         base?.noteSpeaker(name)
     }

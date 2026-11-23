@@ -102,7 +102,7 @@ public enum TvDisplayMode
     /// </summary>
     [JsonStringEnumMemberName("InApp")]
     Auto,
-    /// <summary>Bilerek seçilmiş uygulama içi; görüntü hiç gelmezse TV uygulaması kendiliğinden katmana geçer. TV'ye "inAppOnly".</summary>
+    /// <summary>Bilerek seçilmiş uygulama içi; TV uygulaması (0.9.84+) hiçbir durumda kendiliğinden katmana geçmez. TV'ye "inAppOnly".</summary>
     InAppOnly,
     /// <summary>TV HDMI'yı kendi ekranında gösterir, altyazı üstteki şeffaf katmanda (bazı TV'lerde uygulama içi görüntü siyah kalıyor).</summary>
     Overlay,
@@ -201,7 +201,7 @@ public sealed class SubtitleServer(int port = 8787, TimeSpan? pingInterval = nul
     /// ~/.local/share/CouchSubs). Dosya yazılamazsa kimlik bu çalışmalık kalır.</summary>
     private static string LoadInstallationId()
     {
-        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "server-id");
+        var path = Path.Combine(AppDataPaths.Root, "server-id");
         try
         {
             if (File.Exists(path) && HelloId(File.ReadAllText(path)) is { Length: > 0 } saved) return saved;
@@ -592,6 +592,9 @@ public sealed class SubtitleServer(int port = 8787, TimeSpan? pingInterval = nul
             ["text"] = item.Translation,
         };
         if (item.Paragraphs) json["paragraphs"] = true;
+        // Yerleşim (ScreenFit): kutunun genişleyebileceği alan ve özgün satır sayısı (eski TV yok sayar).
+        if (item.Room is { } room) json["room"] = BoxJson(room);
+        if (item.Rows > 1) json["rows"] = item.Rows;
         if (item.Icons is { Count: > 0 } icons) json["icons"] = IconsJson(icons);
         if ((phone || item.Look is not null) && item.Style is { } style && IsRgb(style.Background) && IsRgb(style.Foreground))
         {

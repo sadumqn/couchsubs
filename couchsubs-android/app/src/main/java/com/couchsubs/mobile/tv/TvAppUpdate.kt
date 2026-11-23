@@ -72,6 +72,12 @@ object TvAppUpdate {
         state.value = tv.version?.takeIf { it.isNotEmpty() }?.let { TvAppStatus.UpToDate(it) } ?: TvAppStatus.Unknown
     }
 
+    /** Eşli TV kaldırıldı: sürüm önerisi de kalkar. */
+    fun forget() {
+        pending = null
+        state.value = TvAppStatus.Unknown
+    }
+
     /** 0.9.69'den eski TV uygulamaları sürüm bildirmez; ekranda böyle görünür. */
     const val UNREPORTED = "< 0.9.69"
 

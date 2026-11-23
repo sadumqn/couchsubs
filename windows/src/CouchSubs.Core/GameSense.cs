@@ -149,6 +149,34 @@ public sealed class GameSense
         lock (gate) asked = true;
     }
 
+    /// <summary>Xbox'ta son seçilen oyunun saklandığı ad (<c>lastGames</c> kaydında; Xbox'un adından bağımsız, Xbox'a özel).</summary>
+    public const string XboxConsole = "Xbox";
+
+    /// <summary>
+    /// Xbox çevirisi başladı. Xbox çalışan oyunu bildirmez: oyun başka yoldan bilinmiyorsa kullanıcının Xbox için son seçtiği
+    /// oyun (<paramref name="lastChosen"/>) kendiliğinden kullanılır (<c>Remembered</c>; ana ekranda görünür, değiştirilebilir).
+    /// Hiç seçim yoksa oyuna özel okumalar (GTA 6 telefonu) kapalı kalır. Günlüğe yazılacak tek satırı döndürür (Mac, iPhone,
+    /// Android ile aynı metin).
+    /// </summary>
+    public string StartXbox(string? lastChosen)
+    {
+        lock (gate)
+        {
+            if (console is null && chosen is null && pack is null && RunningGame.Named(lastChosen) is { } game)
+            {
+                chosen = game;
+                carried = true;
+                chosenWhileRunning = true;
+                asked = true;
+            }
+            return (console ?? chosen ?? pack)?.Name is { } name ? XboxRecalledLog(name) : XboxUnknownLog;
+        }
+    }
+
+    public const string XboxUnknownLog = "Xbox: oyun tanınmadı, oyuna özel okumalar (telefon) kapalı";
+    public static string XboxRecalledLog(string name) => $"Xbox: son seçilen oyun kullanılıyor: {name}";
+    public static string XboxChosenLog(string name) => $"Xbox: oyun elle seçildi: {name}";
+
     /// <summary>Kimliğiyle toplanmış otomatik paket ("pool-ppsa01234", "pool-cusa00419-00") oyunun kimliğini taşır.</summary>
     public static string? TitleIdFromPack(string id) =>
         id.StartsWith("pool-", StringComparison.Ordinal) ? RunningGame.NormalizedTitleId(id["pool-".Length..].Replace('-', '_')) : null;
@@ -203,7 +231,16 @@ public static class GameName
             previous = rune;
             hasPrevious = true;
         }
-        var words = text.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(w => Roman.GetValueOrDefault(w) ?? w).ToList();
+        var rawWords = text.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // Preserve literal franchise letters but keep established Roman sequel keys.
+        var megaManX = rawWords.Length >= 3 && rawWords[0] == "mega" && rawWords[1] == "man" && rawWords[2] == "x";
+        var words = rawWords.Select((w, i) =>
+        {
+            var next = i + 1 < rawWords.Length ? rawWords[i + 1] : "";
+            var literal = (w == "x" && ((megaManX && i == 2) || next == "men"))
+                || (w == "v" && next == "rally");
+            return literal ? w : Roman.GetValueOrDefault(w) ?? w;
+        }).ToList();
         if (words.Count > 1 && words[0] == "the") words.RemoveAt(0);
         var joined = " " + string.Join(' ', words) + " ";
         foreach (var (longName, shortName) in Aliases)

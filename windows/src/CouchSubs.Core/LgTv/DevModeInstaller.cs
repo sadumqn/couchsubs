@@ -44,6 +44,13 @@ public enum DevModeError
     HostPcMismatch,
     /// <summary>TV'de CouchSubs'ın kimliğiyle başka bir uygulama kurulu; kaldırıp CouchSubs'ı kurmak için kullanıcı onayı gerekir.</summary>
     ForeignApp,
+    /// <summary>LG: SSH (9922) bağlanmıyor ama Key Server (9991) yanıt veriyor; geliştirici modu açık görünüyor, TV kurulum
+    /// bağlantısını reddediyor (TV yeniden başlamamış ya da webOS Hub'lı TV'nin yazılımında bu kapı kapalı; #200, #1116).
+    /// Mac'teki devConnectionClosed, iPhone/Android'deki restartNeeded ile aynı durum ve metin.</summary>
+    DevConnectionClosed,
+    /// <summary>Kayıtlı adreste TV hiç yanıt vermiyor (kapılar zaman aşımında) ve TV ağda yeniden aranınca da bulunamadı
+    /// (TvReach). "Geliştirici modu kapalı" ya da "Key Server kapalı" denmez: TV'de ikisi açık olabilir. Mac tvNotResponding.</summary>
+    TvNotResponding,
 }
 
 /// <param name="detail">Sorunu bulmak için ayrıntı (komut çıktısı gibi); hata günlüğüne yazılır, kullanıcıya gösterilmez.</param>
@@ -113,7 +120,7 @@ public sealed class DevModeInstaller(IRemoteShell shell, TimeSpan? pollInterval 
         return checks[0] || checks[1];
     }
 
-    private static async Task<bool> IsPortOpenAsync(string host, int port, TimeSpan? timeout)
+    public static async Task<bool> IsPortOpenAsync(string host, int port, TimeSpan? timeout)
     {
         using var client = new TcpClient();
         using var cancellation = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(2));

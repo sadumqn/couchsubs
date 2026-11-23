@@ -203,6 +203,8 @@ private struct FixRow: View {
 /// üstünde, en çok 240 yükseklikte kendi içinde kayar.
 struct HomeNotices: View {
     @EnvironmentObject private var model: AppModel
+    /// Xbox'ta oyun seçilmediyse "oyunu seçin" notu (seçilince kalkar).
+    @ObservedObject var choice: GameChoice
 
     var body: some View {
         let items = notices
@@ -218,7 +220,7 @@ struct HomeNotices: View {
     }
 
     private enum Notice: Hashable {
-        case crash, tvUpdate, tvOutdated, tvReinstall, testNotConnected, mainAccount, autoScreenText, usage, online, areas, setup
+        case crash, tvUpdate, tvOutdated, tvReinstall, testNotConnected, mainAccount, xboxGame, autoScreenText, usage, online, areas, setup
     }
 
     private var notices: [Notice] {
@@ -232,6 +234,7 @@ struct HomeNotices: View {
                                                        hasSubtitle: !model.lastTranslation.isEmpty, streaming: model.sessionState == .streaming) {
             list.append(.mainAccount)
         }
+        if choice.xboxNeedsGame && !choice.asking { list.append(.xboxGame) }
         if model.gameAreas.offeredGame != nil { list.append(.areas) }
         if model.isRunning, model.onlineIssue != nil { list.append(.online) }
         if model.showsAutoScreenTextNotice { list.append(.autoScreenText) }
@@ -265,10 +268,22 @@ struct HomeNotices: View {
                     .disabled(model.tvAppUpdating && model.tvApp == .working)
                 if model.canChangeTV { Button("Change the TV") { model.step = .tv }.buttonStyle(.dsSecondary) }
             }
+            // TV uygulaması bağlı değilken adres yoklanır: TV'nin adresi değiştiyse kart "Yanıt vermiyor — yeniden
+            // aranıyor…" der, TV yeni adreste bulunursa kayıt kendiliğinden güncellenir.
+            .task(id: model.tv?.host) {
+                while !Task.isCancelled {
+                    await model.checkTVReachable()
+                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                }
+            }
         case .testNotConnected:
             NoticeCard(text: String(localized: "The test subtitle did not reach the TV because the TV app is not connected. Open CouchSubs on the TV. If the TV shows a 6-digit code, don't type it anywhere: approve it in the “Pair this TV?” window that opens on this computer, then test again.")) { EmptyView() }
         case .mainAccount:
             NoticeCard(text: String(localized: "To play without the connection dropping: 1. On the PS5, start the game with your MAIN account first. 2. Then start translating. 3. Don't switch users during the game; when you turn on the controller, choose your MAIN account. Don't play with the second account CouchSubs signs in with, or the controller will turn off by itself or won't work in the game.")) { EmptyView() }
+        case .xboxGame:
+            NoticeCard(text: String(localized: "Xbox doesn't report the game being played; choose the game to turn on game-specific translation and the GTA 6 phone.")) {
+                Button("Choose") { choice.ask() }.buttonStyle(.dsSecondary)
+            }
         case .areas:
             NoticeCard(text: String(format: String(localized: "There are saved areas for %@. Use them?"), model.gameAreas.offeredGame ?? "")) {
                 Button("Use") { model.gameAreas.useOffered() }.buttonStyle(.dsPrimary)

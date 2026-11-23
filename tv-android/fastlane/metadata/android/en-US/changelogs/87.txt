@@ -1,0 +1,1 @@
+0.9.84: If Picture mode is set to Inside the app, the TV app never switches to overlay by itself (no picture, the TV taking the HDMI picture to its own screen); it stays inside the app, reopens the HDMI input and says what happened.

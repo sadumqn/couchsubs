@@ -67,6 +67,11 @@ struct GameSection: View {
             GameAskTile(choice: choice)
         } else {
             PlayedGameRow(choice: choice)
+            // Xbox oynanan oyunu bildirmez: oyun seçilmediyse satır vurgulanır ve kısa not görünür (zorlayıcı kart açılmaz).
+            if choice.xboxNeedsGame {
+                MobileNote(text: String(localized: "Xbox doesn't report the game being played; choose the game to turn on game-specific translation and the GTA 6 phone."),
+                           tone: Mobile.Palette.secondary)
+            }
             GameAreasRow(areas: areas)
         }
     }
@@ -111,7 +116,7 @@ struct PlayedGameRow: View {
     @ObservedObject var choice: GameChoice
 
     var body: some View {
-        Tile {
+        Tile(emphasis: choice.xboxNeedsGame ? .warning : .none) {
             HStack(spacing: Mobile.Space.gap) {
                 MobileTileIcon(symbol: "gamecontroller")
                 VStack(alignment: .leading, spacing: Mobile.Space.hair) {

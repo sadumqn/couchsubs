@@ -198,7 +198,7 @@ object MissionCard {
             val paragraphs = if (joined) listOf(own.joinToString(" ") { it.text.trim() }) else ScreenText.paragraphs(own)
             val slots = if (joined) listOf(icons.flatten()) else icons
             return ScreenTranslation.Group(paragraphs, boxes.reduce { a, b -> a.union(b) }, heights[heights.size / 2],
-                if (slots.any { it.isNotEmpty() }) slots else null)
+                if (slots.any { it.isNotEmpty() }) slots else null, rows = ScreenTranslation.rows(own))
         }
         return listOf(group(card.title, true)) + card.subtitles.map { group(listOf(it), true) } +
             listOf(group(card.body, false)) + card.details.map { group(listOf(it), true) }

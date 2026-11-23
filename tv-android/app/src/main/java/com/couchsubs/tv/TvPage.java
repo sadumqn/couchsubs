@@ -68,6 +68,14 @@ final class TvPage {
     private String launchParams;
 
     TvPage(Context context, Host host, String launchParams, boolean overlay) {
+        this(context, host, launchParams, overlay, false);
+    }
+
+    /**
+     * software: sayfa yazılımla çizilen pencerede (katman, bkz. OverlayDrawing) duruyor; WebView kendi katmanını da
+     * yazılımla çizer, GPU yüzeyi istemez (#1074).
+     */
+    TvPage(Context context, Host host, String launchParams, boolean overlay, boolean software) {
         this.context = context;
         this.host = host;
         this.launchParams = launchParams;
@@ -75,7 +83,7 @@ final class TvPage {
 
         webView = new WebView(context);
         webView.setBackgroundColor(Color.TRANSPARENT);
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        webView.setLayerType(software ? View.LAYER_TYPE_SOFTWARE : View.LAYER_TYPE_HARDWARE, null);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);

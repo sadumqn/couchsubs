@@ -32,6 +32,9 @@
       "Setup · Step 3/3": "Setup · Step %1$d/3"
     },
     "iphone_only": {
+      "LG": "Eşli TV kartında marka adı (çevrilmez); Android'de pairedTvDetail düz metinle yazar.",
+      "Samsung": "Eşli TV kartında marka adı (çevrilmez); Android'de pairedTvDetail düz metinle yazar.",
+      "Android TV": "Eşli TV kartında marka adı (çevrilmez); Android'de pairedTvDetail düz metinle yazar.",
       "It works.": "Ortak LocalAIText'in (Mac ile ortak) geçerli durum iletisi; telefonda 'Bağlantıyı dene' başarıda örnek çeviriyi gösteren metni kullanır, Android de öyle.",
       "%@ PS5 · %@ TV": "Yerleşim farkı: iPhone Profil'in 'Cihazlar' kutusu; Android aynı bilgiyi PS5 ve TV kutularında ayrı gösterir.",
       "Devices": "Yerleşim farkı: bkz. '%@ PS5 · %@ TV'.",
@@ -47,7 +50,9 @@
     },
     "android_only": {
       "Beta": "Xbox etiketi; iPhone Xbox satırını etiketsiz gösterir (Xbox iPhone'da da beta).",
-      "Cancel": "Android onay pencerelerinin (PSN'den çıkış) düğmesi; iPhone confirmationDialog'da Vazgeç'i sistem ekler.",
+      "Not responding — searching again…": "Eşli TV kartının durum metni; iPhone'da PhoneModel.tvStatusText'te (taranan ekran dosyası değil), Android'de PairedTvCard.kt'de.",
+      "TV's IP address (on the TV under Settings › Network)": "Eşli TV kartındaki IP alanının etiketi; iPhone'da aynı alan TVText.address (TVText.swift, taranan ekran dosyası değil).",
+      "e.g. 192.168.1.100": "Eşli TV kartındaki IP alanının örneği; iPhone'da TVAddressField kendi örneğini gösterir (taranan ekran dosyası değil).",
       "Paired": "Durum etiketi; iPhone eşleşmeyi satır ayrıntısında konsol adıyla gösterir.",
       "Not connected": "Durum etiketi; iPhone PSN kutusunda 'Not set up' gösterir.",
       "Key": "Android anahtar alanının etiketi; iPhone alanı yer tutucuyla gösterir.",

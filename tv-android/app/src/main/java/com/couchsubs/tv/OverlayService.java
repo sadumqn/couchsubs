@@ -9,7 +9,10 @@ import android.app.Service;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
@@ -21,7 +24,11 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 /**
@@ -66,6 +73,15 @@ public class OverlayService extends Service implements TvPage.Host {
     private final Runnable switchInput = () -> switchInput(pendingPort);
     /** WebView işleminin gidişleri (bkz. pageGone): kısa sürede çok giderse katman bırakılır. */
     private final PageRestarts restarts = new PageRestarts();
+    /** Pencere donanımla mı yazılımla mı çizilir (#1074); ilk pencerede kurulur. */
+    private OverlayDrawing drawing;
+    /** Pencereye eklenen görünüm: donanımlıysa sayfanın WebView'i, yazılımlıysa onu saran çerçeve. */
+    private View root;
+    private boolean proofPending;
+    private final Runnable proofSurvived = () -> {
+        proofPending = false;
+        if (page != null && drawing != null) drawing.survived();
+    };
 
     /**
      * Servisi başlatır; başlatılamadıysa false döner ve çağıran uygulama içinde kalır. Android 12+ arka plandan ön plan
@@ -132,7 +148,10 @@ public class OverlayService extends Service implements TvPage.Host {
 
     private boolean showWindow(String params) {
         windows = (WindowManager) getSystemService(WINDOW_SERVICE);
-        page = new TvPage(this, this, params, true);
+        if (drawing == null) drawing = new OverlayDrawing(new PrefsStore(this));
+        boolean software = drawing.software();
+        page = new TvPage(this, this, params, true, software);
+        root = software ? softwareRoot(page.webView) : page.webView;
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
@@ -159,16 +178,76 @@ public class OverlayService extends Service implements TvPage.Host {
             }
         }
         page.webView.setOnTouchListener((view, event) -> true);
+        drawing.windowShown(SystemClock.elapsedRealtime());
         try {
-            windows.addView(page.webView, layout);
+            windows.addView(root, layout);
         } catch (RuntimeException e) {
             Log.w(TAG, "overlay window could not be added", e);
+            drawing.closed();
             page.destroy();
             page = null;
+            root = null;
             return false;
         }
+        // Pencerenin ilk çizimi bir sonraki karede: dinleyici eklendikten hemen sonra kurulsa da kaçmaz.
+        if (!software) watchDraws(root);
+        Log.i(TAG, "overlay window " + drawing.diagnostics());
         page.load();
         return true;
+    }
+
+    /**
+     * Yazılımla çizilen pencerenin kökü (#1074). Android, üst penceresi olmayan bir pencereyi (servisin bindirmesi),
+     * eklenen görünümün bağlamındaki uygulama bilgisinde donanım hızlandırma açıksa donanımla çizer (WindowManagerGlobal
+     * .addView: FLAG_HARDWARE_ACCELERATED). Kök çerçevenin bağlamı bu bayrağı kapalı gösterir; uygulamanın geri kalanı
+     * (CouchSubs ekranı) donanımla çizilmeye devam eder. Sayfa çerçevenin içinde, kendi katmanı da yazılımla.
+     */
+    private View softwareRoot(View content) {
+        FrameLayout frame = new FrameLayout(new SoftwareWindowContext(this));
+        frame.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        return frame;
+    }
+
+    /** Donanımlı pencerenin HDMI açıkkenki çizimleri: biri SURVIVE_MS atlatılırsa donanım bu TV'de çalışıyor. */
+    private void watchDraws(View view) {
+        View watched = view;
+        view.getViewTreeObserver().addOnDrawListener(new ViewTreeObserver.OnDrawListener() {
+            @Override
+            public void onDraw() {
+                if (proofPending || page == null || root != watched) return;
+                if (!drawing.proves(SystemClock.elapsedRealtime())) return;
+                proofPending = true;
+                ui.postDelayed(proofSurvived, OverlayDrawing.SURVIVE_MS);
+            }
+        });
+    }
+
+    /** Uygulama bilgisinde donanım hızlandırması kapalı görünen bağlam (bkz. softwareRoot). */
+    private static final class SoftwareWindowContext extends ContextWrapper {
+        private final ApplicationInfo info;
+
+        SoftwareWindowContext(Context base) {
+            super(base);
+            info = new ApplicationInfo(base.getApplicationInfo());
+            info.flags &= ~ApplicationInfo.FLAG_HARDWARE_ACCELERATED;
+        }
+
+        @Override
+        public ApplicationInfo getApplicationInfo() { return info; }
+    }
+
+    /** OverlayDrawing'in kalıcı deposu; commit: deneme işareti çizimden (olası çökmeden) önce diskte olmalı. */
+    private static final class PrefsStore implements OverlayDrawing.Store {
+        private final SharedPreferences prefs;
+
+        PrefsStore(Context context) { prefs = context.getSharedPreferences("couchsubs", Context.MODE_PRIVATE); }
+
+        @Override
+        public boolean get(String key) { return prefs.getBoolean(key, false); }
+
+        @Override
+        public void put(String key, boolean value) { prefs.edit().putBoolean(key, value).commit(); }
     }
 
     /** TV'yi kendi HDMI giriş ekranına geçirir; altyazı penceresi üstte kalır. */
@@ -202,6 +281,7 @@ public class OverlayService extends Service implements TvPage.Host {
             startActivity(view);
             tunedPort = port;
             inputState = "HDMI " + port + " opened";
+            if (drawing != null) drawing.inputOpened(SystemClock.elapsedRealtime());
             page.status("ready");
         } catch (ActivityNotFoundException | SecurityException e) {
             // TV bu yolla girişe geçemiyor: kullanıcı girişi kumandadan seçer, altyazı yine üstte görünür.
@@ -217,7 +297,10 @@ public class OverlayService extends Service implements TvPage.Host {
 
     /** Bilgi panelinin tanı satırı: katman modu ve TV'nin girişe nasıl geçirildiği. */
     @Override
-    public String diagnostics() { return "mode overlay · input " + inputState; }
+    public String diagnostics() {
+        OverlayDrawing current = drawing;
+        return "mode overlay · input " + inputState + (current == null ? "" : " · " + current.diagnostics());
+    }
 
     /**
      * Katmandaki WebView işlemi çöktü ya da sistem kapattı (#616: Philips Android 8'de HDMI girişi açılınca). Eskiden
@@ -231,10 +314,10 @@ public class OverlayService extends Service implements TvPage.Host {
     @Override
     public void pageGone(boolean crashed) {
         String params = page == null ? "" : page.launchParams();
-        if (page != null) {
-            try { windows.removeView(page.webView); } catch (RuntimeException ignored) { /* pencere zaten yok */ }
-            page.destroy();
-            page = null;
+        removeWindow();
+        // Donanımlı pencerede WebView işlemi çöktü: GPU yüzeyi ayrılamıyor olabilir (#1074), sonraki pencere yazılımla.
+        if (crashed && drawing != null && drawing.rendererCrashed()) {
+            Log.w(TAG, "overlay renderer crashed with hardware drawing; next window draws in software");
         }
         if (!restarts.allow(SystemClock.elapsedRealtime())) {
             Log.w(TAG, "overlay page keeps dying; leaving overlay mode");
@@ -317,12 +400,20 @@ public class OverlayService extends Service implements TvPage.Host {
         running = false;
         if (current == this) current = null;
         ui.removeCallbacksAndMessages(null);
+        removeWindow();
+        if (drawing != null) drawing.closed();
+        super.onDestroy();
+    }
+
+    private void removeWindow() {
+        ui.removeCallbacks(proofSurvived);
+        proofPending = false;
         if (page != null) {
-            try { windows.removeView(page.webView); } catch (RuntimeException ignored) { /* pencere zaten yok */ }
+            try { windows.removeView(root); } catch (RuntimeException ignored) { /* pencere zaten yok */ }
             page.destroy();
             page = null;
         }
-        super.onDestroy();
+        root = null;
     }
 
     @Override

@@ -1,0 +1,1 @@
+0.9.82: Bazı LG TV'lerde çeviri başlarken ve PS tuşundan dönünce görüntü üç kez kararmıyor; TV sağlam görüntünün yeniden kurulmasına gerek olmadığını öğreniyor.

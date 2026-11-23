@@ -312,7 +312,7 @@ private struct RightColumn: View {
     var body: some View {
         VStack(spacing: DS.space("m")) {
             StatusTiles(choice: model.gameChoice)
-            HomeNotices()
+            HomeNotices(choice: model.gameChoice)
             if let problem = HomeProblem.current(model) {
                 ProblemCard(problem: problem, ticker: ticker)
             } else {
@@ -336,9 +336,11 @@ private struct StatusTiles: View {
         LazyVGrid(columns: columns, spacing: DS.space("s")) {
             consoleTile
             tvTile
+            // Xbox oynanan oyunu bildirmez: oyun seçilmediyse karo amber halkayla vurgulanır (zorlayıcı kart açılmaz).
             HomeTile(key: "Game", value: choice.game?.name ?? String(localized: "Not Recognized"),
-                       detail: gameHasPack ? String(localized: "Pack") : nil,
-                       tone: choice.game == nil ? .idle : .good, icon: .cover(choice.game?.name)) { choice.ask() }
+                       detail: gameHasPack ? String(localized: "Pack") : choice.xboxNeedsGame ? String(localized: "Choose") : nil,
+                       tone: choice.xboxNeedsGame ? .warning : choice.game == nil ? .idle : .good, icon: .cover(choice.game?.name),
+                       highlighted: choice.xboxNeedsGame) { choice.ask() }
             HomeTile(key: "Translation", value: engineName, detail: languages,
                        tone: model.translatorStatus == .ready ? .good : .warning, icon: .symbol("sparkles", .sky)) {
                 model.openSettings(.advanced)
@@ -424,6 +426,8 @@ private struct HomeTile: View {
     let detail: String?
     let tone: StatusTone
     let icon: Icon
+    /// Dikkat isteyen karo (Xbox'ta oyun seçilmedi): amber halka.
+    var highlighted = false
     let action: () -> Void
     @State private var hovering = false
 
@@ -451,7 +455,7 @@ private struct HomeTile: View {
             .padding(.vertical, DS.space("xs"))
             .frame(maxWidth: .infinity, minHeight: DS.size("option"), alignment: .leading)
             .dsElevation(.card, in: shape)
-            .overlay(hovering ? shape.strokeBorder(Color.dsBorderStrong) : nil)
+            .overlay(highlighted ? shape.strokeBorder(Color.dsAmber, lineWidth: 1.5) : hovering ? shape.strokeBorder(Color.dsBorderStrong) : nil)
             .contentShape(shape)
         }
         .buttonStyle(DSFocusPlainStyle(cornerRadius: DS.radius("tile")))

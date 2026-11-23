@@ -26,6 +26,10 @@ jobs:
           persist-credentials: false
       - name: Eşitlik denetimi
         run: python3 scripts/parity-check.py
+      - name: Metin denetimi (eksik Türkçe)
+        run: |
+          python3 scripts/check-strings.py
+          python3 -m unittest scripts/test_check_strings.py
 
   # Yalnız ilgili klasör değişince pahalı (özellikle macOS) işler çalışsın. Elle çalıştırmada hepsi çalışır.
   changes:

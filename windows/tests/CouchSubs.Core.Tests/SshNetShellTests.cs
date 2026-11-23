@@ -31,12 +31,33 @@ public class SshNetShellTests
         var key = RandomKeyFile();
         try
         {
-            var shell = new SshNetShell("127.0.0.1", 1, key) { ConnectTimeout = TimeSpan.FromSeconds(2) };
+            var shell = new SshNetShell("127.0.0.1", 1, key) { ConnectTimeout = TimeSpan.FromSeconds(2), KeyServerPort = 1 };
             var error = await Assert.ThrowsAsync<DevModeException>(() => shell.RunAsync("true"));
             Assert.Equal(DevModeError.Unreachable, error.Error);
         }
         finally
         {
+            File.Delete(key);
+        }
+    }
+
+    /// <summary>#200, #1116: Key Server anahtarı verdi ama SSH reddediyor (webOS Hub'lı TV): "TV yanıt vermedi" denmez.</summary>
+    [Fact]
+    public async Task ClosedSshWhileKeyServerAnswersIsAClosedDeveloperConnection()
+    {
+        var key = RandomKeyFile();
+        var keyServer = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        keyServer.Start();
+        try
+        {
+            var port = ((System.Net.IPEndPoint)keyServer.LocalEndpoint).Port;
+            var shell = new SshNetShell("127.0.0.1", 1, key) { ConnectTimeout = TimeSpan.FromSeconds(2), KeyServerPort = port };
+            var error = await Assert.ThrowsAsync<DevModeException>(() => shell.RunAsync("true"));
+            Assert.Equal(DevModeError.DevConnectionClosed, error.Error);
+        }
+        finally
+        {
+            keyServer.Stop();
             File.Delete(key);
         }
     }

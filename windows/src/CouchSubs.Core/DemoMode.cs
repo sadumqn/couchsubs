@@ -168,5 +168,6 @@ public sealed class DemoTranslator(ITextTranslator? inner) : ITextTranslator
     public bool Prefetches => inner?.Prefetches ?? false;
     public void Prefetch(string text) => inner?.Prefetch(text);
     public bool TranslatesTogether => inner?.TranslatesTogether ?? false;
+    public string? CachedTranslation(string text) => inner?.CachedTranslation(text);
     public void NoteSpeaker(string name) => inner?.NoteSpeaker(name);
 }

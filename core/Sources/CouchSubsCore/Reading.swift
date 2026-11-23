@@ -178,8 +178,10 @@ public struct Reading: Equatable, Sendable {
     /// ile bildirilir (satır kutuları alana oranlı); kendi yerinde çevrilir. Önceden ortalanmış blok yokken altyazı seçilip
     /// ekranın ortasında çiziliyordu. `age`: satırın ne kadar süredir değişmeden okunduğu (`StickyRows.unchangedMs`);
     /// verilirse `staleMs`'dir değişmeyen ortalı blok, yanında yeni beliren ortalı blok varken seçilmez (`withoutStale`),
-    /// atlanan blok `stale` ile bildirilir.
+    /// atlanan blok `stale` ile bildirilir. `darkInk`: satır kutusu açık zeminde koyu yazı mı (`InkTone.sampler`; kâğıt ilan
+    /// sahne yazısıdır, GitHub #1124); verilmezse renge bakılmaz.
     public func subtitleBlock(in area: TextBox, band: SubtitleBand = SubtitleBand(),
+                              darkInk: ((TextBox) -> Bool)? = nil,
                               dropped: ((Reading, String) -> Void)? = nil,
                               notices: ((Reading) -> Void)? = nil,
                               age: ((String) -> Int?)? = nil,
@@ -197,7 +199,7 @@ public struct Reading: Equatable, Sendable {
         // Tabela, tişört, plaka gibi sahne yazısı (`SceneText`) altyazı alanına düşse de altyazı değildir.
         let candidates = blocks.flatMap(Self.withoutSignLines).map { Reading(lines: $0) }.filter { block in
             guard !block.isMenu, !block.isActionLabel else { return false }
-            guard let reason = SceneText.reason(block, in: area, band: band) else { return true }
+            guard let reason = SceneText.reason(block, in: area, band: band, darkInk: darkInk) else { return true }
             dropped?(block, reason)
             return false
         }.filter { block in

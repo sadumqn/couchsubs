@@ -5,6 +5,14 @@ Akış: `extract.py` (herkese açık kaynaktan İngilizce satırlar) → `poolfi
 düzeltme) → `translate.py` (Claude ile cümle cümle çeviri) → `review.py` ve `fixcase.py` (denetim) → `build.py`
 (biçim 2 paket: SHA-256 anahtarlar, parçalar, bulanık imzalar) → `coverage.py` (havuz satırlarıyla kapsam ölçümü).
 
+GTA VI için kısa OCR satırlarını kapsama önizlemesine dahil etmek üzere:
+`python3 tools/packs/coverage.py yerel-rows.jsonl yerel-havuz.json - --title "Grand Theft Auto VI"`.
+Başlık verilmezse genel 16 karakterlik alt sınır kullanılır; GTA başlığıyla Windows GTA
+paketlerindeki 8 karakterlik bulanık eşleşme alt sınırı kullanılır. **Bu yalnız tahmindir:**
+`fuzzy>=0.6` gerçek istemcinin benzerlik/eşsiz aday eşiği değildir, 8–15 karakterlik
+bulanık aramayı Mac/iOS dahil tüm platformlarda garanti etmez. Yerel oyun metinleri ve
+OCR dışa aktarımları repoya eklenmez.
+
 Anthropic anahtarı `~/.config/couchsubs/anthropic-key` dosyasından okunur; depoya konmaz. Harcama `ledger.jsonl`'a
 yazılır. Kaynaklar ve lisansları THIRD-PARTY-NOTICES.md'de.
 

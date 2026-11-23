@@ -782,6 +782,10 @@ private struct OutputSettings: View {
     @EnvironmentObject private var model: AppModel
 
     @State private var sent = false
+    @State private var enteringAddress = false
+    @State private var address = ""
+    @State private var confirmRemove = false
+    @State private var checking = false
 
     var body: some View {
         TwoColumns {
@@ -827,28 +831,99 @@ private struct OutputSettings: View {
                  status: model.hasTV ? "Linked" : nil, statusTone: model.tvClients > 0 ? .ok : .muted,
                  selected: model.tvClients > 0)
         Text(tvState).dsMuted()
+        // "TV'yi Eşleştir" ve "Deneme Altyazısı Gönder" önce TV'ye ulaşılıyor mu bakar (adresi değiştiyse TV yeni adreste
+        // bulunur); ulaşılamazsa açık hata, "TV'yi Yeniden Ara" ve "IP Adresi Gir". Önceden düğmeye basınca hiçbir şey olmuyordu.
+        if let host = model.tvUnreachableHost {
+            DSNoticeBox(tone: .warning, text: LocalizedStringKey(String(format: String(localized: "The TV isn't responding at %@. Its address may have changed."), host)))
+            HStack(spacing: DS.space("xs")) {
+                Button("Search for the TV Again") { run { _ = await model.searchTVAgain() } }
+                    .buttonStyle(.dsSecondary)
+                Button("Enter IP Address") { enteringAddress = true }
+                    .buttonStyle(.dsSecondary)
+            }
+            .disabled(checking)
+        }
+        if enteringAddress {
+            DSFieldChrome(mono: true) {
+                TextField("IP address, e.g. 192.168.1.20", text: $address)
+                    .textFieldStyle(.plain)
+                    .onSubmit(useAddress)
+            } trailing: {
+                Button("Add", action: useAddress)
+                    .buttonStyle(DSButtonStyle(kind: .compact))
+                    .disabled(checking || address.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            if model.tvAddressRejected {
+                Text("No TV was recognised at this address.")
+                    .font(.dsSmall).foregroundStyle(Color.dsLiveText).fixedSize(horizontal: false, vertical: true)
+            }
+        }
         HStack(spacing: DS.space("xs")) {
             if sent {
                 DSSuccessBadge(text: "Sent")
             } else {
                 Button("Send Test Subtitle") {
-                    model.sendTestSubtitle()
-                    sent = true
+                    run {
+                        guard await model.ensureTVReachable() else { return }
+                        model.sendTestSubtitle()
+                        sent = true
+                    }
                 }
                 .buttonStyle(.dsSecondary)
             }
             Button(model.hasTV ? "Pair the TV" : "Connect TV") {
-                if model.hasTV { Task { await model.openTVPairing() } } else { model.step = .tv }
+                if model.hasTV {
+                    run { if await model.ensureTVReachable() { await model.openTVPairing() } }
+                } else {
+                    model.step = .tv
+                }
             }
             .buttonStyle(.dsSecondary)
         }
+        .disabled(checking)
         .task(id: sent) {
             guard sent else { return }
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             sent = false
         }
+        // Kart görünürken TV uygulaması bağlı değilse adres yoklanır; TV yeni adreste bulunursa kartta yeni adres görünür.
+        .task(id: model.tv?.host) {
+            while !Task.isCancelled {
+                await model.checkTVReachable()
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+            }
+        }
+        // Eşli TV her zaman değiştirilebilir ve kaldırılabilir (önceden eşli TV hiçbir yerden kaldırılamıyordu).
+        if model.tv != nil {
+            HStack(spacing: DS.space("xs")) {
+                Button("Change the TV") { model.step = .tv }.buttonStyle(.dsSecondary)
+                Button("Remove Pairing") { confirmRemove = true }.buttonStyle(.dsSecondary)
+            }
+            .confirmationDialog("Remove Pairing?", isPresented: $confirmRemove) {
+                Button("Remove Pairing", role: .destructive) { model.removeTVPairing() }
+            } message: {
+                Text("The paired TV will be removed. You can choose a TV again with Change the TV.")
+            }
+        }
         if model.settings.style.placement == .fixed {
             Text("In fixed position you can also move subtitles with the ▲ and ▼ buttons on the TV remote.").dsMuted()
+        }
+    }
+
+    private func run(_ action: @escaping @MainActor () async -> Void) {
+        checking = true
+        Task {
+            await action()
+            checking = false
+        }
+    }
+
+    private func useAddress() {
+        run {
+            if await model.useTVAddress(address) {
+                enteringAddress = false
+                address = ""
+            }
         }
     }
 

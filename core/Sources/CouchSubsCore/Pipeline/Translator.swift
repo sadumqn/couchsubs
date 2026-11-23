@@ -16,6 +16,9 @@ public protocol TextTranslator {
     /// Hat satır başındaki konuşan adını ("PRICE: …") ayırıp çevirmene yalnız cümleyi verir; ad buradan öğrenilir ve
     /// sonraki cümlelerin içinde geçince çeviriden korunur (#287).
     func noteSpeaker(_ name: String)
+    /// Diskteki önbellekte duran çevirisi (istek göndermeden); yoksa nil. "Ekranı çevir" önbellekteki yazıları çeviri
+    /// isteğini beklemeden hemen çizer.
+    func cachedTranslation(_ text: String) -> String?
 }
 
 extension TextTranslator {
@@ -33,6 +36,8 @@ extension TextTranslator {
     public var translatesTogether: Bool { false }
 
     public func noteSpeaker(_ name: String) {}
+
+    public func cachedTranslation(_ text: String) -> String? { nil }
 }
 
 public enum TranslatorError: Error, Equatable {

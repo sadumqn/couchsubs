@@ -94,6 +94,8 @@ protocol AppServices: AnyObject {
     /// Uygulamayla gelen TV paketinin sürümü (geliştirici derlemesinde paket olmayabilir).
     var bundledTVAppVersion: String? { get }
     func isDevModeOn(host: String) async -> Bool
+    /// Kayıtlı TV adresinde bir şey yanıt veriyor mu (kapı açık ya da reddediyor); hepsi zaman aşımındaysa hayır (`TVReach`).
+    func tvResponds(host: String, brand: TVBrand) async -> Bool
     func fetchDevKey(host: String, passphrase: String) async throws -> String
     func installedTVAppVersion(host: String, devKey: String) async throws -> String?
     func installTVApp(host: String, devKey: String) async throws
@@ -344,6 +346,8 @@ final class LiveServices: AppServices {
     }
 
     func isDevModeOn(host: String) async -> Bool { await DevModeInstaller.isDevModeOn(host: host) }
+
+    func tvResponds(host: String, brand: TVBrand) async -> Bool { await TVReach.responds(host: host, brand: brand) }
 
     func fetchDevKey(host: String, passphrase: String) async throws -> String {
         try await DevModeInstaller.fetchKey(host: host, passphrase: passphrase, runner: ProcessRunner())
@@ -1029,6 +1033,8 @@ final class AppModel: ObservableObject {
             if game != nil { self?.packsForGame() }
         }
         gameChoice.onPublish = { [weak self] game, source in self?.gameAreas.follow(game: game, source: source) }
+        // Xbox'ta oyunun tanınmadığı ya da elle seçildiği günlükte tek satır (Windows, iPhone, Android ile aynı).
+        gameChoice.onLog = { SubtitleLog.write($0) }
         // Ayarlar'da oyun profili seçilince ya da yeni profil açılınca oynanan oyun o olur.
         gameAreas.onChoose = { [weak self] name in self?.gameChoice.choose(name) }
         // Jeton yenilenince (ya da çıkış yapılınca) Anahtarlık güncellenir.
@@ -1688,12 +1694,30 @@ final class AppModel: ObservableObject {
             lgSkipped("TV'nin adresi yok")
             return
         }
-        let devModeOn = await services.isDevModeOn(host: tv.host)
+        var tv = tv
+        var devModeOn = await services.isDevModeOn(host: tv.host)
+        // Geliştirici modu kapalı görünüyorsa önce adres: TV'nin adresi değiştiyse eski adres hiç yanıt vermez; "geliştirici
+        // modu kapalı" denmez, TV ağda yeniden aranır (beta.89, 192.168.1.238 → .156).
+        var silent = false
+        if !devModeOn {
+            switch await locateTV() {
+            case .moved(let moved):
+                tv = moved
+                devModeOn = await services.isDevModeOn(host: moved.host)
+            case .silent: silent = true
+            case .here: break
+            }
+        }
         // Beklerken parola kartından kurulum başladıysa kart geri "geliştirici modu kapalı"ya dönmez.
         if tvApp == .working { return }
         // Eski TV uygulaması da eksik gibi kurulum adımlarını gösterir: bağlı (eski) uygulamada kart boş kalıyor, "TV
         // uygulamasını güncelle" TV adımını açıp yalnız eşleştirme/test gösteriyor, ana ekrana dönülüyordu (sonsuz döngü).
         let needsSteps = tvAppMissing || tvAppOutdated != nil
+        if silent {
+            if needsSteps { lgSkipped("\(TVReach.notRespondingLine) (\(tv.host))") }
+            tvApp = needsSteps ? .failed(.tvNotResponding) : .unknown
+            return
+        }
         guard devModeOn else {
             if needsSteps { lgSkipped("geliştirici modu kapalı ya da TV'ye ulaşılamıyor (\(tv.host):9922)") }
             tvApp = needsSteps ? .devModeOff : .unknown
@@ -1728,6 +1752,18 @@ final class AppModel: ObservableObject {
         let check = await services.checkSamsung(host: tv.host)
         let devModeOn: Bool
         if check.info?.developerMode == false { devModeOn = false } else { devModeOn = await services.isSamsungDevModeOn(host: tv.host) }
+        // TV 8001'de de yanıt vermediyse adres değişmiş olabilir: TV ağda aranır, bulunursa yeni adresle denetlenir.
+        if !devModeOn, check.info == nil {
+            switch await locateTV() {
+            case .moved(let moved):
+                await refreshSamsungApp(moved)
+                return
+            case .silent:
+                tvApp = remembered ? current : .failed(.tvNotResponding)
+                return
+            case .here: break
+            }
+        }
         guard devModeOn else {
             // Geliştirici modu kapalıyken TV'ye sorulamaz; bu Mac'in kurduğu sürüme bakılır.
             tvApp = remembered ? current : .devModeOff
@@ -1792,6 +1828,12 @@ final class AppModel: ObservableObject {
             androidTVChoice = nil
             switch AndroidTVPick.pick(found: await services.scanAndroidTVs(), preferred: [choice, tv.host].compactMap { $0 }) {
             case .none:
+                // Kayıtlı adres hiç yanıt vermiyorsa "hata ayıklama kapalı" denmez: TV ağda aranır (bulunursa adres
+                // güncellenir; hata ayıklama orada da kapalıysa adımlar gösterilir), bulunamazsa "TV bu adreste yanıt vermiyor".
+                if case .silent = await locateTV() {
+                    tvApp = .failed(.tvNotResponding)
+                    return
+                }
                 tvApp = .devModeOff
                 return
             case .ask(let hosts):
@@ -1813,6 +1855,7 @@ final class AppModel: ObservableObject {
             // TV'nin adresi bundan sonra sürüm denetimi için kullanılır.
             let located = LGTV(name: tv.name, host: host, brand: .androidTV)
             let addressChanged = self.tv?.host != located.host
+            if addressChanged, let old = self.tv?.host, !old.isEmpty { TVInstallLog.write(TVReach.movedLine(from: old, to: host)) }
             self.tv = located
             store.save(located, for: StoreKey.tv)
             store.save(version, for: StoreKey.tvAppVersion)
@@ -1928,6 +1971,17 @@ final class AppModel: ObservableObject {
         // Kurulum adımları görünsün: TV uygulaması bağlı değil, kullanıcı yeniden kurmak istiyor.
         tvAppMissing = true
         tvApp = .working
+        var tv = tv
+        if !(await services.isDevModeOn(host: tv.host)) {
+            switch await locateTV(force: true) {
+            case .moved(let moved): tv = moved
+            case .silent:
+                lgSkipped("\(TVReach.notRespondingLine) (\(tv.host))")
+                tvApp = .failed(.tvNotResponding)
+                return
+            case .here: break
+            }
+        }
         guard await services.isDevModeOn(host: tv.host) else {
             lgSkipped("geliştirici modu kapalı ya da TV'ye ulaşılamıyor (\(tv.host):9922)")
             tvApp = .devModeOff
@@ -1972,17 +2026,36 @@ final class AppModel: ObservableObject {
 
     /// Key Server'dan anahtarı alır (TV ekranındaki parolayla) ve uygulamayı kurar.
     func installTVApp(passphrase: String) async {
-        guard let tv, let bundled = services.bundledTVAppVersion else { return }
+        guard var tv, let bundled = services.bundledTVAppVersion else { return }
         tvApp = .working
-        do {
-            TVInstallLog.lgKeyRequest(host: tv.host)
-            let devKey = try await services.fetchDevKey(host: tv.host, passphrase: passphrase.trimmingCharacters(in: .whitespacesAndNewlines))
-            TVInstallLog.write("Key Server'dan anahtar alındı.")
-            store.save(devKey, for: StoreKey.tvDevKey)
-            await install(tv: tv, devKey: devKey, bundled: bundled)
-        } catch {
-            TVInstallLog.failure(error)
-            tvApp = .needsPassphrase(error: (error as? DevModeFailure)?.error ?? error as? DevModeError ?? .installFailed)
+        var relocated = false
+        while true {
+            do {
+                TVInstallLog.lgKeyRequest(host: tv.host)
+                let devKey = try await services.fetchDevKey(host: tv.host, passphrase: passphrase.trimmingCharacters(in: .whitespacesAndNewlines))
+                TVInstallLog.write("Key Server'dan anahtar alındı.")
+                store.save(devKey, for: StoreKey.tvDevKey)
+                await install(tv: tv, devKey: devKey, bundled: bundled)
+            } catch {
+                TVInstallLog.failure(error)
+                let failed = (error as? DevModeFailure)?.error ?? error as? DevModeError ?? .installFailed
+                // "Key Server kapalı" ancak TV bu adreste yanıt veriyorsa: adres hiç yanıt vermiyorsa TV ağda aranır, yeni
+                // adreste bulunursa anahtar oradan bir kez daha istenir; bulunamazsa "TV bu adreste yanıt vermiyor".
+                if !relocated, failed == .keyServerOff || failed == .unreachable {
+                    relocated = true
+                    switch await locateTV(force: true) {
+                    case .moved(let moved):
+                        tv = moved
+                        continue
+                    case .silent:
+                        tvApp = .needsPassphrase(error: .tvNotResponding)
+                        return
+                    case .here: break
+                    }
+                }
+                tvApp = .needsPassphrase(error: failed)
+            }
+            return
         }
     }
 
@@ -2223,8 +2296,10 @@ final class AppModel: ObservableObject {
         if !demoMode {
             gameAreas.start()
             // Remote Play penceresinden okurken PS5 eşleşmesi olmayabilir; son oyun o zaman PS5 adı olmadan hatırlanır.
-            let consoleName = xbox.map { $0.name.isEmpty ? "Xbox" : $0.name } ?? (isXbox ? nil : console.map { $0.name.isEmpty ? $0.host : $0.name })
-            gameChoice.start(console: consoleName) { [weak self] in
+            // Xbox çalışan oyunu bildirmez: Xbox için son seçilen oyun (Xbox penceresinden okurken de) kendiliğinden
+            // kullanılır, hiç seçim yoksa Oyun karosu vurgulanır (`GameChoice.xboxNeedsGame`).
+            let consoleName = isXbox ? nil : console.map { $0.name.isEmpty ? $0.host : $0.name }
+            gameChoice.start(console: consoleName, xbox: isXbox) { [weak self] in
                 guard let self else { return false }
                 return self.settings.askGame && self.settings.sharePool
             }
@@ -2342,6 +2417,7 @@ final class AppModel: ObservableObject {
     /// TV durumunun yazısı: bağlı, yeniden bağlanılıyor ya da TV uygulaması bekleniyor.
     var tvStatusText: String {
         tvClients > 0 ? String(localized: "Connected")
+            : tvNotResponding ? String(localized: "Not responding — searching again…")
             : tvReconnecting ? String(localized: "Reconnecting…") : String(localized: "Waiting for the TV app")
     }
 
@@ -2738,9 +2814,126 @@ final class AppModel: ObservableObject {
     }
 
     func tvMoved(to moved: LGTV) {
+        if let old = tv?.host, old != moved.host {
+            TVInstallLog.write(TVReach.movedLine(from: old, to: moved.host))
+            SubtitleLog.write(TVReach.movedLine(from: old, to: moved.host))
+        }
         if moved.brand == .samsung { SamsungAppKnowledge.shared.carry(from: tv?.host, to: moved.host) }
         tv = moved
         store.save(moved, for: StoreKey.tv)
+        tvNotResponding = false
+        tvUnreachableHost = nil
+    }
+
+    // MARK: - TV'nin adresi değişince
+
+    /// Kayıtlı TV adresi hiç yanıt vermiyor (kart "Yanıt vermiyor — yeniden aranıyor…" der). beta.89: modem TV'ye yeni
+    /// adres verince kart "TV uygulaması bekleniyor", kurulum "geliştirici modu kapalı" ve "Key Server kapalı" diyordu.
+    @Published private(set) var tvNotResponding = false
+    /// "TV'yi Eşleştir" ya da "Deneme Altyazısı Gönder" TV'ye ulaşamadı, TV ağda da bulunamadı: kartta açık hata,
+    /// "TV'yi Yeniden Ara" ve "IP Adresi Gir". Önceden düğmeye basınca hiçbir şey olmuyordu.
+    @Published private(set) var tvUnreachableHost: String?
+    /// "IP Adresi Gir"e yazılan adreste TV tanınmadı.
+    @Published private(set) var tvAddressRejected = false
+    /// Ağ en son ne zaman arandı (kendiliğinden yeniden bulma en çok 30 sn'de bir arar; düğmeler beklemez).
+    private var lastTVSearch: Date?
+    static let tvSearchInterval: TimeInterval = 30
+
+    /// Kayıtlı TV adresini yoklar; yanıt yoksa TV'yi ağda arar (`force` yoksa en çok 30 sn'de bir). Aynı TV bulunursa
+    /// adres güncellenir ("TV'nin adresi değişmiş: eski → yeni") ve iş yeni adresle sürer. Windows, iPhone ve Android'de
+    /// aynı adım (`TvReach`).
+    func locateTV(force: Bool = false) async -> TVReach.Location {
+        guard let saved = tv, !saved.host.isEmpty else { return .here }
+        guard !(await services.tvResponds(host: saved.host, brand: saved.brand)) else {
+            tvNotResponding = false
+            return .here
+        }
+        // Yoklama sürerken TV değiştirildiyse (eşleşme kaldırıldı, başka TV seçildi) eski kayıt için aranmaz.
+        guard tv == saved else { return .here }
+        tvNotResponding = true
+        if !force, let last = lastTVSearch, Date().timeIntervalSince(last) < Self.tvSearchInterval { return .silent }
+        lastTVSearch = Date()
+        TVInstallLog.write("Kayıtlı TV adresi \(saved.host) yanıt vermiyor; TV ağda yeniden aranıyor.")
+        let found = await services.discoverTVs()
+        guard tv == saved else { return .here }
+        guard let moved = TVReach.relocated(saved, among: found) else {
+            TVInstallLog.write("\(TVReach.notRespondingLine) (\(saved.host)); TV ağda bulunamadı.")
+            return .silent
+        }
+        adoptMovedTV(moved)
+        return .moved(moved)
+    }
+
+    /// Yeni adreste bulunan TV kaydedilir; çeviri sürüyorsa TV bekçisi yeni adresle yeniden kurulur.
+    private func adoptMovedTV(_ moved: LGTV) {
+        tvMoved(to: moved)
+        keeper?.stop()
+        keeper = nil
+        if isRunning && settings.output.showsOnTV { startKeeper(refreshApp: false) }
+    }
+
+    /// Eşli TV kartı görünürken ~10 sn'de bir: TV uygulaması bağlı değilse adres yoklanır, gerekirse TV yeniden bulunur.
+    func checkTVReachable() async {
+        guard tv != nil, tvClients == 0 else {
+            tvNotResponding = false
+            return
+        }
+        _ = await locateTV()
+    }
+
+    /// "TV'yi Eşleştir" ve "Deneme Altyazısı Gönder"den önce: TV'ye ulaşılıyor mu (adresi değiştiyse yeni adresle evet).
+    /// Ulaşılamazsa kart açık hatayı gösterir.
+    func ensureTVReachable() async -> Bool {
+        guard tv != nil else { return true }
+        switch await locateTV(force: true) {
+        case .here, .moved:
+            tvUnreachableHost = nil
+            return true
+        case .silent:
+            tvUnreachableHost = tv?.host
+            return false
+        }
+    }
+
+    /// Kartta "TV'yi Yeniden Ara".
+    @discardableResult
+    func searchTVAgain() async -> Bool { await ensureTVReachable() }
+
+    /// Kartta "IP Adresi Gir": yazılan adresteki TV tanınırsa eşli TV o adrese taşınır (anahtarı korunur).
+    @discardableResult
+    func useTVAddress(_ text: String) async -> Bool {
+        guard let host = ManualAddress.normalize(text), let found = await services.identifyTV(host: host) else {
+            tvAddressRejected = true
+            return false
+        }
+        tvAddressRejected = false
+        guard let saved = tv else {
+            tv = found
+            store.save(found, for: StoreKey.tv)
+            return true
+        }
+        let moved = found.brand == saved.brand ? LGTV(name: saved.name, host: found.host, brand: saved.brand) : found
+        if moved.brand != saved.brand { store.remove(StoreKey.tvAppVersion) }
+        adoptMovedTV(moved)
+        return true
+    }
+
+    /// Kartta "Eşleşmeyi Kaldır": eşli TV, TV izni/jetonu ve TV uygulaması kaydı silinir; altyazı TV'ye gidiyorsa bu
+    /// Mac'in ekranına geçer. Önceden eşli TV hiçbir yerden kaldırılamıyordu (yalnız "Kurulumu sıfırla").
+    func removeTVPairing() {
+        if let tv { TVInstallLog.write("Eşleşme kaldırıldı: \(tv.name) (\(tv.host)).") }
+        keeper?.stop()
+        keeper = nil
+        [StoreKey.tv, StoreKey.tvKey, StoreKey.tvAppVersion].forEach(store.remove)
+        tv = nil
+        tvKeySaved = false
+        tvApp = .unknown
+        tvAppOutdated = nil
+        tvAppMissing = false
+        tvNotResponding = false
+        tvUnreachableHost = nil
+        tvAddressRejected = false
+        if settings.output.showsOnTV { settings.output = .computer }
     }
 
     /// Okuma hattını güncel dillerle (yeniden) kurar.

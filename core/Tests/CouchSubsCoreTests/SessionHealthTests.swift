@@ -18,7 +18,7 @@ final class SessionHealthTests: XCTestCase {
     }
 
     func testMarkLeftBehindIsReportedOnceAndClearedMarkIsNot() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "session-health-\(UUID())"))
+        let defaults = TestDefaults.make("session-health")
         XCTAssertNil(SessionHealth.unexpectedEnd(SessionHealth.loadMark(defaults)))
 
         let mark = SessionHealth.Mark(startedAt: Date(timeIntervalSince1970: 100),

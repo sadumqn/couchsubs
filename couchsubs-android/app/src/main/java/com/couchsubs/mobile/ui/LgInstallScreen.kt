@@ -34,6 +34,8 @@ import com.couchsubs.mobile.tv.TvAppUpdate
 import com.couchsubs.mobile.tv.TvBrand
 import com.couchsubs.mobile.tv.TvDiscovery
 import com.couchsubs.mobile.tv.TvPackages
+import com.couchsubs.mobile.tv.TvReach
+import com.couchsubs.mobile.tv.TvRelocation
 import com.couchsubs.mobile.tv.lg.JschShell
 import com.couchsubs.mobile.tv.lg.LgInstallError
 import com.couchsubs.mobile.tv.lg.LgInstallException
@@ -103,42 +105,56 @@ internal fun LgInstallScreen(onBack: () -> Unit, onDone: () -> Unit, brandPicker
         val main = Handler(Looper.getMainLooper())
         scope.launch {
             state = try {
-                val result = withContext(Dispatchers.IO) {
+                val (installedAt, result) = withContext(Dispatchers.IO) {
                     val (ipk, name, version) = TvPackages.lg(context) ?: throw LgInstallException(LgInstallError.PACKAGE_MISSING)
                     val log = InstallLog(logFile)
-                    val progress: (InstallStep) -> Unit = { step -> main.post { if (state is LgState.Working) state = LgState.Working(step) } }
-                    fun fresh(): ByteArray {
-                        if (typed.isEmpty()) throw LgInstallException(LgInstallError.KEY_REFUSED, "parola yazılmadı")
-                        progress(InstallStep.KEY)
-                        val key = LgInstaller.decodeKey(LgInstaller.downloadKey(target), typed) { k, p -> JschShell.decryptOtherFormat(k, p) }
-                        keys.save(target, key)
-                        log.write("Key Server'dan anahtar alındı.")
-                        return key
+                    fun runAt(at: String): LgInstaller.Result {
+                        val progress: (InstallStep) -> Unit = { step -> main.post { if (state is LgState.Working) state = LgState.Working(step) } }
+                        fun fresh(): ByteArray {
+                            if (typed.isEmpty()) throw LgInstallException(LgInstallError.KEY_REFUSED, "parola yazılmadı")
+                            progress(InstallStep.KEY)
+                            val key = LgInstaller.decodeKey(LgInstaller.downloadKey(at), typed) { k, p -> JschShell.decryptOtherFormat(k, p) }
+                            keys.save(at, key)
+                            log.write("Key Server'dan anahtar alındı.")
+                            return key
+                        }
+                        fun attempt(key: ByteArray): LgInstaller.Result {
+                            val installer = LgInstaller(JschShell(at, key), progress, log)
+                            val result = installer.ensureInstalled(ipk, name, version, replaceForeign)
+                            // Masaüstündeki gibi: geliştirici modunun süresi günde bir uzatılır, kullanıcı TV'den uzatmaz.
+                            TvAppUpdate.renewLgSessionIfDue(at, installer)
+                            return result
+                        }
+                        val saved = keys.load(at)
+                        return if (saved == null) attempt(fresh())
+                        else try {
+                            attempt(saved)
+                        } catch (error: LgInstallException) {
+                            // Geliştirici modu yeniden açılınca TV yeni anahtar üretir; eskisi bırakılır, parola yazıldıysa yenisi alınır.
+                            if (error.error != LgInstallError.KEY_REFUSED) throw error
+                            keys.remove(at)
+                            log.write("Kayıtlı anahtar reddedildi; bırakıldı.")
+                            attempt(fresh())
+                        }
                     }
-                    fun attempt(key: ByteArray): LgInstaller.Result {
-                        val installer = LgInstaller(JschShell(target, key), progress, log)
-                        val result = installer.ensureInstalled(ipk, name, version, replaceForeign)
-                        // Masaüstündeki gibi: geliştirici modunun süresi günde bir uzatılır, kullanıcı TV'den uzatmaz.
-                        TvAppUpdate.renewLgSessionIfDue(target, installer)
-                        return result
-                    }
-                    val saved = keys.load(target)
-                    if (saved == null) attempt(fresh())
-                    else try {
-                        attempt(saved)
+                    try {
+                        target to runAt(target)
                     } catch (error: LgInstallException) {
-                        // Geliştirici modu yeniden açılınca TV yeni anahtar üretir; eskisi bırakılır, parola yazıldıysa yenisi alınır.
-                        if (error.error != LgInstallError.KEY_REFUSED) throw error
-                        keys.remove(target)
-                        log.write("Kayıtlı anahtar reddedildi; bırakıldı.")
-                        attempt(fresh())
+                        // TV'nin adresi değişmiş olabilir (beta.89: kayıtlı adres sessiz, TV yeni adreste): adres hiç yanıt
+                        // vermiyorsa TV ağda yeniden aranır, aynı TV bulunursa kurulum yeni adresle bir kez daha denenir.
+                        // "Key Server kapalı" yalnız TV yanıt verip 9991 reddediyorsa gösterilir.
+                        if (error.error != LgInstallError.UNREACHABLE && error.error != LgInstallError.KEY_SERVER_OFF) throw error
+                        val moved = relocateLg(target, log, keys) ?: throw error
+                        main.post { host = moved }
+                        moved to runAt(moved)
                     }
                 }
-                TvAppUpdate.installed(InstalledTv(TvBrand.LG, target, version = result.version))
+                TvAppUpdate.installed(InstalledTv(TvBrand.LG, installedAt, version = result.version))
                 LgState.Done(result.version, result.installed)
             } catch (error: LgInstallException) {
                 // 9922 yanıt vermediyse neden: TV bu adreste mi, geliştirici modu mu kapalı (diğer portlara bakılır).
-                val reason = if (error.error != LgInstallError.UNREACHABLE) null else withContext(Dispatchers.IO) {
+                val reason = if (error.error == LgInstallError.UNREACHABLE && error.detail == TvReach.NOT_RESPONDING_LINE) LgUnreachableReason.TV_NOT_FOUND
+                else if (error.error != LgInstallError.UNREACHABLE) null else withContext(Dispatchers.IO) {
                     runCatching { LgUnreachableReason.probe(target) }.getOrNull()
                         ?.also { InstallLog(logFile).write("9922 yanıt vermedi; TV'nin durumu: $it") }
                 }
@@ -204,6 +220,19 @@ internal fun LgInstallScreen(onBack: () -> Unit, onDone: () -> Unit, brandPicker
     }
 }
 
+/**
+ * LG kurulumunda adres yanıt vermedi (9922 ya da Key Server): adres hiç yanıt vermiyorsa (bağlantı zaman aşımı, adreste
+ * cihaz yok; "reddedildi" yanıttır) TV ağda yeniden aranır. Aynı TV bulunursa kayıtlı TV, LG anahtarı ve günlük yeni
+ * adrese geçer, yeni adres döner. TV yanıt veriyorsa null (asıl hata gösterilir); sessiz ve bulunamadıysa
+ * "TV bu adreste yanıt vermiyor" hatası fırlatılır. Bloklar.
+ */
+internal fun relocateLg(target: String, log: InstallLog, keys: LgKeys): String? =
+    when (val result = TvRelocation.retarget(target, TvBrand.LG, log, keys)) {
+        TvRelocation.Retarget.Responds -> null
+        is TvRelocation.Retarget.Moved -> result.host
+        TvRelocation.Retarget.Silent -> throw LgInstallException(LgInstallError.UNREACHABLE, TvReach.NOT_RESPONDING_LINE)
+    }
+
 /** Ne yapılacağı (masaüstündeki TvAppMessages ile aynı anlam) ve TV'nin verdiği ayrıntı. */
 @Composable
 private fun lgFailureText(failure: LgState.Failed): String {
@@ -224,6 +253,6 @@ private fun lgFailureText(failure: LgState.Failed): String {
         LgInstallError.FOREIGN_APP -> return context.getString(R.string.tvinstall_foreign_body)
         LgInstallError.INSTALL_FAILED, null -> context.getString(R.string.tvinstall_err_failed)
     }
-    val detail = failure.detail?.takeIf { it.isNotBlank() && failure.error != LgInstallError.WRONG_PASSPHRASE } ?: return advice
+    val detail = failure.detail?.takeIf { it.isNotBlank() && failure.error != LgInstallError.WRONG_PASSPHRASE && it != TvReach.NOT_RESPONDING_LINE } ?: return advice
     return advice + "\n\n" + context.getString(R.string.tvinstall_lg_tv_says, detail)
 }

@@ -35,6 +35,12 @@ public interface ITextTranslator
     void NoteSpeaker(string name) { }
 
     /// <summary>
+    /// Diskteki önbellekte duran çevirisi (istek göndermeden); yoksa null. "Ekranı çevir" önbellekteki yazıları çeviri
+    /// isteğini beklemeden hemen çizer (Mac ile aynı).
+    /// </summary>
+    string? CachedTranslation(string text) => null;
+
+    /// <summary>
     /// Birbirinden bağımsız metinleri ("ekranı çevir"deki menü satırları, görev yazıları) aynı sırada çevirir.
     /// Varsayılan: sırayla tek tek.
     /// </summary>

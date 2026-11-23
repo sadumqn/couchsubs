@@ -1,0 +1,1 @@
+0.9.82: On some LG TVs the picture no longer goes black three times when translation starts or after pressing the PS button; the TV learns that a healthy picture needs no rebuild.

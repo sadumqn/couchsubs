@@ -32,6 +32,8 @@ public sealed class HomeTile : Button
     private readonly Ellipse dot = new() { Width = 6, Height = 6, VerticalAlignment = VerticalAlignment.Center, Margin = Sp.T("xxs", "0", "0", "0") };
     private readonly TextBlock value = new() { FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 40 };
     private readonly TextBlock detail = new() { FontSize = 11, FontWeight = FontWeights.Medium, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+    /// <summary>Dikkat isteyen karo (Xbox'ta oyun seçilmedi): amber halka (Mac HomeTile highlighted).</summary>
+    private bool highlighted;
 
     public HomeTile()
     {
@@ -61,13 +63,24 @@ public sealed class HomeTile : Button
         row.Children.Add(texts);
         frame.Child = row;
         Content = frame;
-        MouseEnter += (_, _) => frame.SetResourceReference(Border.BorderBrushProperty, "borderStrongBrush");
-        MouseLeave += (_, _) => frame.SetResourceReference(Border.BorderBrushProperty, "cardEdgeBrush");
+        MouseEnter += (_, _) => { if (!highlighted) frame.SetResourceReference(Border.BorderBrushProperty, "borderStrongBrush"); };
+        MouseLeave += (_, _) => ShowEdge();
+    }
+
+    private void ShowEdge()
+    {
+        frame.SetResourceReference(Border.BorderBrushProperty, highlighted ? "amberBrush" : IsMouseOver ? "borderStrongBrush" : "cardEdgeBrush");
+        frame.BorderThickness = new Thickness(highlighted ? 1.5 : 1);
     }
 
     /// <summary>Karoyu doldurur. <paramref name="cover"/> verilirse simge karesi yerine oyunun kapağı (adından degrade).</summary>
-    public void Show(string name, string text, string? more, StatusTone tone, string glyph, IconTone iconTone, string? cover = null)
+    public void Show(string name, string text, string? more, StatusTone tone, string glyph, IconTone iconTone, string? cover = null, bool highlight = false)
     {
+        if (highlighted != highlight)
+        {
+            highlighted = highlight;
+            ShowEdge();
+        }
         key.Text = name;
         value.Text = text;
         value.ToolTip = text;

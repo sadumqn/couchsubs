@@ -1,5 +1,5 @@
 {
-  "about": "Gerçek kare gerileme seti (scripts/regression-frames.sh). Kareler kullanıcıların GitHub'a yüklediği ekran görüntüleri ve yorumsuz oynanış videolarından tek tek alındı; kanal filigranı ve anlatıcı yazıları bulanıklaştırıldı, kişisel bilgi taşıyan kare yok. Pencere varyantları gerçek karenin sentetik pencere çerçevesine (başlık çubuğu, siyah şerit) sarılmasıdır. Kutular kareye oranla [sol, üst, sağ, alt].",
+  "about": "Gerçek kare gerileme seti (scripts/regression-frames.sh). Kareler kullanıcıların GitHub'a yüklediği ekran görüntüleri ve yorumsuz oynanış videolarından tek tek alındı; kanal filigranı ve anlatıcı yazıları bulanıklaştırıldı, kişisel bilgi taşıyan kare yok. Pencere varyantları gerçek karenin sentetik pencere çerçevesine (başlık çubuğu, siyah şerit) sarılmasıdır. Adı sentetik- ile başlayan kareler bir bildirimdeki sahneye benzetilip çizilmiştir (gerçek oyun görüntüsü değildir). Kutular kareye oranla [sol, üst, sağ, alt].",
   "frames": [
     {
       "id": "gta6-01-lucia",
@@ -339,6 +339,17 @@
         "RUS"
       ],
       "note": "altyazı yok"
+    },
+    {
+      "id": "sentetik-1124-kagit-ilan",
+      "file": "sentetik-1124-kagit-ilan.jpg",
+      "source": "sentetik (CoreGraphics ile çizildi; gerçek oyun görüntüsü değil): GitHub #1124'teki sahneye benzer",
+      "game": "GTA 6",
+      "signs": [
+        "SOILED SHEETS",
+        "BILLED TO YOUR ROOM"
+      ],
+      "note": "altyazı yok; altyazı alanındaki duvarda beyaz kâğıt ilan, siyah yazı (açık zeminde koyu yazı, #1124)"
     },
     {
       "id": "gta6-telefon-sohbet-1",

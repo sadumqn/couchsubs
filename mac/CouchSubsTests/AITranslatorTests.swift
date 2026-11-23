@@ -68,7 +68,7 @@ final class AITranslatorTests: XCTestCase {
     /// Listede olmayan kayıtlı model (eski sürümün boş alanı, elle yazılmış ad) varsayılana döner ve hemen kaydedilir.
     @MainActor
     func testUnknownSavedModelFallsBackToDefaultAndIsSaved() throws {
-        let defaults = UserDefaults(suiteName: "couchsubs-models-\(UUID().uuidString)")!
+        let defaults = TestDefaults.make("couchsubs-models")
         defaults.set(Data(#"{"onlineTranslation":true,"onlineEngine":"openai","openAIModel":"gpt-4o","geminiModel":"","claudeModel":"claude-sonnet-5-5"}"#.utf8),
                      forKey: StoreKey.settings)
         let model = AppModel(services: FakeServices(), store: EphemeralStore(), defaults: defaults)

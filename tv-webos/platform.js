@@ -76,7 +76,7 @@
     lastTime: -1, lastAdvanceAt: 0, advances: 0, playTried: false, sawUnpaused: false,
     pending: null, building: null, checkTimer: null, soonTimer: null, soonStrict: false, wasHidden: false,
     stalls: 0, stallNote: '', stallRebuiltAt: 0, stallTimer: null,
-    stallVideo: null, stallTime: 0, stallRebuilds: []
+    stallVideo: null, stallTime: 0, stallRebuilds: [], firstFrameAt: 0
   };
 
   function nowMs() { return new Date().getTime(); }
@@ -181,6 +181,69 @@
   // (sayı tuşu, ◀▶) sayaç sıfırlanır.
   var STALL_REBUILD_MAX = 3;
   var STALL_REBUILD_WINDOW_MS = 10 * 60000;
+  //
+  // 0.9.82 (#1055, LG OLED65C46LA, webOS 24, 0.9.81): "çeviriyi ilk başlattığımda ve PS tuşuna her bastığımda ekran 2 sn
+  // aralıklarla 3 kere kararıp geri geliyor; sonra yapmıyor". Üç, STALL_REBUILD_MAX'tır: bu TV de her yeni <video>'da
+  // birkaç saniye sonra 'stalled' gönderiyor, sağlam görüntü 0.9.73'ün sınırı dolana kadar üç kez yeniden kuruluyor.
+  // Çeviri başında (showHdmi sayacı sıfırlar) ve PS tuşundan dönüşte (arka plandan dönüş <video>'yu kurar, yeni <video>
+  // yine 'stalled' olur; 10 dk'lık pencere dolmuşsa sınır baştan) yineleniyordu. Sayfa bu TV'yi #643'ün siyah ekranından
+  // yine ayıramıyor (ikisinde de ilk kareden birkaç saniye sonra 'stalled', rs4, t=); ayıran kullanıcıdır: siyah ekranda
+  // girişi yeniden seçer (#643'te ◀▶). Artık TV öğrenilir:
+  // - Yeni <video>'nun ilk karesinden STALL_FRESH_MS içinde gelen 'stalled' "taze"dir.
+  // - Sınır doluyken gelen taze 'stalled'dan sonra kullanıcı NOISE_LEARN_MS içinde girişi yeniden seçmezse (görüntü
+  //   sağlamdı) TV "her kurulumda stalled gönderen TV" olarak saklanır (localStorage NOISE_KEY). İlk oturum 0.9.73 gibidir.
+  // - Saklandıysa taze 'stalled' görüntüye dokunmaz ("stall <n> noise"). Oturmuş görüntüde (ilk kareden STALL_FRESH_MS
+  //   sonra) gelen 'stalled' eskisi gibi yeniden kurdurur (0.9.73 sınırıyla).
+  // - Dokunulmayan taze 'stalled'dan sonra NOISE_DOUBT_MS içinde kullanıcı girişi yeniden seçerse (sayı tuşu, ◀▶; ekran
+  //   siyahtı) kayıt silinir ve öğrenme bu oturumda durur: sonraki taze 'stalled' yine kurdurur.
+  // Arka plandan dönüşün sıkı denetimi değişmedi (PS tuşundan dönüşte en çok bir yeniden kurma). Gerçek LG'de denenmedi.
+  var STALL_FRESH_MS = 20000;
+  var NOISE_LEARN_MS = 2 * 60000;
+  var NOISE_DOUBT_MS = 3 * 60000;
+  var NOISE_KEY = 'couchsubs.hdmiStallNoise';
+  var noise = { known: readNoise(), learnTimer: null, ignoredAt: 0, doubted: false };
+
+  function readNoise() {
+    try { return window.localStorage.getItem(NOISE_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function saveNoise(known) {
+    noise.known = known;
+    try {
+      if (known) window.localStorage.setItem(NOISE_KEY, '1');
+      else window.localStorage.removeItem(NOISE_KEY);
+    } catch (e) {}
+  }
+
+  // Görüntünün ilk karesinden bu yana STALL_FRESH_MS geçmedi.
+  function freshPicture(now) {
+    return !!hdmi.firstFrameAt && now - hdmi.firstFrameAt < STALL_FRESH_MS;
+  }
+
+  // Sınır doluyken taze 'stalled'a dokunulmadı: kullanıcı NOISE_LEARN_MS içinde girişi yeniden seçmezse TV saklanır.
+  function learnNoiseSoon() {
+    if (noise.known || noise.doubted || noise.learnTimer !== null) return;
+    noise.learnTimer = setTimeout(function check() {
+      noise.learnTimer = null;
+      if (noise.known || noise.doubted || !hdmi.host) return;
+      // Arka plandayken (PS tuşu) karar verilmez; öne gelince bir süre daha beklenir.
+      if (pageHidden() || !hdmi.video || !hasFrames(hdmi.video)) {
+        noise.learnTimer = setTimeout(check, NOISE_LEARN_MS);
+        return;
+      }
+      saveNoise(true);
+    }, NOISE_LEARN_MS);
+  }
+
+  // Kullanıcı girişi yeniden seçti (showHdmi). Dokunulmayan taze 'stalled'dan kısa süre sonraysa ekran siyahtı.
+  function noteReselect(now) {
+    if (!noise.ignoredAt || now - noise.ignoredAt >= NOISE_DOUBT_MS) return;
+    noise.doubted = true;
+    noise.ignoredAt = 0;
+    clearTimeout(noise.learnTimer);
+    noise.learnTimer = null;
+    if (noise.known) saveNoise(false);
+  }
   var FOCUS_MAX = 3;
   var MUTE_CHECK_MS = 1500;
   var SOUND_AFTER_MS = 3000;
@@ -389,12 +452,14 @@
     hdmi.advances = 0;
     hdmi.playTried = false;
     hdmi.sawUnpaused = false;
+    hdmi.firstFrameAt = 0;
     sound.focusAsks = 0;
 
     function current() { return hdmi.video === video; }
     function picture(kind) {
       return function () {
         if (!current()) return;
+        if (!hdmi.firstFrameAt) hdmi.firstFrameAt = nowMs();
         hdmi.played = true;
         hdmi.everPlayed = true;
         hdmi.onStatus(kind);
@@ -442,9 +507,21 @@
     }
     // Denetim zaten bekliyorsa ya da kurma sıradaysa art arda gelen olay onu ertelemez.
     if (hdmi.stallTimer !== null || hdmi.pending !== null || hdmi.building !== null) return;
+    var now = nowMs();
+    var fresh = freshPicture(now);
+    // Bu TV her yeni <video>'da 'stalled' gönderiyor ve görüntü sağlam kalıyordu (0.9.82, öğrenildi): taze olaya dokunulmaz.
+    if (fresh && noise.known) {
+      hdmi.stallNote = 'noise';
+      noise.ignoredAt = now;
+      return;
+    }
     // Bu pencerede 'stalled' yüzünden yeterince kuruldu: TV olayı sağlam görüntüde de gönderiyor olabilir (0.9.73).
-    if (stallLimitReached(nowMs())) {
+    if (stallLimitReached(now)) {
       hdmi.stallNote = 'limit';
+      if (fresh) {
+        noise.ignoredAt = now;
+        learnNoiseSoon();
+      }
       return;
     }
     var waiting = !!hdmi.stallRebuiltAt && nowMs() - hdmi.stallRebuiltAt < STALL_EVENT_WAIT_MS;
@@ -797,6 +874,8 @@
     // onStatus: 'loading' | 'ready' | 'playing' | 'inputError' | 'sourceError'
     // Giriş açıldıktan sonra görüntü gözcüsü çalışır (yukarıda): görüntü düşerse <video> yeniden kurulur.
     showHdmi: function (port, host, onStatus) {
+      // Dokunulmayan taze 'stalled'dan hemen sonra giriş yeniden seçildiyse ekran siyahtı: TV "gürültülü" sayılmaz.
+      if (hdmi.host) noteReselect(nowMs());
       clearTimeout(hdmi.pending);
       clearTimeout(hdmi.building);
       clearTimeout(hdmi.soonTimer);

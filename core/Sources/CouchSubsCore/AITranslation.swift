@@ -835,6 +835,12 @@ public final class AITranslationCore: @unchecked Sendable {
     /// parçalar yerel çeviriye düşerdi; yerel çeviri kurulu değilse ekranın hiçbir yazısı çevrilmezdi. Bu tek istek
     /// kullanıcının tuşa basmasıyla gider: ortak hak o an bitmiş olsa da gönderilir (hakkı sayılır). Hata ya da dakikalık
     /// sınırda parçalar yerel çeviriyle çevrilir; o da yoksa hata yukarı çıkar ve ekranda gösterilir.
+    /// Önbellekteki çevirisi (`translateAll` ile aynı anahtar: oynanan oyunla); istek göndermez.
+    public func cached(_ text: String) -> String? {
+        let game = self.game?()?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cache.value(for: cacheKey(text, game: game))
+    }
+
     public func translateAll(_ texts: [String], fallback: (String) async throws -> String) async throws -> [String] {
         let game = self.game?()?.trimmingCharacters(in: .whitespacesAndNewlines)
         var results: [String?] = texts.map { cache.value(for: self.cacheKey($0, game: game)) }

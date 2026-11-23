@@ -91,14 +91,14 @@ public partial class MainView : UserControl
             or nameof(AppController.DemoMode))
             Refresh();
         if (e.PropertyName is nameof(AppController.Settings) or nameof(AppController.InstalledPacks) or nameof(AppController.PlayedGame)
-            or nameof(AppController.IsRunning) or nameof(AppController.Ps5Tone) or nameof(AppController.TvTone) or nameof(AppController.TvClients)
+            or nameof(AppController.XboxNeedsGame) or nameof(AppController.IsRunning) or nameof(AppController.Ps5Tone) or nameof(AppController.TvTone) or nameof(AppController.TvClients)
             or nameof(AppController.DemoMode) or nameof(AppController.CanStart) or nameof(AppController.TranslatorStatus) or nameof(AppController.OnlineIssue)
             or nameof(AppController.TvReconnecting) or nameof(AppController.TvStatusText))
             ShowChips();
         if (e.PropertyName is nameof(AppController.Settings))
             Preview.SetRegion(controller.Settings.Region);
         if (e.PropertyName is nameof(AppController.IsRunning) or nameof(AppController.DemoMode) or nameof(AppController.PlayedGame) or nameof(AppController.AskingGame)
-            or nameof(AppController.AreaProfileGame) or nameof(AppController.OfferedAreaProfileGame))
+            or nameof(AppController.XboxNeedsGame) or nameof(AppController.AreaProfileGame) or nameof(AppController.OfferedAreaProfileGame))
             ShowGame();
         if (e.PropertyName is nameof(AppController.LastTranslation) or nameof(AppController.IsRunning))
             Preview.SetLine(controller.IsRunning ? controller.LastTranslation : null);
@@ -334,7 +334,10 @@ public partial class MainView : UserControl
         var packs = GameCatalog.PackShelf(controller.InstalledPacks);
         var game = controller.PlayedGame;
         var hasPack = game is not null && settings.GamePacks && packs.Any(item => item.Titles.Append(item.Title).Any(title => GameName.Key(title) == GameName.Key(game)));
-        GameTile.Show(text["Game"], game ?? text["Not Recognized"], hasPack ? text["Pack"] : null, game is null ? StatusTone.Idle : StatusTone.Good, "\uE9CE", IconTone.Gray, game);
+        // Xbox oynanan oyunu bildirmez: oyun seçilmediyse karo amber halkayla vurgulanır (zorlayıcı kart açılmaz).
+        var needsGame = controller.XboxNeedsGame;
+        GameTile.Show(text["Game"], game ?? text["Not Recognized"], hasPack ? text["Pack"] : needsGame ? text["Choose"] : null,
+            needsGame ? StatusTone.Warning : game is null ? StatusTone.Idle : StatusTone.Good, "\uE9CE", IconTone.Gray, game, needsGame);
 
         var engineTone = controller.TranslatorStatus == TranslatorStatus.EngineFailed || (running && controller.OnlineIssue is not null) ? StatusTone.Warning : StatusTone.Good;
         var engine = settings.Engine == TranslationEngine.Free ? text["Free Translation"] : settings.Engine.DisplayName();
@@ -568,6 +571,7 @@ public partial class MainView : UserControl
         if (asking && !wasAsking) Theme.Motion.EnterFrom((FrameworkElement)GameAsk.Children[0], 12, Theme.Motion.Page);
         PlayedGameText.Text = controller.PlayedGame ?? text["Not known"];
         GameChangeButton.Content = text[controller.PlayedGame is null ? "Choose" : "Change"];
+        XboxGameNote.Visibility = controller.XboxNeedsGame && !asking ? Visibility.Visible : Visibility.Collapsed;
         if (asking) ShowGameSuggestions();
         else GameSearch.Text = "";
         ShowAreaProfile(asking);

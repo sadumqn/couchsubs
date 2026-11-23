@@ -604,6 +604,9 @@ struct SubtitleScreen: View {
             GeometryReader { proxy in
                 if let panel { PhonePanelInFrame(panel, size: proxy.size, minFont: 12) }
                 ForEach(Array((panel?.outside ?? placed).enumerated()), id: \.offset) { _, item in
+                  if ScreenFit.takesPart(item) {
+                    Self.fittedBlock(item, size: proxy.size)
+                  } else {
                     let box = item.box
                     let backdrop = ScreenPhoneCard.isBackdrop(item)
                     let width = backdrop ? proxy.size.width * (box.right - box.left) : max(60, proxy.size.width * (box.right - box.left))
@@ -631,6 +634,7 @@ struct SubtitleScreen: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .position(x: proxy.size.width * box.left + width / 2,
                                   y: proxy.size.height * (box.top + box.bottom) / 2)
+                  }
                 }
             }
             .allowsHitTesting(false)
@@ -711,6 +715,47 @@ struct SubtitleScreen: View {
     private var scale: Double { Double(model.settings.style.fontSize) / Double(SubtitleStyle().fontSize) * liveScale }
 
     /// "#RRGGBB" → renk; geçersizse nil.
+    /// Özgün stilli ekran yazısı TV ve Mac ile aynı yerleşimle (`ScreenFit.lines`): yazı boyu satır yüksekliğinin 0,95'i ve
+    /// küçülmez; Türkçe uzunsa yatayda sıkışır, bilgisayarın verdiği alana (simgelere kadar) genişler, özgün satır sayısında
+    /// kalır. Önceden yazı en çok 28 noktayla sınırlanıyor, kutu özgün genişliğin dışına taşabiliyordu.
+    @ViewBuilder
+    static func fittedBlock(_ item: ScreenTranslation.Item, size: CGSize) -> some View {
+        let line = max(1, item.lineHeight * size.height)
+        let fontSize = line * 0.95
+        let boxHeight = max(0, item.box.bottom - item.box.top) * size.height
+        let bold = item.look?.bold == true
+        let fit = ScreenFit.lines(item.translation, left: item.box.left * size.width,
+                                  width: max(1, item.box.right - item.box.left) * size.width,
+                                  room: item.room.map { ($0.left * size.width, $0.right * size.width) }, rows: item.rows,
+                                  align: item.look?.align ?? .left) { ScreenFit.textWidth($0, size: fontSize, bold: bold) }
+        let pitch = max(boxHeight / CGFloat(max(1, fit.lines.count)), fontSize * 1.05)
+        let alignment: Alignment = switch item.look?.align {
+        case .center: .center
+        case .right: .trailing
+        default: .leading
+        }
+        let anchor: UnitPoint = switch item.look?.align {
+        case .center: .center
+        case .right: .trailing
+        default: .leading
+        }
+        VStack(alignment: alignment.horizontal, spacing: 0) {
+            ForEach(Array(fit.lines.enumerated()), id: \.offset) { _, text in
+                Text(verbatim: text)
+                    .font(.system(size: fontSize, weight: bold ? .bold : .semibold))
+                    .foregroundStyle(screenColor(item.style?.foreground) ?? Mobile.Palette.text)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .scaleEffect(x: fit.squeeze, y: 1, anchor: anchor)
+                    .frame(width: fit.width, height: pitch, alignment: alignment)
+            }
+        }
+        .frame(width: fit.width, alignment: alignment)
+        .frame(minHeight: boxHeight)
+        .background(screenColor(item.style?.background) ?? .black)
+        .position(x: fit.left + fit.width / 2, y: (item.box.top + item.box.bottom) / 2 * size.height)
+    }
+
     private static func screenColor(_ hex: String?) -> Color? {
         guard let hex, let rgb = SpeakerColors.rgb(hex) else { return nil }
         return Color(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue)

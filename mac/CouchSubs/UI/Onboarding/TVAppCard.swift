@@ -303,6 +303,11 @@ struct TVAppCard: View {
         case .unreachable where brand == .samsung:
             String(localized: "The TV did not accept this computer. In the TV's Developer Mode window, check that Host PC IP is this computer's address, then restart the TV.")
         case .unreachable: String(localized: "The TV did not respond. Make sure it is on and on the same network.")
+        // Kayıtlı adres sessiz, TV ağda da bulunamadı: "geliştirici modu / Key Server kapalı" denmez (beta.89).
+        case .tvNotResponding: String(localized: "The TV isn't responding at this address (is it on and on the same network?)")
+        // #200, #1116: Key Server yanıt veriyor ama 9922 reddediyor (iPhone/Android'deki lgErrRestartNeeded ile aynı metin).
+        case .devConnectionClosed:
+            String(localized: "Developer mode looks on (the TV's Key Server answers), but the TV refuses the install connection. Unplug the TV for 30 seconds and plug it back in (or press RESTART in the Developer Mode app), then open the Developer Mode app, check that Dev Mode Status is on, turn on Key Server and try again. On some TVs that use webOS Hub this connection may be closed in the TV's software; the TV app then cannot be installed this way.")
         // Eskiden her hatada boş alan suçlanıyordu; oysa çoğu zaman sorun başkaydı (ares-install aynı TV'ye kurabiliyordu).
         case .installFailed where hasReason:
             String(localized: "The TV app could not be installed. Try again; if it fails again, send us the reason below.")

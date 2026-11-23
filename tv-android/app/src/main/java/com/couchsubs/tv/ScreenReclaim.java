@@ -98,7 +98,8 @@ final class ScreenReclaim {
         /** CouchSubs ekranı geri öne getirilir. */
         RECLAIM,
         /**
-         * Devralma ama dakikadaki geri alma hakkı doldu (TV sürekli geri itiyor): izin varsa katmana geçilir. Yoksa
+         * Devralma ama dakikadaki geri alma hakkı doldu (TV sürekli geri itiyor): izin varsa ve kullanıcı bilerek Uygulama
+         * içinde seçmediyse katmana geçilir (bkz. DisplayMode.mayAutoSwitch). Yoksa
          * CouchSubs arkada kalır; altyazı bağlantısı açık olduğundan bilgisayar/telefon TV'yi "bağlı" görür ama
          * yazı görünmeyen ekrana çizilir (bkz. MainActivity.onStop).
          */
@@ -115,11 +116,24 @@ final class ScreenReclaim {
         lastSignal = -1;
         // Kullanıcı kendisi bir şey açtı (Ayarlar tuşuyla hızlı ayarlar, Giriş tuşu): geri alınmaz, katmana da geçilmez.
         if (userActedBefore(pausedAt)) return Action.NONE;
+        return spend(pausedAt) ? Action.RECLAIM : Action.GIVE_UP;
+    }
+
+    /**
+     * Uygulama içi bilerek seçiliyken TV girişi açar açmaz HDMI'yı kendi oynatıcısına aldı (FallbackWatch.takenOver):
+     * katmana geçilmez, CouchSubs ekranı geri öne getirilir ve giriş yeniden açılır. Aynı dakikalık hakkı kullanır; hak
+     * dolduysa false (TV sürekli kendine alıyor, sonsuz itişme olmasın).
+     */
+    boolean retake(long now) {
+        return spend(now);
+    }
+
+    private boolean spend(long now) {
         long oldest = reclaims[next];
-        if (oldest >= 0 && pausedAt - oldest < 60_000) return Action.GIVE_UP;
-        reclaims[next] = pausedAt;
+        if (oldest >= 0 && now - oldest < 60_000) return false;
+        reclaims[next] = now;
         next = (next + 1) % MAX_PER_MINUTE;
-        return Action.RECLAIM;
+        return true;
     }
 
     boolean shouldReclaim(long pausedAt, boolean played) {

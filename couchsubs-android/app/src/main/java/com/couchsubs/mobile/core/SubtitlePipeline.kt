@@ -19,6 +19,12 @@ fun interface TextTranslator {
      * sonraki cümlelerin içinde geçince çeviriden korunur (#287).
      */
     fun noteSpeaker(name: String) {}
+
+    /**
+     * Diskteki önbellekte duran çevirisi (istek göndermeden); yoksa null. "Ekranı çevir" önbellekteki yazıları çeviri
+     * isteğini beklemeden hemen çizer (Mac ve Windows ile aynı).
+     */
+    fun cachedTranslation(text: String): String? = null
 }
 
 /**
@@ -134,8 +140,15 @@ class SubtitlePipeline(
     private val stickyRows = StickyRows()
     /** Bu oturumda kesin altyazının okunduğu yükseklikler: oradaki kısa satır sahne yazısı sayılmaz ([SceneText]). */
     private val subtitleBand = SubtitleBand()
+    /** Oyunun altyazısı koyu yazı mı (açık zemindeki koyu yazı kuralı o oturumda kapanır, [InkTone]; GitHub #1124). */
+    private val darkInkStyle = DarkInkStyle()
     /** Günlüğe yazılmış son sahne yazıları (her karede yeniden yazılmasın). */
     private val loggedSceneText = ArrayDeque<String>()
+    /**
+     * Karara bağlanmış (atılan ya da gösterilen) satırlar, ekranda durdukça ([SettledText]): zaten hedef dilde olan
+     * bloğun bozuk okunmuş parçası çevrilmez, aynı satır değişmeyen ekranda yeniden işlenmez.
+     */
+    private val settled = SettledText()
     /** Son günlüğe yazılan sabit blok ([logStale]; aynı bant her karede yazılmasın). */
     private var loggedStale = ""
 
@@ -281,10 +294,11 @@ class SubtitlePipeline(
 
     /**
      * Bir karenin okuması ve okunan alanın karedeki yeri. [signature]: bölgenin izi ([RegionSignature.of]); okuma boş
-     * dönse de satırın yeri değişmediyse satır silinmez (parlak zemin).
+     * dönse de satırın yeri değişmediyse satır silinmez (parlak zemin). [darkInk]: okunan alanın görüntüsünde satır kutusu
+     * açık zeminde koyu yazı mı ([InkTone.sampler]; kâğıt ilan altyazı değildir, GitHub #1124).
      */
     fun process(raw: Reading, area: TextBox, signature: ByteArray? = null, capturedAt: Long? = null, ocrMs: Int? = null,
-                phone: ScreenPhoneCard.Handset? = null, reused: Boolean = false) {
+                phone: ScreenPhoneCard.Handset? = null, reused: Boolean = false, darkInk: ((TextBox) -> Boolean)? = null) {
         frameAt = capturedAt
         frameOcrMs = ocrMs
         synchronized(lock) {
@@ -334,11 +348,20 @@ class SubtitlePipeline(
             val edge = mutableListOf<Reading>()
             val staleTexts = mutableListOf<String>()
             val readAt = now()
+            // Açık zemindeki koyu yazı (duvardaki kâğıt ilan) altyazı değildir ([InkTone], GitHub #1124); oyunun altyazısı
+            // koyu yazıysa ([DarkInkStyle]) renge bakılmaz.
+            val darkBlocks = mutableListOf<Reading>()
             filtered.subtitleBlock(area, subtitleBand, notices = { block ->
                 edge.add(Reading(block.lines.map { it.copy(box = it.box?.placedIn(area)) }))
-            }, age = { stickyRows.unchangedMs(it, readAt) }, stale = { block -> staleTexts += block.lines.map { it.text } }) {
-                block, reason -> logSceneText(block.text, reason)
+            }, age = { stickyRows.unchangedMs(it, readAt) }, stale = { block -> staleTexts += block.lines.map { it.text } },
+                darkInk = if (darkInkStyle.isGameStyle) null else darkInk) { block, reason ->
+                if (reason == InkTone.REASON) darkBlocks += block
+                logSceneText(block.text, reason)
             }.also {
+                for (block in darkBlocks) {
+                    if (darkInkStyle.observe(block, area)) onLog?.invoke(
+                        "koyu yazılı altyazı: bu oyunun altyazısı koyu yazı sayıldı, açık zemindeki koyu yazı bu oturumda atılmıyor")
+                }
                 logStale(staleTexts)
                 subtitleBand.record(it, area)
                 if (notices.observe(edge, now())) {
@@ -369,6 +392,8 @@ class SubtitlePipeline(
         val after: (() -> Unit)? = synchronized(lock) {
             // Altyazının yerinde yalnız kendi çevirimiz okunduysa (örtme ya da üst üste binen katman) satır kalkmış sayılmaz.
             val ownOnly = ownLines.isNotEmpty() && reading.lines.isEmpty() && OwnSubtitles.coversLine(ownLines, lastSentBox)
+            // Karara bağlanmış satırlar karede hâlâ okunuyor mu (ekran değişti mi; [SettledText]).
+            settled.observe(raw.lines.map { it.text }, now())
             var action = if (ownOnly) StabilizerAction.None else stabilizer.feed(reading.text, signature, reading.box)
             val box = reading.box?.placedIn(area)?.centeredOnScreen()
             var fromHold: (() -> Unit)? = null
@@ -504,6 +529,7 @@ class SubtitlePipeline(
      * çevrilir. Temiz ve tam cümle ya da pakette bulunan satır beklemeden gider (Windows: TranslateOrHold).
      */
     private fun translateOrHold(source: String, box: TextBox?): (() -> Unit)? {
+        if (quietDrop(source, box)) return null
         if (restoreQueued(source)) return null
         nameRead(source)?.let { return it }
         if (!holdReadings) { lineLeft(); return enqueue(source, box) }
@@ -615,15 +641,43 @@ class SubtitlePipeline(
         lineOnScreen = null
     }
 
+    /**
+     * Kararlı satır altyazı adayı değil ([SettledText]): karara bağlanmış ve hâlâ ekranda duruyor (sessizce geçilir),
+     * Türkçe (harfleri bozulmuş da olsa; bekletilmeden atılır), zaten hedef dilde olan aynı yerdeki bloğun bozuk okunmuş
+     * parçası, ya da kapanmayan parantezle bölünmüş çöp okuma ([OcrNoise.looksBracketGarbled]). Atılan satır günlüğe bir
+     * kez yazılır. Mac/iPhone (quietDrop) ve Windows (QuietDrop) aynı kuralları uygular.
+     */
+    private fun quietDrop(source: String, box: TextBox?): Boolean {
+        if (settled.isSettled(source)) return true
+        val excerpt = if (source.length > 120) source.take(120) + "…" else source
+        val target = skipsTurkish && TurkishText.looksTurkish(source)
+        val note = when {
+            target -> "\"$excerpt\" → zaten Türkçe, çevrilmedi"
+            settled.isTargetFragment(source, box) ->
+                "altyazı sayılmadı: \"$excerpt\" zaten hedef dilde olan satırın bozuk okunmuş parçası, çevrilmedi"
+            OcrNoise.looksBracketGarbled(source) ->
+                "altyazı sayılmadı: \"$excerpt\" çöp okuma (kapanmayan parantezle bölünmüş sözcük), çevrilmedi"
+            else -> return false
+        }
+        // Ekrandaki satırın yerine altyazı olmayan yazı geldi: önceki satır kalkmış sayılır.
+        lineLeft()
+        settled.settle(source, box, target, shown = false, time = now(), loose = true)
+        onLog?.invoke(note)
+        return true
+    }
+
     private fun enqueue(source: String, box: TextBox?, capturedAt: Long? = frameAt, ocrMs: Int? = frameOcrMs): (() -> Unit)? {
         val request = Request(source, ++lastRequested, box, session, capturedAt, ocrMs)
         lineOnScreen = request.number
         lastSent = Sent(source, Rereads.score(source), now())
-        packMatch(request)?.let { return showPacked(request, it) }
-        if (skipsTurkish && TurkishText.isSure(source)) {
+        // Türkçe satır (harfleri bozulmuş da olsa) pakette aranmaz: paket anahtarları İngilizcedir; PS5'in Türkçe menü
+        // satırı ("Yakin zamanda olu...") paketteki bozuk bir parçayla eşleşip "Yakın zamanda öldü." gösteriliyordu.
+        if (skipsTurkish && TurkishText.looksTurkish(source)) {
             remember(request.number, source, null)
+            settled.settle(source, box, target = true, shown = false, time = now(), loose = true)
             return null
         }
+        packMatch(request)?.let { return showPacked(request, it) }
         val missed = onPackMissed
         val current = inFlight
         if (current == null) {
@@ -679,6 +733,7 @@ class SubtitlePipeline(
         val translated = present(packed.text, request)
         val shouldSend = stabilizer.shouldSend(source, translated)
         remember(request.number, source, if (shouldSend) translated else null)
+        settled.settle(source, request.box, target = !shouldSend, shown = shouldSend, time = now())
         if (!shouldSend) return null
         lastShown = request.number
         send(translated, source, 15000, request.box, revisesShown(source))
@@ -707,6 +762,9 @@ class SubtitlePipeline(
             lineOnScreen = request.number
             return null
         }
+        // Çevirisi hiç yoksa normal yoldan çevrilir; altyazı adayı olmayan satır (Türkçe, Türkçe bloğun parçası, çöp ya
+        // da ekranda duran atılmış satır) yine atılır.
+        if (quietDrop(source, box)) return null
         return enqueue(source, box)
     }
 
@@ -773,11 +831,13 @@ class SubtitlePipeline(
             translated = present(sentence, request)
             val shouldSend = stabilizer.shouldSend(input, sentence)
             remember(request.number, source, if (shouldSend) translated else null)
+            if (!shouldSend) settled.settle(source, request.box, target = true, shown = false, time = now())
             if (request.number <= lastShown || !shouldSend || request.superseded) return
             val onScreen = request.number == lineOnScreen
             val left = request.leftAt
             // Satır ekrandan çoktan kalktıysa çevirisi sonraki sahnenin üstüne düşmesin.
             if (!onScreen && left != null && isLate(request, now())) return
+            settled.settle(source, request.box, target = false, shown = true, time = now())
             lastShown = request.number
             send(translated, source, if (onScreen) 15000 else readingTime(translated), request.box, revisesShown(source))
             lastShownSource = source
@@ -806,7 +866,9 @@ class SubtitlePipeline(
         pairs.clear()
         stickyRows.reset()
         subtitleBand.reset()
+        darkInkStyle.reset()
         loggedSceneText.clear()
+        settled.reset()
         loggedStale = ""
         mission.reset()
         notices.reset()

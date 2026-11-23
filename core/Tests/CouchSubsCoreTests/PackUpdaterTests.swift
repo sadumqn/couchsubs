@@ -220,7 +220,7 @@ final class PackUpdaterTests: XCTestCase {
     }
 
     func testAddressComesOnlyFromConfiguration() {
-        let defaults = UserDefaults(suiteName: "packs-\(UUID().uuidString)")!
+        let defaults = TestDefaults.make("packs")
         XCTAssertNil(PackUpdater.configuredBaseURL(environment: [:], defaults: defaults, bundle: Bundle(for: Self.self)))
         XCTAssertNil(PackUpdater.configuredBaseURL(environment: ["COUCHSUBS_PACKS_URL": "  "], defaults: defaults,
                                                    bundle: Bundle(for: Self.self)))

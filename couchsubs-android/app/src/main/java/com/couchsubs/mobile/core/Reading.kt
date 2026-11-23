@@ -188,11 +188,13 @@ class Reading(lines: List<TextLine>) {
      * altyazı bloğu sayılmaz, [notices] ile bildirilir (satır kutuları alana oranlı); kendi yerinde çevrilir. Önceden
      * ortalanmış blok yokken altyazı seçilip ekranın ortasında çiziliyordu. [age]: satırın ne kadar süredir değişmeden
      * okunduğu ([StickyRows.unchangedMs]); verilirse [STALE_MS]'dir değişmeyen ortalı blok, yanında yeni beliren ortalı
-     * blok varken seçilmez, atlanan blok [stale] ile bildirilir.
+     * blok varken seçilmez, atlanan blok [stale] ile bildirilir. [darkInk]: satır kutusu açık zeminde koyu yazı mı
+     * ([InkTone.sampler]; kâğıt ilan sahne yazısıdır, GitHub #1124); verilmezse renge bakılmaz.
      */
     fun subtitleBlock(
         area: TextBox, band: SubtitleBand? = null, notices: ((Reading) -> Unit)? = null,
         age: ((String) -> Long?)? = null, stale: ((Reading) -> Unit)? = null,
+        darkInk: ((TextBox) -> Boolean)? = null,
         dropped: ((Reading, String) -> Unit)? = null,
     ): Reading {
         if (lines.isEmpty() || lines.any { it.box == null }) return if (isActionLabel) Empty else this
@@ -205,7 +207,7 @@ class Reading(lines: List<TextLine>) {
         // Tabela, tişört, plaka gibi sahne yazısı ([SceneText]) altyazı alanına düşse de altyazı değildir.
         val candidates = blocks.flatMap { withoutSignLines(it) }.map { Reading(it) }.filter { block ->
             if (block.isMenu || block.isActionLabel) return@filter false
-            val reason = SceneText.reason(block, area, band) ?: return@filter true
+            val reason = SceneText.reason(block, area, band, darkInk) ?: return@filter true
             dropped?.invoke(block, reason)
             false
         }.filter { block ->

@@ -40,11 +40,16 @@ object SceneText {
     /** [block] bir sahne yazısı mı. Satır kutuları [area]'ya oranlıdır; [area] okunan alanın karedeki yeridir. */
     fun isSceneText(block: Reading, area: TextBox, band: SubtitleBand? = null): Boolean = reason(block, area, band) != null
 
-    /** Blok sahne yazısıysa atılma nedeni (altyazı günlüğü için), değilse null. */
-    fun reason(block: Reading, area: TextBox, band: SubtitleBand? = null): String? {
+    /**
+     * Blok sahne yazısıysa atılma nedeni (altyazı günlüğü için), değilse null. [darkInk]: satır kutusu (okunan alanın
+     * görüntüsüne oranla) açık zeminde koyu yazı mı ([InkTone.sampler]); verilmezse renge bakılmaz.
+     */
+    fun reason(block: Reading, area: TextBox, band: SubtitleBand? = null, darkInk: ((TextBox) -> Boolean)? = null): String? {
         val first = block.lines.firstOrNull() ?: return null
         if (SpeakerPrefix.split(first.text) != null || block.lines.any { it.box == null }) return null
         val box = block.box?.placedIn(area) ?: return null
+        // Kâğıt ilan altyazının yerinde de atılır (GitHub #1124).
+        if (darkInk != null && InkTone.isDarkBlock(block, darkInk)) return InkTone.REASON
         val words = wordCount(block.text)
         val middle = (box.top + box.bottom) / 2
         // Plaka ve tabela altyazının yerinde de atılır (GitHub #1052).

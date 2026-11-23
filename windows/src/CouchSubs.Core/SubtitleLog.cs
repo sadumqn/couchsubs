@@ -23,7 +23,7 @@ public static class SubtitleLog
     public const int ExcerptLength = 120;
 
     public static string DefaultPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "altyazi.log");
+        Path.Combine(AppDataPaths.Root, "altyazi.log");
 
     private static readonly BlockingCollection<(string? Path, string? Line, ManualResetEventSlim? Done)> Queue = new(boundedCapacity: 2000);
     private static readonly object Gate = new();

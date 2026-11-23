@@ -44,11 +44,16 @@ public static class SceneText
     /// </summary>
     public static bool IsSceneText(Reading block, TextBox area, SubtitleBand? band = null) => Reason(block, area, band) is not null;
 
-    /// <summary>Blok sahne yazısıysa atılma nedeni (altyazı günlüğü için), değilse null.</summary>
-    public static string? Reason(Reading block, TextBox area, SubtitleBand? band = null)
+    /// <summary>
+    /// Blok sahne yazısıysa atılma nedeni (altyazı günlüğü için), değilse null. <paramref name="darkInk"/>: satır kutusu
+    /// (okunan alanın görüntüsüne oranla) açık zeminde koyu yazı mı (<see cref="InkTone.Sampler"/>); verilmezse renge bakılmaz.
+    /// </summary>
+    public static string? Reason(Reading block, TextBox area, SubtitleBand? band = null, Func<TextBox, bool>? darkInk = null)
     {
         if (block.Lines.Count == 0 || SpeakerPrefix.Parse(block.Lines[0].Text) is not null) return null;
         if (block.Lines.Any(line => line.Box is null) || block.Box is not { } whole) return null;
+        // Kâğıt ilan altyazının yerinde de atılır (GitHub #1124).
+        if (darkInk is not null && InkTone.IsDarkBlock(block, darkInk)) return InkTone.Reason;
         var box = whole.PlacedIn(area);
         var words = WordCount(block.Text);
         var middle = (box.Top + box.Bottom) / 2;

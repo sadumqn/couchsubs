@@ -18,6 +18,7 @@ import json
 import re
 import sys
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,19 +80,27 @@ def problems(directory: Path, allow_missing=(), root: Path = ROOT) -> list:
         "wgt": "couchsubs-samsung.wgt",
         "apk": "couchsubs-androidtv.apk",
     }
-    empty = set()
+    empty, corrupt = set(), set()
     for kind in expected:
         if kind in duplicates:
             continue
         files = ([directory / iphone_names[kind]]
                  if (directory / "tv-packages.properties").is_file()
-                 else directory.glob("*." + kind))
+                 else list(directory.glob("*." + kind)))
         names = [path.name for path in files if path.is_file() and path.stat().st_size == 0]
         if names:
             empty.add(kind)
             result.append(f"{NAMES[kind]} paketi boş: {', '.join(names)}")
+        # APK and Samsung WGT are ZIP containers. A correct filename and
+        # matching version do not make a truncated installer usable.
+        if kind in ("apk", "wgt"):
+            invalid = [path.name for path in files if path.is_file() and
+                       path.stat().st_size > 0 and not zipfile.is_zipfile(path)]
+            if invalid:
+                corrupt.add(kind)
+                result.append(f"{NAMES[kind]} paketi bozuk arşiv: {', '.join(invalid)}")
     for kind, want in expected.items():
-        if kind in duplicates or kind in empty:
+        if kind in duplicates or kind in empty or kind in corrupt:
             continue
         have = bundled.get(kind)
         if have is None:
