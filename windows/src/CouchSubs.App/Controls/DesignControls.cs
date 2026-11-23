@@ -154,12 +154,12 @@ public class AdBand : Control
 
     private void Refresh()
     {
-        ads = AdCatalog.Banners;
+        // Bu sürümde reklam gösterilmez: şerit butonların üstüne biniyordu. Liste ne olursa olsun şerit kapalı kalır.
+        ads = [];
         index = 0;
-        Visibility = ads.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        Current = ads.Count == 0 ? null : ads[0];
+        Visibility = Visibility.Collapsed;
+        Current = null;
         timer.Stop();
-        if (ads.Count > 1 && IsLoaded) timer.Start();
     }
 
     private void Advance()

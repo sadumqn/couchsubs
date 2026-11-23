@@ -79,7 +79,7 @@
                 </Popup>
             </Grid>
 
-            <c:AdBand x:Name="Ads" VerticalAlignment="Bottom" />
+            <c:AdBand x:Name="Ads" VerticalAlignment="Bottom" Visibility="Collapsed" />
         </Grid>
     </Grid>
 </Window>
